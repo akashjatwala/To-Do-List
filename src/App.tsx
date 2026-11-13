@@ -13,6 +13,7 @@ import type {
   View,
 } from '@/types'
 import AuthScreen from './components/AuthScreen'
+import ChangePasswordModal from './components/ChangePasswordModal'
 import Sidebar from './components/Sidebar'
 import TaskComposer from './components/TaskComposer'
 import TaskList from './components/TaskList'
@@ -26,7 +27,6 @@ import {
   MenuIcon,
   MoonIcon,
   SearchIcon,
-  SettingsIcon,
   SunIcon,
   UsersIcon,
   XIcon,
@@ -58,6 +58,7 @@ export default function App() {
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [teamModal, setTeamModal] = useState<{ teamId: string | null } | null>(null)
+  const [passwordOpen, setPasswordOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [navOpen, setNavOpen] = useState(false)
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
@@ -173,6 +174,7 @@ export default function App() {
     setData(null)
     setSelectedId(null)
     setTeamModal(null)
+    setPasswordOpen(false)
     setView({ kind: 'personal' })
     setFilter('all')
     setSearch('')
@@ -370,7 +372,6 @@ export default function App() {
         <Sidebar
           data={data}
           view={view}
-          dark={dark}
           onSelectView={(next) => {
             setView(next)
             setFilter('all')
@@ -387,7 +388,10 @@ export default function App() {
           }}
           onAcceptInvite={acceptInvite}
           onDeclineInvite={declineInvite}
-          onToggleTheme={toggleTheme}
+          onChangePassword={() => {
+            setPasswordOpen(true)
+            setNavOpen(false)
+          }}
           onLogout={handleLogout}
           onClose={() => setNavOpen(false)}
         />
@@ -403,7 +407,6 @@ export default function App() {
             <Sidebar
               data={data}
               view={view}
-              dark={dark}
               onSelectView={(next) => {
                 setView(next)
                 setFilter('all')
@@ -420,7 +423,10 @@ export default function App() {
               }}
               onAcceptInvite={acceptInvite}
               onDeclineInvite={declineInvite}
-              onToggleTheme={toggleTheme}
+              onChangePassword={() => {
+                setPasswordOpen(true)
+                setNavOpen(false)
+              }}
               onLogout={handleLogout}
               onClose={() => setNavOpen(false)}
             />
@@ -499,15 +505,6 @@ export default function App() {
                       +{currentTeam.members.length - 3}
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setTeamModal({ teamId: currentTeam.id })}
-                    className="icon-btn ml-1.5 h-8! w-8!"
-                    aria-label="Manage team"
-                    title="Manage team"
-                  >
-                    <SettingsIcon className="h-4 w-4" />
-                  </button>
                 </div>
               ) : (
                 <button
@@ -628,6 +625,16 @@ export default function App() {
           onClose={() => setTeamModal(null)}
           onChanged={refresh}
           notify={notify}
+        />
+      )}
+
+      {passwordOpen && (
+        <ChangePasswordModal
+          onClose={() => setPasswordOpen(false)}
+          onDone={() => {
+            setPasswordOpen(false)
+            notify('Password updated. Other devices were signed out.', 'success')
+          }}
         />
       )}
 

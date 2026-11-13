@@ -5,6 +5,7 @@ import {
   createSession,
   consumePasswordReset,
   destroyAllSessions,
+  destroyOtherSessions,
   destroySession,
   getUserByEmail,
   getUserById,
@@ -79,6 +80,35 @@ router.get('/me', (req: AuthedRequest, res) => {
   const user = getUserById(req.userId)
   if (!user) return unauthorized(res)
   res.json({ user: { id: user.id, email: user.email } })
+})
+
+router.post('/password', async (req: AuthedRequest, res) => {
+  if (!req.userId) return unauthorized(res)
+  const user = getUserById(req.userId)
+  if (!user) return unauthorized(res)
+
+  const currentPassword =
+    typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : ''
+  const newPassword = req.body?.newPassword
+
+  if (!currentPassword) return fail(res, 400, 'Enter your current password.')
+  const passwordError = validatePassword(newPassword)
+  if (passwordError) return fail(res, 400, passwordError)
+
+  const ok = await bcrypt.compare(currentPassword, user.password_hash)
+  if (!ok) return fail(res, 400, 'Your current password is incorrect.')
+  if (await bcrypt.compare(newPassword, user.password_hash)) {
+    return fail(res, 400, 'Choose a password different from your current one.')
+  }
+
+  const hash = await bcrypt.hash(newPassword, 10)
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id)
+
+  // Stay signed in here, but sign out every other device.
+  const token = parseCookies(req.headers.cookie)[SESSION_COOKIE]
+  if (token) destroyOtherSessions(user.id, token)
+
+  res.json({ ok: true })
 })
 
 router.post('/forgot', (req, res) => {
