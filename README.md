@@ -5,11 +5,15 @@ A focused to-do list app for individuals and small teams. Personal lists stay pr
 ## Features
 
 - Email + password accounts with “remember me” sessions
-- Change password from the sidebar account area (other devices get signed out)
+- Account settings from the sidebar account menu: change password (other devices get signed out) or delete your account
 - Personal to-do lists
 - Shared team lists with host/member roles
 - Email invitations (accept or decline in-app)
+- Smart views — **All tasks**, **Upcoming** (due from today), and **This week** — across your personal list and every team
 - Due dates, Today / Overdue / Done filters, and search
+- Task priority (none / low / medium / high / urgent) with a priority filter
+- Labels/tags with per-tag filtering
+- Recurring tasks (daily, weekly, monthly); completing one automatically creates the next occurrence
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking
 - Task comments

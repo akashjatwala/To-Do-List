@@ -18,6 +18,10 @@ export interface Comment {
   email: string
 }
 
+export type Priority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
+
+export type Recurrence = 'none' | 'daily' | 'weekly' | 'monthly'
+
 export interface Task {
   id: string
   text: string
@@ -25,6 +29,9 @@ export interface Task {
   createdAt: number
   due: number | null
   progress: number
+  priority: Priority
+  tags: string[]
+  recurrence: Recurrence
   teamId: string | null
   teamName: string | null
   userId: number
@@ -67,7 +74,12 @@ export interface BootstrapData {
   tasks: Task[]
 }
 
-export type View = { kind: 'personal' } | { kind: 'team'; teamId: string }
+export type View =
+  | { kind: 'all' }
+  | { kind: 'upcoming' }
+  | { kind: 'week' }
+  | { kind: 'personal' }
+  | { kind: 'team'; teamId: string }
 
 export type Filter = 'all' | 'open' | 'done' | 'today' | 'overdue'
 

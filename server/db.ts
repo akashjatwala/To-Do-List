@@ -71,6 +71,9 @@ db.exec(`
     due INTEGER,
     position INTEGER NOT NULL DEFAULT 0,
     progress INTEGER NOT NULL DEFAULT 0,
+    priority TEXT NOT NULL DEFAULT 'none',
+    tags TEXT NOT NULL DEFAULT '[]',
+    recurrence TEXT NOT NULL DEFAULT 'none',
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
   );
@@ -103,13 +106,24 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_team_invites_email ON team_invites(email);
 `)
 
-// Migration for databases created before manual task progress existed.
+// Lightweight migrations for databases created by older versions of the app.
 const taskColumns = db.prepare('PRAGMA table_info(tasks)').all() as unknown as Array<{
   name: string
 }>
-if (!taskColumns.some((column) => column.name === 'progress')) {
+const hasTaskColumn = (name: string) => taskColumns.some((column) => column.name === name)
+
+if (!hasTaskColumn('progress')) {
   db.exec('ALTER TABLE tasks ADD COLUMN progress INTEGER NOT NULL DEFAULT 0')
   db.prepare('UPDATE tasks SET progress = 100 WHERE done = 1').run()
+}
+if (!hasTaskColumn('priority')) {
+  db.exec("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'none'")
+}
+if (!hasTaskColumn('tags')) {
+  db.exec("ALTER TABLE tasks ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+}
+if (!hasTaskColumn('recurrence')) {
+  db.exec("ALTER TABLE tasks ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'none'")
 }
 
 export interface UserRow {
@@ -157,6 +171,9 @@ export interface TaskRow {
   due: number | null
   position: number
   progress: number
+  priority: string
+  tags: string
+  recurrence: string
 }
 
 export interface SubtaskRow {

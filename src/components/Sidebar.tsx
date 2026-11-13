@@ -1,12 +1,14 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BootstrapData, Team, UserInvite, View } from '@/types'
 import { initials } from '@/lib/date'
 import { Avatar } from './ui'
 import { Logo } from './Logo'
 import {
+  CalendarIcon,
+  ChevronDownIcon,
   ChevronRightIcon,
+  ClockIcon,
   InboxIcon,
-  LockIcon,
   LogOutIcon,
   SettingsIcon,
   UsersIcon,
@@ -22,6 +24,14 @@ const TEAM_TINTS = [
   'from-fuchsia-500 to-purple-500',
 ]
 
+const DAY = 24 * 60 * 60 * 1000
+
+const SMART_VIEWS = [
+  { kind: 'all', label: 'All tasks', Icon: InboxIcon },
+  { kind: 'upcoming', label: 'Upcoming', Icon: CalendarIcon },
+  { kind: 'week', label: 'This week', Icon: ClockIcon },
+] as const
+
 function teamTint(id: string): string {
   let hash = 0
   for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) % 997
@@ -36,7 +46,7 @@ export default function Sidebar({
   onManageTeam,
   onAcceptInvite,
   onDeclineInvite,
-  onChangePassword,
+  onOpenSettings,
   onLogout,
   onClose,
 }: {
@@ -47,21 +57,58 @@ export default function Sidebar({
   onManageTeam: (teamId: string) => void
   onAcceptInvite: (invite: UserInvite) => void
   onDeclineInvite: (invite: UserInvite) => void
-  onChangePassword: () => void
+  onOpenSettings: () => void
   onLogout: () => void
   onClose: () => void
 }) {
-  const openCounts = useMemo(() => {
-    const counts: Record<string, number> = { personal: 0 }
+  const [menuOpen, setMenuOpen] = useState(false)
+  const accountRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onPointerDown = (event: MouseEvent) => {
+      if (accountRef.current && !accountRef.current.contains(event.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
+
+  const counts = useMemo(() => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const weekEnd = today + 7 * DAY
+    let all = 0
+    let upcoming = 0
+    let week = 0
+    const perList: Record<string, number> = { personal: 0 }
     for (const task of data.tasks) {
       if (task.done) continue
+      all += 1
+      if (task.due !== null && task.due >= today) {
+        upcoming += 1
+        if (task.due < weekEnd) week += 1
+      }
       const key = task.teamId ?? 'personal'
-      counts[key] = (counts[key] ?? 0) + 1
+      perList[key] = (perList[key] ?? 0) + 1
     }
-    return counts
+    return { all, upcoming, week, perList }
   }, [data.tasks])
 
-  const personalActive = view.kind === 'personal'
+  const badgeClass = (active: boolean) =>
+    `rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+      active
+        ? 'bg-white/70 text-indigo-600 dark:bg-indigo-400/20 dark:text-indigo-200'
+        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+    }`
 
   return (
     <aside className="flex h-full w-72 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -77,22 +124,31 @@ export default function Sidebar({
           My lists
         </p>
 
+        {SMART_VIEWS.map(({ kind, label, Icon }) => {
+          const active = view.kind === kind
+          const count = kind === 'all' ? counts.all : kind === 'upcoming' ? counts.upcoming : counts.week
+          return (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => onSelectView({ kind })}
+              className={`sidebar-item ${active ? 'sidebar-item-active' : ''}`}
+            >
+              <Icon className="h-4.5 w-4.5 shrink-0" />
+              <span className="flex-1 truncate">{label}</span>
+              <span className={badgeClass(active)}>{count}</span>
+            </button>
+          )
+        })}
+
         <button
           type="button"
           onClick={() => onSelectView({ kind: 'personal' })}
-          className={`sidebar-item ${personalActive ? 'sidebar-item-active' : ''}`}
+          className={`sidebar-item ${view.kind === 'personal' ? 'sidebar-item-active' : ''}`}
         >
           <InboxIcon className="h-4.5 w-4.5 shrink-0" />
           <span className="flex-1 truncate">Personal</span>
-          <span
-            className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
-              personalActive
-                ? 'bg-white/70 text-indigo-600 dark:bg-indigo-400/20 dark:text-indigo-200'
-                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-            }`}
-          >
-            {openCounts.personal ?? 0}
-          </span>
+          <span className={badgeClass(view.kind === 'personal')}>{counts.perList.personal ?? 0}</span>
         </button>
 
         <div className="mt-5 px-3 pb-2">
@@ -117,15 +173,7 @@ export default function Sidebar({
                     {initials(team.name).slice(0, 1)}
                   </span>
                   <span className="flex-1 truncate">{team.name}</span>
-                  <span
-                    className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
-                      active
-                        ? 'bg-white/70 text-indigo-600 dark:bg-indigo-400/20 dark:text-indigo-200'
-                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                    }`}
-                  >
-                    {openCounts[team.id] ?? 0}
-                  </span>
+                  <span className={badgeClass(active)}>{counts.perList[team.id] ?? 0}</span>
                 </button>
                 <button
                   type="button"
@@ -216,36 +264,66 @@ export default function Sidebar({
         </div>
       </nav>
 
-      <div className="shrink-0 border-t border-slate-200 p-3 dark:border-slate-800">
-        <div className="flex items-center gap-2.5 rounded-xl px-2 py-2">
-          <Avatar email={data.user.email} size="sm" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">
-              {data.user.email.split('@')[0]}
-            </p>
-            <p className="truncate text-[11px] text-slate-400 dark:text-slate-500">
-              {data.user.email}
-            </p>
-          </div>
+      <div
+        ref={accountRef}
+        className="shrink-0 border-t border-slate-200 p-3 dark:border-slate-800"
+      >
+        <div className="relative">
+          {menuOpen && (
+            <div
+              role="menu"
+              className="animate-in absolute bottom-full left-0 mb-2 w-full overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onOpenSettings()
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+              >
+                <SettingsIcon className="h-4 w-4" />
+                Settings
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onLogout()
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10"
+              >
+                <LogOutIcon className="h-4 w-4" />
+                Sign out
+              </button>
+            </div>
+          )}
+
           <button
             type="button"
-            onClick={onLogout}
-            className="icon-btn h-8! w-8! hover:text-rose-500!"
-            aria-label="Sign out"
-            title="Sign out"
+            onClick={() => setMenuOpen((value) => !value)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition hover:bg-slate-100 dark:hover:bg-slate-800 ${
+              menuOpen ? 'bg-slate-100 dark:bg-slate-800' : ''
+            }`}
           >
-            <LogOutIcon className="h-4 w-4" />
+            <Avatar email={data.user.email} size="sm" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">
+                {data.user.email.split('@')[0]}
+              </p>
+              <p className="truncate text-[11px] text-slate-400 dark:text-slate-500">
+                {data.user.email}
+              </p>
+            </div>
+            <ChevronDownIcon
+              className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${menuOpen ? 'rotate-180' : ''}`}
+            />
           </button>
         </div>
-
-        <button
-          type="button"
-          onClick={onChangePassword}
-          className="mt-0.5 flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-        >
-          <LockIcon className="h-3.5 w-3.5 shrink-0" />
-          Change password
-        </button>
       </div>
     </aside>
   )

@@ -1,13 +1,24 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import type { Comment, Subtask, Task } from '@/types'
+import type { Comment, Priority, Recurrence, Subtask, Task } from '@/types'
 import { dateInputValue, dueFromDateInput, fullDate, timeAgo } from '@/lib/date'
+import {
+  PRIORITY_META,
+  PRIORITY_VALUES,
+  RECURRENCE_META,
+  RECURRENCE_VALUES,
+  tagTint,
+} from '@/lib/taskmeta'
 import { Avatar, Spinner } from './ui'
+import { PriorityBadge, RecurrenceBadge, TagChips } from './TaskBadges'
 import {
   CalendarIcon,
   CheckIcon,
+  FlagIcon,
   GaugeIcon,
   ListChecksIcon,
   PlusIcon,
+  RepeatIcon,
+  TagIcon,
   TrashIcon,
   XIcon,
 } from './Icons'
@@ -23,6 +34,9 @@ interface TaskDetailProps {
     done?: boolean
     due?: number | null
     progress?: number
+    priority?: Priority
+    tags?: string[]
+    recurrence?: Recurrence
   }) => Promise<boolean>
   onDelete: () => Promise<void>
   onAddSubtask: (text: string) => Promise<boolean>
@@ -54,6 +68,7 @@ export default function TaskDetail({
   const [commentText, setCommentText] = useState('')
   const [commentBusy, setCommentBusy] = useState(false)
   const [progressValue, setProgressValue] = useState(task.progress ?? 0)
+  const [tagInput, setTagInput] = useState('')
 
   useEffect(() => {
     setTitle(task.text)
@@ -114,6 +129,18 @@ export default function TaskDetail({
     void onUpdate({ progress: next }).then((ok) => {
       if (!ok) setProgressValue(task.progress ?? 0)
     })
+  }
+
+  const addTag = (event: FormEvent) => {
+    event.preventDefault()
+    const value = tagInput.trim().replace(/\s+/g, ' ')
+    setTagInput('')
+    if (!value || task.tags.includes(value) || task.tags.length >= 8) return
+    void onUpdate({ tags: [...task.tags, value] })
+  }
+
+  const removeTag = (tag: string) => {
+    void onUpdate({ tags: task.tags.filter((item) => item !== tag) })
   }
 
   return (
@@ -188,6 +215,9 @@ export default function TaskDetail({
                       </span>
                     </>
                   )}
+                  {task.priority !== 'none' && <PriorityBadge priority={task.priority} />}
+                  <RecurrenceBadge recurrence={task.recurrence} />
+                  <TagChips tags={task.tags} />
                 </p>
               </div>
             </div>
@@ -219,6 +249,103 @@ export default function TaskDetail({
                 )}
               </div>
             </div>
+
+            {/* Priority & repeat */}
+            <section className="mt-5 rounded-xl border border-slate-200 p-3.5 dark:border-slate-800">
+              <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+                <FlagIcon className="h-3.5 w-3.5" />
+                Priority
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {PRIORITY_VALUES.map((value) => {
+                  const meta = PRIORITY_META[value]
+                  const active = task.priority === value
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => void onUpdate({ priority: value })}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold transition ${
+                        active
+                          ? meta.chip
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+                      {meta.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <label className="mt-4 block">
+                <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+                  <RepeatIcon className="h-3.5 w-3.5" />
+                  Repeats
+                </span>
+                <select
+                  value={task.recurrence}
+                  onChange={(event) => void onUpdate({ recurrence: event.target.value as Recurrence })}
+                  className="field cursor-pointer py-2! text-sm"
+                >
+                  {RECURRENCE_VALUES.map((value) => (
+                    <option key={value} value={value}>
+                      {RECURRENCE_META[value].label}
+                    </option>
+                  ))}
+                </select>
+                {task.recurrence !== 'none' && (
+                  <span className="mt-1.5 block text-[11px] text-slate-400 dark:text-slate-500">
+                    Completing this task creates the next occurrence automatically.
+                  </span>
+                )}
+              </label>
+            </section>
+
+            {/* Tags */}
+            <section className="mt-5 rounded-xl border border-slate-200 p-3.5 dark:border-slate-800">
+              <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+                <TagIcon className="h-3.5 w-3.5" />
+                Tags
+              </p>
+              {task.tags.length > 0 && (
+                <div className="mb-2.5 flex flex-wrap gap-1.5">
+                  {task.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className={`inline-flex items-center gap-1 rounded-md py-0.5 pr-1 pl-1.5 text-[11px] font-medium ${tagTint(tag)}`}
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="rounded p-0.5 opacity-50 transition hover:opacity-100"
+                        aria-label={`Remove tag ${tag}`}
+                      >
+                        <XIcon className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <form onSubmit={addTag} className="flex items-center gap-2">
+                <input
+                  value={tagInput}
+                  onChange={(event) => setTagInput(event.target.value)}
+                  placeholder="Add a tag…"
+                  maxLength={24}
+                  className="w-full rounded-lg border border-transparent bg-transparent px-1 py-1.5 text-sm outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/10 dark:hover:border-slate-700 dark:focus:border-indigo-500"
+                />
+                {tagInput.trim() && (
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-indigo-500"
+                  >
+                    Add
+                  </button>
+                )}
+              </form>
+            </section>
 
             {/* Manual progress */}
             <section className="mt-5 rounded-xl border border-slate-200 p-3.5 dark:border-slate-800">

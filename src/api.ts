@@ -1,4 +1,4 @@
-import type { BootstrapData, Filter, Task, Team, User } from './types'
+import type { BootstrapData, Filter, Priority, Recurrence, Task, Team, User } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -59,9 +59,20 @@ export const api = {
     post<{ ok: true }>('/api/auth/reset', { token, password }),
   changePassword: (currentPassword: string, newPassword: string) =>
     post<{ ok: true }>('/api/auth/password', { currentPassword, newPassword }),
+  deleteAccount: (password: string) =>
+    request<{ ok: true }>('/api/auth/account', {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
+    }),
 
-  createTask: (input: { text: string; teamId: string | null; due: number | null }) =>
-    post<{ id: string }>('/api/tasks', input),
+  createTask: (input: {
+    text: string
+    teamId: string | null
+    due: number | null
+    priority?: Priority
+    tags?: string[]
+    recurrence?: Recurrence
+  }) => post<{ id: string }>('/api/tasks', input),
   updateTask: (
     id: string,
     patchBody: {
@@ -70,8 +81,11 @@ export const api = {
       due?: number | null
       position?: number
       progress?: number
+      priority?: Priority
+      tags?: string[]
+      recurrence?: Recurrence
     },
-  ) => patch<{ ok: true }>(`/api/tasks/${id}`, patchBody),
+  ) => patch<{ ok: true; spawnedId: string | null }>(`/api/tasks/${id}`, patchBody),
   deleteTask: (id: string) => del<{ ok: true }>(`/api/tasks/${id}`),
 
   addSubtask: (taskId: string, text: string) =>

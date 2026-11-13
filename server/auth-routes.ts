@@ -111,6 +111,22 @@ router.post('/password', async (req: AuthedRequest, res) => {
   res.json({ ok: true })
 })
 
+router.delete('/account', async (req: AuthedRequest, res) => {
+  if (!req.userId) return unauthorized(res)
+  const user = getUserById(req.userId)
+  if (!user) return unauthorized(res)
+
+  const password = typeof req.body?.password === 'string' ? req.body.password : ''
+  if (!password) return fail(res, 400, 'Enter your password to confirm.')
+  const ok = await bcrypt.compare(password, user.password_hash)
+  if (!ok) return fail(res, 400, 'That password is incorrect.')
+
+  // Cascades remove this user's sessions, tasks, memberships and owned teams.
+  db.prepare('DELETE FROM users WHERE id = ?').run(user.id)
+  clearSessionCookie(res)
+  res.json({ ok: true })
+})
+
 router.post('/forgot', (req, res) => {
   sweepExpired()
   const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''

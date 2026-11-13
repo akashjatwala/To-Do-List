@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { Task } from '@/types'
 import { dueState, formatDue } from '@/lib/date'
+import { PRIORITY_META } from '@/lib/taskmeta'
+import { PriorityBadge, RecurrenceBadge, TagChips } from './TaskBadges'
 import {
   CalendarIcon,
   CheckIcon,
@@ -148,6 +150,12 @@ function TaskItem({
 
   return (
     <div className="group flex items-start gap-3 rounded-xl border border-transparent px-2.5 py-2.5 transition hover:border-slate-200 hover:bg-white hover:shadow-sm dark:hover:border-slate-800 dark:hover:bg-slate-900">
+      {task.priority !== 'none' && (
+        <span
+          className={`mt-1 h-5 w-1 shrink-0 rounded-full ${PRIORITY_META[task.priority].dot}`}
+          aria-hidden="true"
+        />
+      )}
       <button
         type="button"
         onClick={() => onToggle(task)}
@@ -175,11 +183,17 @@ function TaskItem({
         </p>
 
         {(task.due !== null ||
+          task.priority !== 'none' ||
+          task.tags.length > 0 ||
+          task.recurrence !== 'none' ||
           task.subtasks.length > 0 ||
           task.comments.length > 0 ||
           (showOwner && task.userId !== currentUserId)) && (
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500">
             {task.due !== null && <DueBadge due={task.due} done={task.done} />}
+            <PriorityBadge priority={task.priority} />
+            <RecurrenceBadge recurrence={task.recurrence} />
+            <TagChips tags={task.tags} max={3} />
             {task.subtasks.length > 0 && (
               <span className="inline-flex items-center gap-1">
                 <ListChecksIcon className="h-3.5 w-3.5" />

@@ -204,3 +204,39 @@ export const GaugeIcon = (props: IconProps) => (
     <path d="M3.34 19a10 10 0 1 1 17.32 0" />
   </Icon>
 )
+
+export const FlagIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1Z" />
+    <path d="M4 22v-7" />
+  </Icon>
+)
+
+export const RepeatIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m17 2 4 4-4 4" />
+    <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+    <path d="m7 22-4-4 4-4" />
+    <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+  </Icon>
+)
+
+export const TagIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42Z" />
+    <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+  </Icon>
+)
+
+export const SlidersIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+  </Icon>
+)
+
+export const AlertIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+    <path d="M12 9v4M12 17h.01" />
+  </Icon>
+)

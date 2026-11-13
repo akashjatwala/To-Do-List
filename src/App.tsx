@@ -4,6 +4,8 @@ import type {
   BootstrapData,
   Comment,
   Filter,
+  Priority,
+  Recurrence,
   Subtask,
   Task,
   Team,
@@ -12,10 +14,11 @@ import type {
   UserInvite,
   View,
 } from '@/types'
+import { PRIORITY_FILTERS, tagTint } from '@/lib/taskmeta'
 import AuthScreen from './components/AuthScreen'
-import ChangePasswordModal from './components/ChangePasswordModal'
+import SettingsModal from './components/SettingsModal'
 import Sidebar from './components/Sidebar'
-import TaskComposer from './components/TaskComposer'
+import TaskComposer, { type NewTaskInput } from './components/TaskComposer'
 import TaskList from './components/TaskList'
 import TaskDetail from './components/TaskDetail'
 import TeamModal from './components/TeamModal'
@@ -24,6 +27,7 @@ import { Logo } from './components/Logo'
 import {
   CalendarIcon,
   CheckIcon,
+  FlagIcon,
   MenuIcon,
   MoonIcon,
   SearchIcon,
@@ -33,6 +37,7 @@ import {
 } from './components/Icons'
 
 const THEME_KEY = 'todo.theme'
+const DAY = 24 * 60 * 60 * 1000
 
 const FILTERS: Array<{ key: Filter; label: string }> = [
   { key: 'all', label: 'All' },
@@ -53,12 +58,14 @@ const TOAST_STYLES: Record<ToastTone, string> = {
 export default function App() {
   const [data, setData] = useState<BootstrapData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<View>({ kind: 'personal' })
+  const [view, setView] = useState<View>({ kind: 'all' })
   const [filter, setFilter] = useState<Filter>('all')
+  const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all')
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [teamModal, setTeamModal] = useState<{ teamId: string | null } | null>(null)
-  const [passwordOpen, setPasswordOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [navOpen, setNavOpen] = useState(false)
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
@@ -129,24 +136,46 @@ export default function App() {
 
   const viewTasks = useMemo(() => {
     if (!data) return []
-    return data.tasks.filter((task) =>
-      view.kind === 'personal'
-        ? task.teamId === null && task.userId === data.user.id
-        : task.teamId === view.teamId,
-    )
+    const tasks = data.tasks
+    if (view.kind === 'all') return tasks
+    if (view.kind === 'personal') {
+      return tasks.filter((task) => task.teamId === null && task.userId === data.user.id)
+    }
+    if (view.kind === 'team') {
+      return tasks.filter((task) => task.teamId === view.teamId)
+    }
+    // "Upcoming" and "This week": open tasks with a due date from today onward.
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const weekEnd = today + 7 * DAY
+    return tasks.filter((task) => {
+      if (task.done || task.due === null || task.due < today) return false
+      return view.kind === 'week' ? task.due < weekEnd : true
+    })
   }, [data, view])
 
   const filteredTasks = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return viewTasks.filter((task) => matchesFilter(task, filter)).filter((task) => {
-      if (!query) return true
-      return (
-        task.text.toLowerCase().includes(query) ||
-        task.ownerEmail.toLowerCase().includes(query) ||
-        task.subtasks.some((subtask) => subtask.text.toLowerCase().includes(query))
-      )
-    })
-  }, [viewTasks, filter, search])
+    return viewTasks
+      .filter((task) => matchesFilter(task, filter))
+      .filter((task) => priorityFilter === 'all' || task.priority === priorityFilter)
+      .filter((task) => tagFilter === null || task.tags.includes(tagFilter))
+      .filter((task) => {
+        if (!query) return true
+        return (
+          task.text.toLowerCase().includes(query) ||
+          task.ownerEmail.toLowerCase().includes(query) ||
+          task.tags.some((tag) => tag.toLowerCase().includes(query)) ||
+          task.subtasks.some((subtask) => subtask.text.toLowerCase().includes(query))
+        )
+      })
+  }, [viewTasks, filter, search, priorityFilter, tagFilter])
+
+  const availableTags = useMemo(() => {
+    const set = new Set<string>()
+    for (const task of viewTasks) for (const tag of task.tags) set.add(tag)
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [viewTasks])
 
   const filterCounts = useMemo(() => {
     const counts: Record<Filter, number> = { all: 0, open: 0, done: 0, today: 0, overdue: 0 }
@@ -165,28 +194,41 @@ export default function App() {
     ? data?.teams.find((team) => team.id === selectedTask.teamId)?.role === 'host'
     : true
 
+  const resetSessionState = () => {
+    setData(null)
+    setSelectedId(null)
+    setTeamModal(null)
+    setSettingsOpen(false)
+    setView({ kind: 'all' })
+    setFilter('all')
+    setPriorityFilter('all')
+    setTagFilter(null)
+    setSearch('')
+    setNavOpen(false)
+  }
+
   const handleLogout = async () => {
     try {
       await api.logout()
     } catch {
       /* sign out locally regardless */
     }
-    setData(null)
-    setSelectedId(null)
-    setTeamModal(null)
-    setPasswordOpen(false)
-    setView({ kind: 'personal' })
-    setFilter('all')
-    setSearch('')
-    setNavOpen(false)
+    resetSessionState()
   }
 
-  const addTask = async (text: string, due: number | null) => {
+  const handleAccountDeleted = () => {
+    resetSessionState()
+  }
+
+  const addTask = async (input: NewTaskInput) => {
     try {
       await api.createTask({
-        text,
+        text: input.text,
         teamId: view.kind === 'team' ? view.teamId : null,
-        due,
+        due: input.due,
+        priority: input.priority,
+        tags: input.tags,
+        recurrence: input.recurrence,
       })
       await refresh()
       return true
@@ -197,6 +239,7 @@ export default function App() {
   }
 
   const toggleTask = async (task: Task) => {
+    const wasRecurring = !task.done && task.recurrence !== 'none'
     setData((current) =>
       current
         ? {
@@ -217,6 +260,11 @@ export default function App() {
     )
     try {
       await api.updateTask(task.id, { done: !task.done })
+      if (wasRecurring) {
+        // Completing a recurring task spawns its next occurrence server-side.
+        await refresh()
+        notify('Done — the next occurrence was added.', 'success')
+      }
     } catch (error) {
       notify(errorMessage(error), 'error')
       await refresh().catch(() => undefined)
@@ -236,7 +284,15 @@ export default function App() {
 
   const updateTask = async (
     task: Task,
-    patch: { text?: string; done?: boolean; due?: number | null; progress?: number },
+    patch: {
+      text?: string
+      done?: boolean
+      due?: number | null
+      progress?: number
+      priority?: Priority
+      tags?: string[]
+      recurrence?: Recurrence
+    },
   ) => {
     try {
       await api.updateTask(task.id, patch)
@@ -341,10 +397,21 @@ export default function App() {
     )
   }
 
-  const title = currentTeam ? currentTeam.name : 'Personal'
+  const smartTitle =
+    view.kind === 'all'
+      ? 'All tasks'
+      : view.kind === 'upcoming'
+        ? 'Upcoming'
+        : view.kind === 'week'
+          ? 'This week'
+          : 'Personal'
+
+  const title = currentTeam ? currentTeam.name : smartTitle
   const subtitle = currentTeam
     ? `${currentTeam.members.length} ${currentTeam.members.length === 1 ? 'member' : 'members'} · shared list`
-    : 'Your private list'
+    : view.kind === 'personal'
+      ? 'Your private list'
+      : 'Everything across your personal list and teams'
 
   const emptyCopy = search.trim()
     ? {
@@ -375,6 +442,8 @@ export default function App() {
           onSelectView={(next) => {
             setView(next)
             setFilter('all')
+            setPriorityFilter('all')
+            setTagFilter(null)
             setSearch('')
             setNavOpen(false)
           }}
@@ -388,8 +457,8 @@ export default function App() {
           }}
           onAcceptInvite={acceptInvite}
           onDeclineInvite={declineInvite}
-          onChangePassword={() => {
-            setPasswordOpen(true)
+          onOpenSettings={() => {
+            setSettingsOpen(true)
             setNavOpen(false)
           }}
           onLogout={handleLogout}
@@ -410,6 +479,8 @@ export default function App() {
               onSelectView={(next) => {
                 setView(next)
                 setFilter('all')
+                setPriorityFilter('all')
+                setTagFilter(null)
                 setSearch('')
                 setNavOpen(false)
               }}
@@ -423,8 +494,8 @@ export default function App() {
               }}
               onAcceptInvite={acceptInvite}
               onDeclineInvite={declineInvite}
-              onChangePassword={() => {
-                setPasswordOpen(true)
+              onOpenSettings={() => {
+                setSettingsOpen(true)
                 setNavOpen(false)
               }}
               onLogout={handleLogout}
@@ -551,6 +622,55 @@ export default function App() {
               })}
             </div>
 
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <label className="relative flex items-center">
+                <FlagIcon className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-slate-400" />
+                <select
+                  value={priorityFilter}
+                  onChange={(event) => setPriorityFilter(event.target.value as Priority | 'all')}
+                  className="cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white py-1.5 pr-2.5 pl-7 text-xs font-medium text-slate-600 outline-none transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                  aria-label="Filter by priority"
+                >
+                  {PRIORITY_FILTERS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {availableTags.map((tag) => {
+                const active = tagFilter === tag
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setTagFilter(active ? null : tag)}
+                    className={`rounded-lg px-2 py-1.5 text-xs font-medium transition ${
+                      active
+                        ? tagTint(tag)
+                        : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    #{tag}
+                  </button>
+                )
+              })}
+
+              {(priorityFilter !== 'all' || tagFilter !== null) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPriorityFilter('all')
+                    setTagFilter(null)
+                  }}
+                  className="rounded-lg px-2 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-500/10"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+
             <div className="relative mt-3 sm:hidden">
               <SearchIcon className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -573,7 +693,7 @@ export default function App() {
             <TaskList
               tasks={filteredTasks}
               currentUserId={data.user.id}
-              showOwner={view.kind === 'team'}
+              showOwner={view.kind !== 'personal'}
               emptyTitle={emptyCopy.title}
               emptyText={emptyCopy.text}
               canDelete={(task) =>
@@ -628,13 +748,14 @@ export default function App() {
         />
       )}
 
-      {passwordOpen && (
-        <ChangePasswordModal
-          onClose={() => setPasswordOpen(false)}
-          onDone={() => {
-            setPasswordOpen(false)
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          onPasswordChanged={() => {
+            setSettingsOpen(false)
             notify('Password updated. Other devices were signed out.', 'success')
           }}
+          onDeleted={handleAccountDeleted}
         />
       )}
 

@@ -16,6 +16,96 @@ const router = Router()
 const TASK_MAX = 500
 const COMMENT_MAX = 2000
 const SUBTASK_MAX = 200
+const TAG_MAX = 24
+const TAGS_MAX = 8
+
+const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const
+const RECURRENCES = ['none', 'daily', 'weekly', 'monthly'] as const
+type Priority = (typeof PRIORITIES)[number]
+type Recurrence = (typeof RECURRENCES)[number]
+
+/** Priority is optional on create; anything unrecognised is rejected. */
+function parsePriority(value: unknown): Priority | null {
+  if (value === undefined) return 'none'
+  return typeof value === 'string' && (PRIORITIES as readonly string[]).includes(value)
+    ? (value as Priority)
+    : null
+}
+
+function parseRecurrence(value: unknown): Recurrence | null {
+  if (value === undefined) return 'none'
+  return typeof value === 'string' && (RECURRENCES as readonly string[]).includes(value)
+    ? (value as Recurrence)
+    : null
+}
+
+/** Tags are a deduped list of short labels. */
+function parseTags(value: unknown): string[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return null
+  const out: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string') return null
+    const tag = item.trim().replace(/\s+/g, ' ')
+    if (!tag) continue
+    if (tag.length > TAG_MAX) return null
+    if (!out.includes(tag)) out.push(tag)
+  }
+  if (out.length > TAGS_MAX) return null
+  return out
+}
+
+/** Move a due date forward by one recurrence interval, keeping the time of day. */
+function advanceDue(due: number, recurrence: Recurrence): number {
+  const date = new Date(due)
+  if (recurrence === 'daily') {
+    date.setDate(date.getDate() + 1)
+  } else if (recurrence === 'weekly') {
+    date.setDate(date.getDate() + 7)
+  } else if (recurrence === 'monthly') {
+    const day = date.getDate()
+    date.setDate(1)
+    date.setMonth(date.getMonth() + 1)
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+    date.setDate(Math.min(day, lastDay))
+  }
+  return date.getTime()
+}
+
+/**
+ * Completing a recurring task creates the next occurrence: a fresh copy with
+ * the due date moved forward, subtasks reset, and no comments carried over.
+ */
+function spawnNextOccurrence(task: TaskRow): string {
+  const id = randomUUID()
+  const now = Date.now()
+  const nextDue = advanceDue(task.due ?? now, task.recurrence as Recurrence)
+  db.prepare(
+    `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, progress, priority, tags, recurrence)
+     VALUES (?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?)`,
+  ).run(
+    id,
+    task.user_id,
+    task.team_id,
+    task.text,
+    now,
+    nextDue,
+    now,
+    task.priority,
+    task.tags,
+    task.recurrence,
+  )
+
+  const subtasks = db
+    .prepare('SELECT * FROM subtasks WHERE task_id = ? ORDER BY position ASC, rowid ASC')
+    .all(task.id) as unknown as SubtaskRow[]
+  const insert = db.prepare(
+    'INSERT INTO subtasks (id, task_id, text, done, position) VALUES (?, ?, ?, 0, ?)',
+  )
+  for (const subtask of subtasks) insert.run(randomUUID(), id, subtask.text, subtask.position)
+
+  return id
+}
 
 interface MemberRow {
   role: 'host' | 'member'
@@ -68,12 +158,19 @@ router.post('/', (req: AuthedRequest, res) => {
   const due = optionalTimestamp(req.body?.due)
   if (due === undefined) return badRequest(res, 'That due date is not valid.')
 
+  const priority = parsePriority(req.body?.priority)
+  if (priority === null) return badRequest(res, 'That priority is not valid.')
+  const recurrence = parseRecurrence(req.body?.recurrence)
+  if (recurrence === null) return badRequest(res, 'That repeat option is not valid.')
+  const tags = parseTags(req.body?.tags)
+  if (tags === null) return badRequest(res, 'Those tags are not valid.')
+
   const id = randomUUID()
   const now = Date.now()
   db.prepare(
-    `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position)
-     VALUES (?, ?, ?, ?, 0, ?, ?, ?)`,
-  ).run(id, userId, teamId, title, now, due ?? null, now)
+    `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, priority, tags, recurrence)
+     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, userId, teamId, title, now, due ?? null, now, priority, JSON.stringify(tags), recurrence)
 
   res.status(201).json({ id })
 })
@@ -85,6 +182,7 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
 
   const updates: string[] = []
   const values: Array<string | number | null> = []
+  let completing = false
 
   if (req.body?.text !== undefined) {
     const title = text(req.body.text, TASK_MAX)
@@ -104,10 +202,12 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
       return badRequest(res, 'Progress must be a whole number between 0 and 100.')
     }
     // Progress drives completion, so 100% means done and anything less means open.
+    completing = progress === 100
     updates.push('progress = ?', 'done = ?')
     values.push(progress, progress === 100 ? 1 : 0)
   } else if (req.body?.done !== undefined) {
     if (typeof req.body.done !== 'boolean') return badRequest(res, '“done” must be true or false.')
+    completing = req.body.done
     updates.push('done = ?')
     values.push(req.body.done ? 1 : 0)
     if (req.body.done) {
@@ -134,11 +234,40 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
     values.push(req.body.position)
   }
 
+  if (req.body?.priority !== undefined) {
+    const priority = parsePriority(req.body.priority)
+    if (priority === null) return badRequest(res, 'That priority is not valid.')
+    updates.push('priority = ?')
+    values.push(priority)
+  }
+
+  if (req.body?.recurrence !== undefined) {
+    const recurrence = parseRecurrence(req.body.recurrence)
+    if (recurrence === null) return badRequest(res, 'That repeat option is not valid.')
+    updates.push('recurrence = ?')
+    values.push(recurrence)
+  }
+
+  if (req.body?.tags !== undefined) {
+    const tags = parseTags(req.body.tags)
+    if (tags === null) return badRequest(res, 'Those tags are not valid.')
+    updates.push('tags = ?')
+    values.push(JSON.stringify(tags))
+  }
+
   if (updates.length === 0) return badRequest(res, 'Nothing to update.')
   values.push(loaded.task.id)
   db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`).run(...values)
 
-  res.json({ ok: true })
+  // Completing a recurring task rolls it forward to the next occurrence. The
+  // finished instance stops repeating so it never spawns twice.
+  let spawnedId: string | null = null
+  if (completing && loaded.task.done === 0 && loaded.task.recurrence !== 'none') {
+    spawnedId = spawnNextOccurrence(loaded.task)
+    db.prepare("UPDATE tasks SET recurrence = 'none' WHERE id = ?").run(loaded.task.id)
+  }
+
+  res.json({ ok: true, spawnedId })
 })
 
 router.delete('/:taskId', (req: AuthedRequest, res) => {
