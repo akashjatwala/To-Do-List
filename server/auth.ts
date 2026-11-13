@@ -40,6 +40,14 @@ export function destroyAllSessions(userId: number): void {
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId)
 }
 
+/** Invalidate every session for a user except the one making the request. */
+export function destroyOtherSessions(userId: number, keepToken: string): void {
+  db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').run(
+    userId,
+    sha256(keepToken),
+  )
+}
+
 export function userIdForToken(token: string | undefined): number | null {
   if (!token) return null
   const row = db

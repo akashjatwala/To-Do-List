@@ -5,6 +5,7 @@ A focused to-do list app for individuals and small teams. Personal lists stay pr
 ## Features
 
 - Email + password accounts with “remember me” sessions
+- Change password from the sidebar account area (other devices get signed out)
 - Personal to-do lists
 - Shared team lists with host/member roles
 - Email invitations (accept or decline in-app)

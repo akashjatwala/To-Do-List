@@ -6,10 +6,9 @@ import { Logo } from './Logo'
 import {
   ChevronRightIcon,
   InboxIcon,
+  LockIcon,
   LogOutIcon,
-  MoonIcon,
   SettingsIcon,
-  SunIcon,
   UsersIcon,
   XIcon,
 } from './Icons'
@@ -32,25 +31,23 @@ function teamTint(id: string): string {
 export default function Sidebar({
   data,
   view,
-  dark,
   onSelectView,
   onNewTeam,
   onManageTeam,
   onAcceptInvite,
   onDeclineInvite,
-  onToggleTheme,
+  onChangePassword,
   onLogout,
   onClose,
 }: {
   data: BootstrapData
   view: View
-  dark: boolean
   onSelectView: (view: View) => void
   onNewTeam: () => void
   onManageTeam: (teamId: string) => void
   onAcceptInvite: (invite: UserInvite) => void
   onDeclineInvite: (invite: UserInvite) => void
-  onToggleTheme: () => void
+  onChangePassword: () => void
   onLogout: () => void
   onClose: () => void
 }) {
@@ -232,15 +229,6 @@ export default function Sidebar({
           </div>
           <button
             type="button"
-            onClick={onToggleTheme}
-            className="icon-btn h-8! w-8!"
-            aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-            title={dark ? 'Light mode' : 'Dark mode'}
-          >
-            {dark ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
-          </button>
-          <button
-            type="button"
             onClick={onLogout}
             className="icon-btn h-8! w-8! hover:text-rose-500!"
             aria-label="Sign out"
@@ -249,6 +237,15 @@ export default function Sidebar({
             <LogOutIcon className="h-4 w-4" />
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={onChangePassword}
+          className="mt-0.5 flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+        >
+          <LockIcon className="h-3.5 w-3.5 shrink-0" />
+          Change password
+        </button>
       </div>
     </aside>
   )

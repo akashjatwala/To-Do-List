@@ -13,6 +13,7 @@ import type {
   View,
 } from '@/types'
 import AuthScreen from './components/AuthScreen'
+import ChangePasswordModal from './components/ChangePasswordModal'
 import Sidebar from './components/Sidebar'
 import TaskComposer from './components/TaskComposer'
 import TaskList from './components/TaskList'
@@ -58,6 +59,7 @@ export default function App() {
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [teamModal, setTeamModal] = useState<{ teamId: string | null } | null>(null)
+  const [passwordOpen, setPasswordOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [navOpen, setNavOpen] = useState(false)
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
@@ -173,6 +175,7 @@ export default function App() {
     setData(null)
     setSelectedId(null)
     setTeamModal(null)
+    setPasswordOpen(false)
     setView({ kind: 'personal' })
     setFilter('all')
     setSearch('')
@@ -370,7 +373,6 @@ export default function App() {
         <Sidebar
           data={data}
           view={view}
-          dark={dark}
           onSelectView={(next) => {
             setView(next)
             setFilter('all')
@@ -387,7 +389,10 @@ export default function App() {
           }}
           onAcceptInvite={acceptInvite}
           onDeclineInvite={declineInvite}
-          onToggleTheme={toggleTheme}
+          onChangePassword={() => {
+            setPasswordOpen(true)
+            setNavOpen(false)
+          }}
           onLogout={handleLogout}
           onClose={() => setNavOpen(false)}
         />
@@ -403,7 +408,6 @@ export default function App() {
             <Sidebar
               data={data}
               view={view}
-              dark={dark}
               onSelectView={(next) => {
                 setView(next)
                 setFilter('all')
@@ -420,7 +424,10 @@ export default function App() {
               }}
               onAcceptInvite={acceptInvite}
               onDeclineInvite={declineInvite}
-              onToggleTheme={toggleTheme}
+              onChangePassword={() => {
+                setPasswordOpen(true)
+                setNavOpen(false)
+              }}
               onLogout={handleLogout}
               onClose={() => setNavOpen(false)}
             />
@@ -628,6 +635,16 @@ export default function App() {
           onClose={() => setTeamModal(null)}
           onChanged={refresh}
           notify={notify}
+        />
+      )}
+
+      {passwordOpen && (
+        <ChangePasswordModal
+          onClose={() => setPasswordOpen(false)}
+          onDone={() => {
+            setPasswordOpen(false)
+            notify('Password updated. Other devices were signed out.', 'success')
+          }}
         />
       )}
 

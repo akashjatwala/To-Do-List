@@ -57,6 +57,8 @@ export const api = {
   forgot: (email: string) => post<{ ok: true; resetCode?: string }>('/api/auth/forgot', { email }),
   reset: (token: string, password: string) =>
     post<{ ok: true }>('/api/auth/reset', { token, password }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    post<{ ok: true }>('/api/auth/password', { currentPassword, newPassword }),
 
   createTask: (input: { text: string; teamId: string | null; due: number | null }) =>
     post<{ id: string }>('/api/tasks', input),
