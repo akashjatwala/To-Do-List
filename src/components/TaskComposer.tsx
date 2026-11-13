@@ -1,8 +1,16 @@
-import { useRef, useState, type FormEvent } from 'react'
-import type { Priority, Recurrence } from '@/types'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import type { Priority, Recurrence, Team } from '@/types'
 import { dueFromDateInput } from '@/lib/date'
-import { PRIORITY_META, PRIORITY_VALUES, RECURRENCE_META, RECURRENCE_VALUES } from '@/lib/taskmeta'
-import { CalendarIcon, FlagIcon, PlusIcon, RepeatIcon, TagIcon } from './Icons'
+import {
+  COMMON_TAGS,
+  PRIORITY_META,
+  PRIORITY_VALUES,
+  RECURRENCE_META,
+  RECURRENCE_VALUES,
+  TAG_LIMIT,
+  tagTint,
+} from '@/lib/taskmeta'
+import { CalendarIcon, FlagIcon, PlusIcon, RepeatIcon, TagIcon, UsersIcon, XIcon } from './Icons'
 import { Spinner } from './ui'
 
 export interface NewTaskInput {
@@ -11,37 +19,76 @@ export interface NewTaskInput {
   priority: Priority
   tags: string[]
   recurrence: Recurrence
+  teamId: string | null
 }
 
 export default function TaskComposer({
   contextLabel,
+  teams,
+  showTeamSelect,
+  defaultTeamId,
   onAdd,
 }: {
   contextLabel: string
+  teams: Team[]
+  showTeamSelect: boolean
+  defaultTeamId: string | null
   onAdd: (input: NewTaskInput) => Promise<boolean>
 }) {
   const [text, setText] = useState('')
   const [due, setDue] = useState('')
   const [priority, setPriority] = useState<Priority>('none')
   const [recurrence, setRecurrence] = useState<Recurrence>('none')
-  const [tags, setTags] = useState('')
+  const [tags, setTags] = useState<string[]>([])
+  const [tagDraft, setTagDraft] = useState('')
+  const [teamId, setTeamId] = useState<string | null>(defaultTeamId)
   const [busy, setBusy] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Keep the target list in sync when the sidebar selection changes.
+  useEffect(() => {
+    setTeamId(defaultTeamId)
+  }, [defaultTeamId])
+
+  const toggleTag = (tag: string) => {
+    setTags((current) =>
+      current.includes(tag)
+        ? current.filter((item) => item !== tag)
+        : current.length >= TAG_LIMIT
+          ? current
+          : [...current, tag],
+    )
+  }
+
+  const commitDraft = () => {
+    const value = tagDraft.trim().replace(/\s+/g, ' ')
+    setTagDraft('')
+    if (!value || tags.includes(value) || tags.length >= TAG_LIMIT) return
+    setTags((current) => [...current, value])
+  }
+
+  const onDraftKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' || event.key === ',') {
+      event.preventDefault()
+      commitDraft()
+    }
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const value = text.trim()
     if (!value || busy) return
+    const nextTags = tagDraft.trim()
+      ? [...tags, tagDraft.trim().replace(/\s+/g, ' ')].slice(0, TAG_LIMIT)
+      : tags
     setBusy(true)
     const ok = await onAdd({
       text: value,
       due: dueFromDateInput(due),
       priority,
-      tags: tags
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean),
+      tags: nextTags,
       recurrence,
+      teamId,
     })
     setBusy(false)
     if (ok) {
@@ -49,13 +96,16 @@ export default function TaskComposer({
       setDue('')
       setPriority('none')
       setRecurrence('none')
-      setTags('')
+      setTags([])
+      setTagDraft('')
       inputRef.current?.focus()
     }
   }
 
   const selectClass =
     'cursor-pointer rounded-lg border-0 bg-transparent py-1.5 pr-6 pl-7 text-xs font-medium text-slate-600 outline-none transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+
+  const customTags = tags.filter((tag) => !COMMON_TAGS.includes(tag))
 
   return (
     <form
@@ -127,17 +177,29 @@ export default function TaskComposer({
           </select>
         </label>
 
-        <label className="relative flex min-w-[8rem] flex-1 items-center">
-          <TagIcon className="pointer-events-none absolute left-2 h-4 w-4 text-slate-400" />
-          <input
-            value={tags}
-            onChange={(event) => setTags(event.target.value)}
-            placeholder="Tags (comma separated)"
-            maxLength={200}
-            className="w-full rounded-lg border-0 bg-transparent py-1.5 pr-2 pl-7 text-xs font-medium text-slate-600 outline-none placeholder:text-slate-400 hover:bg-slate-100 dark:text-slate-300 dark:placeholder:text-slate-500 dark:hover:bg-slate-800"
-            aria-label="Tags"
-          />
-        </label>
+        {showTeamSelect && (
+          <label className="relative flex items-center">
+            <UsersIcon
+              className={`pointer-events-none absolute left-2 h-4 w-4 ${
+                teamId === null ? 'text-slate-400' : 'text-indigo-500 dark:text-indigo-400'
+              }`}
+            />
+            <select
+              value={teamId ?? ''}
+              onChange={(event) => setTeamId(event.target.value || null)}
+              className={selectClass}
+              aria-label="Assign to list"
+              title="Assign this task to a list"
+            >
+              <option value="">Personal</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <div className="ml-auto flex items-center gap-3">
           <span className="hidden text-[11px] text-slate-400 lg:inline">
@@ -155,6 +217,57 @@ export default function TaskComposer({
             Add task
           </button>
         </div>
+      </div>
+
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-slate-100 px-2 pt-2 dark:border-slate-800">
+        <span className="flex items-center gap-1 pr-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+          <TagIcon className="h-3.5 w-3.5" />
+          Tags
+        </span>
+        {COMMON_TAGS.map((tag) => {
+          const active = tags.includes(tag)
+          return (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => toggleTag(tag)}
+              aria-pressed={active}
+              className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition ${
+                active
+                  ? tagTint(tag)
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+              }`}
+            >
+              {tag}
+            </button>
+          )
+        })}
+        {customTags.map((tag) => (
+          <span
+            key={tag}
+            className={`inline-flex items-center gap-1 rounded-md py-0.5 pr-1 pl-2 text-[11px] font-medium ${tagTint(tag)}`}
+          >
+            {tag}
+            <button
+              type="button"
+              onClick={() => toggleTag(tag)}
+              className="rounded p-0.5 opacity-60 transition hover:opacity-100"
+              aria-label={`Remove tag ${tag}`}
+            >
+              <XIcon className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          value={tagDraft}
+          onChange={(event) => setTagDraft(event.target.value)}
+          onKeyDown={onDraftKeyDown}
+          onBlur={commitDraft}
+          placeholder="Custom tag…"
+          maxLength={24}
+          className="w-28 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[11px] font-medium text-slate-600 outline-none placeholder:text-slate-400 hover:bg-slate-100 focus:bg-slate-100 dark:text-slate-300 dark:placeholder:text-slate-500 dark:hover:bg-slate-800 dark:focus:bg-slate-800"
+          aria-label="Custom tag"
+        />
       </div>
     </form>
   )

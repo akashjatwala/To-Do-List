@@ -9,10 +9,11 @@ A focused to-do list app for individuals and small teams. Personal lists stay pr
 - Personal to-do lists
 - Shared team lists with host/member roles
 - Email invitations (accept or decline in-app)
-- Smart views — **All tasks**, **Upcoming** (due from today), and **This week** — across your personal list and every team
+- Two smart views — **My task** (everything, across your personal list and every team) and **Upcoming** (open tasks due from today)
 - Due dates, Today / Overdue / Done filters, and search
 - Task priority (none / low / medium / high / urgent) with a priority filter
-- Labels/tags with per-tag filtering
+- One-tap tags (Work, Personal, Meeting, …) plus custom tags, with per-tag filtering
+- Assign a task to a team — or keep it personal — straight from the composer in **My task**
 - Recurring tasks (daily, weekly, monthly); completing one automatically creates the next occurrence
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking

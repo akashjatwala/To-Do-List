@@ -37,7 +37,6 @@ import {
 } from './components/Icons'
 
 const THEME_KEY = 'todo.theme'
-const DAY = 24 * 60 * 60 * 1000
 
 const FILTERS: Array<{ key: Filter; label: string }> = [
   { key: 'all', label: 'All' },
@@ -120,7 +119,7 @@ export default function App() {
   useEffect(() => {
     if (!data) return
     if (view.kind === 'team' && !data.teams.some((team) => team.id === view.teamId)) {
-      setView({ kind: 'personal' })
+      setView({ kind: 'all' })
     }
   }, [data, view])
 
@@ -138,20 +137,13 @@ export default function App() {
     if (!data) return []
     const tasks = data.tasks
     if (view.kind === 'all') return tasks
-    if (view.kind === 'personal') {
-      return tasks.filter((task) => task.teamId === null && task.userId === data.user.id)
-    }
     if (view.kind === 'team') {
       return tasks.filter((task) => task.teamId === view.teamId)
     }
-    // "Upcoming" and "This week": open tasks with a due date from today onward.
+    // "Upcoming": open tasks with a due date from today onward.
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-    const weekEnd = today + 7 * DAY
-    return tasks.filter((task) => {
-      if (task.done || task.due === null || task.due < today) return false
-      return view.kind === 'week' ? task.due < weekEnd : true
-    })
+    return tasks.filter((task) => !task.done && task.due !== null && task.due >= today)
   }, [data, view])
 
   const filteredTasks = useMemo(() => {
@@ -224,7 +216,7 @@ export default function App() {
     try {
       await api.createTask({
         text: input.text,
-        teamId: view.kind === 'team' ? view.teamId : null,
+        teamId: input.teamId,
         due: input.due,
         priority: input.priority,
         tags: input.tags,
@@ -397,20 +389,13 @@ export default function App() {
     )
   }
 
-  const smartTitle =
-    view.kind === 'all'
-      ? 'All tasks'
-      : view.kind === 'upcoming'
-        ? 'Upcoming'
-        : view.kind === 'week'
-          ? 'This week'
-          : 'Personal'
+  const smartTitle = view.kind === 'all' ? 'My task' : 'Upcoming'
 
   const title = currentTeam ? currentTeam.name : smartTitle
   const subtitle = currentTeam
     ? `${currentTeam.members.length} ${currentTeam.members.length === 1 ? 'member' : 'members'} · shared list`
-    : view.kind === 'personal'
-      ? 'Your private list'
+    : view.kind === 'upcoming'
+      ? 'Open tasks with a due date coming up'
       : 'Everything across your personal list and teams'
 
   const emptyCopy = search.trim()
@@ -685,15 +670,20 @@ export default function App() {
 
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-8">
-            <TaskComposer
-              contextLabel={currentTeam ? currentTeam.name : 'Personal'}
-              onAdd={addTask}
-            />
+            {view.kind !== 'upcoming' && (
+              <TaskComposer
+                contextLabel={currentTeam ? currentTeam.name : 'My task'}
+                teams={data.teams}
+                showTeamSelect={view.kind === 'all' && data.teams.length > 0}
+                defaultTeamId={view.kind === 'team' ? view.teamId : null}
+                onAdd={addTask}
+              />
+            )}
 
             <TaskList
               tasks={filteredTasks}
               currentUserId={data.user.id}
-              showOwner={view.kind !== 'personal'}
+              showOwner
               emptyTitle={emptyCopy.title}
               emptyText={emptyCopy.text}
               canDelete={(task) =>

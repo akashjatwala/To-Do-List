@@ -57,6 +57,23 @@ export const RECURRENCE_META: Record<Recurrence, { label: string; short: string 
   monthly: { label: 'Every month', short: 'Monthly' },
 }
 
+/**
+ * A short list of handy preset tags offered as one-tap chips, so tagging a task
+ * is as quick as picking a priority.
+ */
+export const COMMON_TAGS = [
+  'Work',
+  'Personal',
+  'Meeting',
+  'Errand',
+  'Shopping',
+  'Health',
+  'Finance',
+  'Follow-up',
+]
+
+export const TAG_LIMIT = 8
+
 const TAG_TINTS = [
   'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300',
   'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300',

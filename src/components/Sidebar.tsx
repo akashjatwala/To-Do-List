@@ -7,7 +7,6 @@ import {
   CalendarIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-  ClockIcon,
   InboxIcon,
   LogOutIcon,
   SettingsIcon,
@@ -24,12 +23,9 @@ const TEAM_TINTS = [
   'from-fuchsia-500 to-purple-500',
 ]
 
-const DAY = 24 * 60 * 60 * 1000
-
 const SMART_VIEWS = [
-  { kind: 'all', label: 'All tasks', Icon: InboxIcon },
+  { kind: 'all', label: 'My task', Icon: InboxIcon },
   { kind: 'upcoming', label: 'Upcoming', Icon: CalendarIcon },
-  { kind: 'week', label: 'This week', Icon: ClockIcon },
 ] as const
 
 function teamTint(id: string): string {
@@ -85,22 +81,16 @@ export default function Sidebar({
   const counts = useMemo(() => {
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-    const weekEnd = today + 7 * DAY
     let all = 0
     let upcoming = 0
-    let week = 0
-    const perList: Record<string, number> = { personal: 0 }
+    const perList: Record<string, number> = {}
     for (const task of data.tasks) {
       if (task.done) continue
       all += 1
-      if (task.due !== null && task.due >= today) {
-        upcoming += 1
-        if (task.due < weekEnd) week += 1
-      }
-      const key = task.teamId ?? 'personal'
-      perList[key] = (perList[key] ?? 0) + 1
+      if (task.due !== null && task.due >= today) upcoming += 1
+      if (task.teamId) perList[task.teamId] = (perList[task.teamId] ?? 0) + 1
     }
-    return { all, upcoming, week, perList }
+    return { all, upcoming, perList }
   }, [data.tasks])
 
   const badgeClass = (active: boolean) =>
@@ -126,7 +116,7 @@ export default function Sidebar({
 
         {SMART_VIEWS.map(({ kind, label, Icon }) => {
           const active = view.kind === kind
-          const count = kind === 'all' ? counts.all : kind === 'upcoming' ? counts.upcoming : counts.week
+          const count = kind === 'all' ? counts.all : counts.upcoming
           return (
             <button
               key={kind}
@@ -140,16 +130,6 @@ export default function Sidebar({
             </button>
           )
         })}
-
-        <button
-          type="button"
-          onClick={() => onSelectView({ kind: 'personal' })}
-          className={`sidebar-item ${view.kind === 'personal' ? 'sidebar-item-active' : ''}`}
-        >
-          <InboxIcon className="h-4.5 w-4.5 shrink-0" />
-          <span className="flex-1 truncate">Personal</span>
-          <span className={badgeClass(view.kind === 'personal')}>{counts.perList.personal ?? 0}</span>
-        </button>
 
         <div className="mt-5 px-3 pb-2">
           <p className="text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">

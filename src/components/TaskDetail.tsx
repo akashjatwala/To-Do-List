@@ -2,10 +2,12 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { Comment, Priority, Recurrence, Subtask, Task } from '@/types'
 import { dateInputValue, dueFromDateInput, fullDate, timeAgo } from '@/lib/date'
 import {
+  COMMON_TAGS,
   PRIORITY_META,
   PRIORITY_VALUES,
   RECURRENCE_META,
   RECURRENCE_VALUES,
+  TAG_LIMIT,
   tagTint,
 } from '@/lib/taskmeta'
 import { Avatar, Spinner } from './ui'
@@ -135,13 +137,23 @@ export default function TaskDetail({
     event.preventDefault()
     const value = tagInput.trim().replace(/\s+/g, ' ')
     setTagInput('')
-    if (!value || task.tags.includes(value) || task.tags.length >= 8) return
+    if (!value || task.tags.includes(value) || task.tags.length >= TAG_LIMIT) return
     void onUpdate({ tags: [...task.tags, value] })
+  }
+
+  const toggleTag = (tag: string) => {
+    if (task.tags.includes(tag)) {
+      void onUpdate({ tags: task.tags.filter((item) => item !== tag) })
+    } else if (task.tags.length < TAG_LIMIT) {
+      void onUpdate({ tags: [...task.tags, tag] })
+    }
   }
 
   const removeTag = (tag: string) => {
     void onUpdate({ tags: task.tags.filter((item) => item !== tag) })
   }
+
+  const customTags = task.tags.filter((tag) => !COMMON_TAGS.includes(tag))
 
   return (
     <>
@@ -308,9 +320,29 @@ export default function TaskDetail({
                 <TagIcon className="h-3.5 w-3.5" />
                 Tags
               </p>
-              {task.tags.length > 0 && (
+              <div className="mb-2.5 flex flex-wrap gap-1.5">
+                {COMMON_TAGS.map((tag) => {
+                  const active = task.tags.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      aria-pressed={active}
+                      className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition ${
+                        active
+                          ? tagTint(tag)
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  )
+                })}
+              </div>
+              {customTags.length > 0 && (
                 <div className="mb-2.5 flex flex-wrap gap-1.5">
-                  {task.tags.map((tag) => (
+                  {customTags.map((tag) => (
                     <span
                       key={tag}
                       className={`inline-flex items-center gap-1 rounded-md py-0.5 pr-1 pl-1.5 text-[11px] font-medium ${tagTint(tag)}`}

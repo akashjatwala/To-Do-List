@@ -74,12 +74,7 @@ export interface BootstrapData {
   tasks: Task[]
 }
 
-export type View =
-  | { kind: 'all' }
-  | { kind: 'upcoming' }
-  | { kind: 'week' }
-  | { kind: 'personal' }
-  | { kind: 'team'; teamId: string }
+export type View = { kind: 'all' } | { kind: 'upcoming' } | { kind: 'team'; teamId: string }
 
 export type Filter = 'all' | 'open' | 'done' | 'today' | 'overdue'
 
