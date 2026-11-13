@@ -27,7 +27,6 @@ import {
   MenuIcon,
   MoonIcon,
   SearchIcon,
-  SettingsIcon,
   SunIcon,
   UsersIcon,
   XIcon,
@@ -506,15 +505,6 @@ export default function App() {
                       +{currentTeam.members.length - 3}
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setTeamModal({ teamId: currentTeam.id })}
-                    className="icon-btn ml-1.5 h-8! w-8!"
-                    aria-label="Manage team"
-                    title="Manage team"
-                  >
-                    <SettingsIcon className="h-4 w-4" />
-                  </button>
                 </div>
               ) : (
                 <button
