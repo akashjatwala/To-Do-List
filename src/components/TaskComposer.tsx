@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import type { Priority, Recurrence, Team } from '@/types'
+import type { Priority, Recurrence, RecurrenceConfig, Team } from '@/types'
 import { dueFromDateInput } from '@/lib/date'
 import {
   COMMON_TAGS,
@@ -10,7 +10,17 @@ import {
   TAG_LIMIT,
   tagTint,
 } from '@/lib/taskmeta'
-import { CalendarIcon, FlagIcon, PlusIcon, RepeatIcon, TagIcon, UsersIcon, XIcon } from './Icons'
+import RecurrenceEditor from './RecurrenceEditor'
+import {
+  CalendarIcon,
+  ClockIcon,
+  FlagIcon,
+  PlusIcon,
+  RepeatIcon,
+  TagIcon,
+  UsersIcon,
+  XIcon,
+} from './Icons'
 import { Spinner } from './ui'
 
 export interface NewTaskInput {
@@ -19,36 +29,52 @@ export interface NewTaskInput {
   priority: Priority
   tags: string[]
   recurrence: Recurrence
+  recurrenceConfig: RecurrenceConfig | null
+  duration: number | null
   teamId: string | null
 }
+
+const DURATION_MAX = 60 * 24 * 7
 
 export default function TaskComposer({
   contextLabel,
   teams,
   showTeamSelect,
   defaultTeamId,
+  defaultDue = '',
   onAdd,
 }: {
   contextLabel: string
   teams: Team[]
   showTeamSelect: boolean
   defaultTeamId: string | null
+  defaultDue?: string
   onAdd: (input: NewTaskInput) => Promise<boolean>
 }) {
   const [text, setText] = useState('')
-  const [due, setDue] = useState('')
+  const [due, setDue] = useState(defaultDue)
   const [priority, setPriority] = useState<Priority>('none')
   const [recurrence, setRecurrence] = useState<Recurrence>('none')
+  const [customRepeat, setCustomRepeat] = useState<RecurrenceConfig>(() => ({
+    mode: 'weekly',
+    days: [new Date().getDay()],
+  }))
+  const [duration, setDuration] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagDraft, setTagDraft] = useState('')
   const [teamId, setTeamId] = useState<string | null>(defaultTeamId)
   const [busy, setBusy] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Keep the target list in sync when the sidebar selection changes.
+  // Keep the target list in sync when the selected team changes.
   useEffect(() => {
     setTeamId(defaultTeamId)
   }, [defaultTeamId])
+
+  // New tasks default to the day the page is showing.
+  useEffect(() => {
+    setDue(defaultDue)
+  }, [defaultDue])
 
   const toggleTag = (tag: string) => {
     setTags((current) =>
@@ -81,6 +107,9 @@ export default function TaskComposer({
     const nextTags = tagDraft.trim()
       ? [...tags, tagDraft.trim().replace(/\s+/g, ' ')].slice(0, TAG_LIMIT)
       : tags
+    const minutes = Number.parseInt(duration, 10)
+    const durationValue =
+      Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, DURATION_MAX) : null
     setBusy(true)
     const ok = await onAdd({
       text: value,
@@ -88,14 +117,17 @@ export default function TaskComposer({
       priority,
       tags: nextTags,
       recurrence,
+      recurrenceConfig: recurrence === 'custom' ? customRepeat : null,
+      duration: durationValue,
       teamId,
     })
     setBusy(false)
     if (ok) {
       setText('')
-      setDue('')
+      setDue(defaultDue)
       setPriority('none')
       setRecurrence('none')
+      setDuration('')
       setTags([])
       setTagDraft('')
       inputRef.current?.focus()
@@ -110,7 +142,7 @@ export default function TaskComposer({
   return (
     <form
       onSubmit={submit}
-      className="card mb-7 p-2 transition focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:focus-within:border-indigo-500/60"
+      className="card p-2 transition focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:focus-within:border-indigo-500/60"
     >
       <div className="flex items-center gap-2 px-2 pt-1">
         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400 dark:border-slate-600">
@@ -151,7 +183,7 @@ export default function TaskComposer({
           >
             {PRIORITY_VALUES.map((value) => (
               <option key={value} value={value}>
-                {value === 'none' ? 'Priority' : PRIORITY_META[value].label}
+                {value === 'none' ? 'None' : PRIORITY_META[value].label}
               </option>
             ))}
           </select>
@@ -171,10 +203,29 @@ export default function TaskComposer({
           >
             {RECURRENCE_VALUES.map((value) => (
               <option key={value} value={value}>
-                {value === 'none' ? 'Repeat' : RECURRENCE_META[value].short}
+                {value === 'none'
+                  ? 'Never'
+                  : value === 'custom'
+                    ? 'Custom…'
+                    : RECURRENCE_META[value].short}
               </option>
             ))}
           </select>
+        </label>
+
+        <label className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+          <ClockIcon className="h-4 w-4" />
+          <input
+            type="text"
+            inputMode="numeric"
+            value={duration}
+            onChange={(event) => setDuration(event.target.value.replace(/\D/g, '').slice(0, 5))}
+            placeholder="Duration"
+            className="w-[4.5rem] border-0 bg-transparent p-0 text-xs font-medium text-slate-600 outline-none placeholder:text-slate-400 dark:text-slate-300 dark:placeholder:text-slate-500"
+            aria-label="Ideal duration in minutes"
+            title="Ideal duration of the task, in minutes"
+          />
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">min</span>
         </label>
 
         {showTeamSelect && (
@@ -218,6 +269,18 @@ export default function TaskComposer({
           </button>
         </div>
       </div>
+
+      {recurrence === 'custom' && (
+        <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-slate-100 px-2 pt-2 dark:border-slate-800">
+          <span className="flex items-center gap-1 pr-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+            <RepeatIcon className="h-3.5 w-3.5" />
+            Custom repeat
+          </span>
+          <div className="min-w-0 flex-1">
+            <RecurrenceEditor config={customRepeat} onChange={setCustomRepeat} />
+          </div>
+        </div>
+      )}
 
       <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-slate-100 px-2 pt-2 dark:border-slate-800">
         <span className="flex items-center gap-1 pr-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">

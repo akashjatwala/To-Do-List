@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import type { Comment, Priority, Recurrence, Subtask, Task } from '@/types'
+import type { Comment, Priority, Recurrence, RecurrenceConfig, Subtask, Task } from '@/types'
 import { dateInputValue, dueFromDateInput, fullDate, timeAgo } from '@/lib/date'
 import {
   COMMON_TAGS,
@@ -11,10 +11,12 @@ import {
   tagTint,
 } from '@/lib/taskmeta'
 import { Avatar, Spinner } from './ui'
+import RecurrenceEditor from './RecurrenceEditor'
 import { PriorityBadge, RecurrenceBadge, TagChips } from './TaskBadges'
 import {
   CalendarIcon,
   CheckIcon,
+  ClockIcon,
   FlagIcon,
   GaugeIcon,
   ListChecksIcon,
@@ -24,6 +26,8 @@ import {
   TrashIcon,
   XIcon,
 } from './Icons'
+
+const DURATION_MAX = 60 * 24 * 7
 
 interface TaskDetailProps {
   task: Task
@@ -39,6 +43,8 @@ interface TaskDetailProps {
     priority?: Priority
     tags?: string[]
     recurrence?: Recurrence
+    recurrenceConfig?: RecurrenceConfig | null
+    duration?: number | null
   }) => Promise<boolean>
   onDelete: () => Promise<void>
   onAddSubtask: (text: string) => Promise<boolean>
@@ -71,6 +77,10 @@ export default function TaskDetail({
   const [commentBusy, setCommentBusy] = useState(false)
   const [progressValue, setProgressValue] = useState(task.progress ?? 0)
   const [tagInput, setTagInput] = useState('')
+  const [durationValue, setDurationValue] = useState(task.duration ? String(task.duration) : '')
+  const [customRepeat, setCustomRepeat] = useState<RecurrenceConfig>(() =>
+    task.recurrenceConfig ?? { mode: 'weekly', days: [new Date().getDay()] },
+  )
 
   useEffect(() => {
     setTitle(task.text)
@@ -79,6 +89,14 @@ export default function TaskDetail({
   useEffect(() => {
     setProgressValue(task.progress ?? 0)
   }, [task.id, task.progress])
+
+  useEffect(() => {
+    setDurationValue(task.duration ? String(task.duration) : '')
+  }, [task.id, task.duration])
+
+  useEffect(() => {
+    if (task.recurrenceConfig) setCustomRepeat(task.recurrenceConfig)
+  }, [task.id, task.recurrenceConfig])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -131,6 +149,40 @@ export default function TaskDetail({
     void onUpdate({ progress: next }).then((ok) => {
       if (!ok) setProgressValue(task.progress ?? 0)
     })
+  }
+
+  const commitDuration = () => {
+    const trimmed = durationValue.trim()
+    if (!trimmed) {
+      if (task.duration !== null) void onUpdate({ duration: null })
+      return
+    }
+    const minutes = Number.parseInt(trimmed, 10)
+    if (!Number.isFinite(minutes) || minutes < 1) {
+      setDurationValue(task.duration ? String(task.duration) : '')
+      return
+    }
+    const next = Math.min(minutes, DURATION_MAX)
+    setDurationValue(String(next))
+    if (next === task.duration) return
+    void onUpdate({ duration: next }).then((ok) => {
+      if (!ok) setDurationValue(task.duration ? String(task.duration) : '')
+    })
+  }
+
+  const changeRecurrence = (value: Recurrence) => {
+    if (value === 'custom') {
+      const config = task.recurrenceConfig ?? customRepeat
+      setCustomRepeat(config)
+      void onUpdate({ recurrence: 'custom', recurrenceConfig: config })
+    } else {
+      void onUpdate({ recurrence: value, recurrenceConfig: null })
+    }
+  }
+
+  const changeCustomRepeat = (config: RecurrenceConfig) => {
+    setCustomRepeat(config)
+    void onUpdate({ recurrence: 'custom', recurrenceConfig: config })
   }
 
   const addTag = (event: FormEvent) => {
@@ -228,7 +280,7 @@ export default function TaskDetail({
                     </>
                   )}
                   {task.priority !== 'none' && <PriorityBadge priority={task.priority} />}
-                  <RecurrenceBadge recurrence={task.recurrence} />
+                  <RecurrenceBadge recurrence={task.recurrence} config={task.recurrenceConfig} />
                   <TagChips tags={task.tags} />
                 </p>
               </div>
@@ -260,6 +312,36 @@ export default function TaskDetail({
                   </button>
                 )}
               </div>
+
+              <label className="mt-3 block border-t border-slate-100 pt-3 dark:border-slate-800">
+                <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+                  <ClockIcon className="h-3.5 w-3.5" />
+                  Ideal duration
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={durationValue}
+                    onChange={(event) =>
+                      setDurationValue(event.target.value.replace(/\D/g, '').slice(0, 5))
+                    }
+                    onBlur={commitDuration}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        event.currentTarget.blur()
+                      }
+                    }}
+                    placeholder="No estimate"
+                    aria-label="Ideal duration in minutes"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  />
+                  <span className="shrink-0 text-xs font-medium text-slate-400 dark:text-slate-500">
+                    min
+                  </span>
+                </div>
+              </label>
             </div>
 
             {/* Priority & repeat */}
@@ -297,7 +379,7 @@ export default function TaskDetail({
                 </span>
                 <select
                   value={task.recurrence}
-                  onChange={(event) => void onUpdate({ recurrence: event.target.value as Recurrence })}
+                  onChange={(event) => changeRecurrence(event.target.value as Recurrence)}
                   className="field cursor-pointer py-2! text-sm"
                 >
                   {RECURRENCE_VALUES.map((value) => (
@@ -306,6 +388,11 @@ export default function TaskDetail({
                     </option>
                   ))}
                 </select>
+                {task.recurrence === 'custom' && (
+                  <div className="mt-2">
+                    <RecurrenceEditor config={customRepeat} onChange={changeCustomRepeat} />
+                  </div>
+                )}
                 {task.recurrence !== 'none' && (
                   <span className="mt-1.5 block text-[11px] text-slate-400 dark:text-slate-500">
                     Completing this task creates the next occurrence automatically.

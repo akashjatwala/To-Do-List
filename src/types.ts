@@ -20,7 +20,11 @@ export interface Comment {
 
 export type Priority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 
-export type Recurrence = 'none' | 'daily' | 'weekly' | 'monthly'
+export type Recurrence = 'none' | 'daily' | 'weekly' | 'monthly' | 'custom'
+
+export type RecurrenceConfig =
+  | { mode: 'weekly'; days: number[] }
+  | { mode: 'monthly'; nth: number; weekday: number }
 
 export interface Task {
   id: string
@@ -32,6 +36,8 @@ export interface Task {
   priority: Priority
   tags: string[]
   recurrence: Recurrence
+  recurrenceConfig: RecurrenceConfig | null
+  duration: number | null
   teamId: string | null
   teamName: string | null
   userId: number
@@ -74,9 +80,7 @@ export interface BootstrapData {
   tasks: Task[]
 }
 
-export type View = { kind: 'all' } | { kind: 'upcoming' } | { kind: 'team'; teamId: string }
-
-export type Filter = 'all' | 'open' | 'done' | 'today' | 'overdue'
+export type View = { kind: 'my' } | { kind: 'collab'; teamId: string | null }
 
 export type ToastTone = 'success' | 'error' | 'info'
 

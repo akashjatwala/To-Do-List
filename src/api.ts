@@ -1,4 +1,11 @@
-import type { BootstrapData, Filter, Priority, Recurrence, Task, Team, User } from './types'
+import type {
+  BootstrapData,
+  Priority,
+  Recurrence,
+  RecurrenceConfig,
+  Team,
+  User,
+} from './types'
 
 export class ApiError extends Error {
   status: number
@@ -72,6 +79,8 @@ export const api = {
     priority?: Priority
     tags?: string[]
     recurrence?: Recurrence
+    recurrenceConfig?: RecurrenceConfig | null
+    duration?: number | null
   }) => post<{ id: string }>('/api/tasks', input),
   updateTask: (
     id: string,
@@ -84,9 +93,12 @@ export const api = {
       priority?: Priority
       tags?: string[]
       recurrence?: Recurrence
+      recurrenceConfig?: RecurrenceConfig | null
+      duration?: number | null
     },
   ) => patch<{ ok: true; spawnedId: string | null }>(`/api/tasks/${id}`, patchBody),
   deleteTask: (id: string) => del<{ ok: true }>(`/api/tasks/${id}`),
+  reorderTasks: (ids: string[]) => post<{ ok: true }>('/api/tasks/reorder', { ids }),
 
   addSubtask: (taskId: string, text: string) =>
     post<{ id: string }>(`/api/tasks/${taskId}/subtasks`, { text }),
@@ -121,21 +133,6 @@ export function errorMessage(error: unknown): string {
   if (error instanceof TypeError) return 'Cannot reach the server. Is it running?'
   if (error instanceof Error) return error.message
   return 'Something went wrong.'
-}
-
-export function matchesFilter(task: Task, filter: Filter, now = new Date()): boolean {
-  switch (filter) {
-    case 'open':
-      return !task.done
-    case 'done':
-      return task.done
-    case 'today':
-      return !task.done && task.due !== null && isSameDay(new Date(task.due), now)
-    case 'overdue':
-      return !task.done && task.due !== null && endOfDay(new Date(task.due)) < startOfDay(now)
-    default:
-      return true
-  }
 }
 
 export function startOfDay(date: Date): number {

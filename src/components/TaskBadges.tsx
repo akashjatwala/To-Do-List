@@ -1,5 +1,11 @@
-import type { Priority, Recurrence } from '@/types'
-import { PRIORITY_META, RECURRENCE_META, tagTint } from '@/lib/taskmeta'
+import type { Priority, Recurrence, RecurrenceConfig } from '@/types'
+import {
+  PRIORITY_META,
+  RECURRENCE_META,
+  describeRecurrence,
+  recurrenceShort,
+  tagTint,
+} from '@/lib/taskmeta'
 import { FlagIcon, RepeatIcon, TagIcon } from './Icons'
 
 export function PriorityBadge({
@@ -45,15 +51,22 @@ export function TagChips({ tags, max }: { tags: string[]; max?: number }) {
   )
 }
 
-export function RecurrenceBadge({ recurrence }: { recurrence: Recurrence }) {
+export function RecurrenceBadge({
+  recurrence,
+  config = null,
+}: {
+  recurrence: Recurrence
+  config?: RecurrenceConfig | null
+}) {
   if (recurrence === 'none') return null
+  const label = recurrence === 'custom' ? recurrenceShort(recurrence, config) : RECURRENCE_META[recurrence].short
   return (
     <span
       className="inline-flex items-center gap-1"
-      title={`Repeats ${RECURRENCE_META[recurrence].short.toLowerCase()}`}
+      title={`Repeats ${describeRecurrence(recurrence, config).toLowerCase()}`}
     >
       <RepeatIcon className="h-3.5 w-3.5" />
-      {RECURRENCE_META[recurrence].short}
+      {label}
     </span>
   )
 }

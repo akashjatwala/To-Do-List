@@ -9,12 +9,16 @@ A focused to-do list app for individuals and small teams. Personal lists stay pr
 - Personal to-do lists
 - Shared team lists with host/member roles
 - Email invitations (accept or decline in-app)
-- Two smart views — **My task** (everything, across your personal list and every team) and **Upcoming** (open tasks due from today)
-- Due dates, Today / Overdue / Done filters, and search
-- Task priority (none / low / medium / high / urgent) with a priority filter
-- One-tap tags (Work, Personal, Meeting, …) plus custom tags, with per-tag filtering
-- Assign a task to a team — or keep it personal — straight from the composer in **My task**
-- Recurring tasks (daily, weekly, monthly); completing one automatically creates the next occurrence
+- Two top-level views — **My task** (only your private personal tasks) and **Collaborate** (team lists; pick a team from the row underneath, and use the **+** beside Collaborate to create one)
+- A day-by-day board: sticky notes for the selected day, with a calendar picker and prev/next-day controls
+- Priority-colored sticky notes — low = soft green, medium = cream, high = soft red
+- Drag sticky notes to rearrange them; the order is saved and remembered
+- Double-click anywhere on a sticky note to open its task details and edit it (a single click does nothing)
+- One-tap tags (Work, Personal, Meeting, …) plus custom tags
+- An optional ideal duration per task, shown on the note and in task details
+- Completed tasks move to a normal list on the right, scoped to the same day
+- Create personal tasks in **My task**, or open a team in **Collaborate** — new tasks are filed into the list you are viewing
+- Recurring tasks (daily, weekly, monthly, or custom weekly weekdays / nth-weekday monthly); completing one automatically creates the next occurrence
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking
 - Task comments

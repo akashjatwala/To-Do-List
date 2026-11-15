@@ -1,5 +1,6 @@
 import { db, type TaskRow } from './db'
 import { getUserById } from './auth'
+import { readRecurrenceConfig, type RecurrenceConfig } from './recurrence'
 
 export interface SubtaskDTO {
   id: string
@@ -26,6 +27,8 @@ export interface TaskDTO {
   priority: string
   tags: string[]
   recurrence: string
+  recurrenceConfig: RecurrenceConfig | null
+  duration: number | null
   teamId: string | null
   teamName: string | null
   userId: number
@@ -175,7 +178,7 @@ export function tasksFor(userId: number): TaskDTO[] {
        LEFT JOIN teams tm ON tm.id = t.team_id
        WHERE (t.team_id IS NULL AND t.user_id = ?)
           OR t.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?)
-       ORDER BY t.done ASC, t.created_at DESC`,
+       ORDER BY t.done ASC, t.position DESC, t.created_at DESC`,
     )
     .all(userId, userId) as unknown as Array<TaskRow & { owner_email: string; team_name: string | null }>
 
@@ -229,6 +232,8 @@ export function tasksFor(userId: number): TaskDTO[] {
     priority: row.priority ?? 'none',
     tags: parseTagList(row.tags),
     recurrence: row.recurrence ?? 'none',
+    recurrenceConfig: readRecurrenceConfig(row.recurrence_config),
+    duration: row.duration ?? null,
     teamId: row.team_id,
     teamName: row.team_name,
     userId: row.user_id,

@@ -40,6 +40,26 @@ export function dateInputValue(timestamp: number | null): string {
   return `${date.getFullYear()}-${month}-${day}`
 }
 
+/** Today's date as a <input type="date"> value. */
+export function todayDateValue(now = new Date()): string {
+  return dateInputValue(now.getTime())
+}
+
+/** Friendly label for a date value: "Today · Sat, Nov 14" or "Tue, Nov 18". */
+export function formatDateValue(value: string, now = new Date()): string {
+  const timestamp = dueFromDateInput(value)
+  if (timestamp === null) return ''
+  const date = new Date(timestamp)
+  const sameYear = date.getFullYear() === now.getFullYear()
+  const label = date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
+  return isSameDay(date, now) ? `Today · ${label}` : label
+}
+
 /** Convert a date input value to the end of that day (local time). */
 export function dueFromDateInput(value: string): number | null {
   if (!value) return null

@@ -74,6 +74,8 @@ db.exec(`
     priority TEXT NOT NULL DEFAULT 'none',
     tags TEXT NOT NULL DEFAULT '[]',
     recurrence TEXT NOT NULL DEFAULT 'none',
+    duration INTEGER,
+    recurrence_config TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
   );
@@ -125,6 +127,12 @@ if (!hasTaskColumn('tags')) {
 if (!hasTaskColumn('recurrence')) {
   db.exec("ALTER TABLE tasks ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'none'")
 }
+if (!hasTaskColumn('duration')) {
+  db.exec('ALTER TABLE tasks ADD COLUMN duration INTEGER')
+}
+if (!hasTaskColumn('recurrence_config')) {
+  db.exec('ALTER TABLE tasks ADD COLUMN recurrence_config TEXT')
+}
 
 export interface UserRow {
   id: number
@@ -174,6 +182,8 @@ export interface TaskRow {
   priority: string
   tags: string
   recurrence: string
+  duration: number | null
+  recurrence_config: string | null
 }
 
 export interface SubtaskRow {
