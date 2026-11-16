@@ -8,6 +8,14 @@ import { bootstrap } from './data'
 import authRoutes from './auth-routes'
 import teamRoutes, { invitesRouter } from './teams'
 import taskRoutes from './tasks'
+import checkinRoutes from './checkins'
+import {
+  activityRoutes,
+  contextQuestionRoutes,
+  tagRoutes,
+  taskConfigRoutes,
+} from './ml/routes'
+import stateRoutes from './ml/state-routes'
 import { fail, parseCookies, SESSION_COOKIE, unauthorized, type AuthedRequest } from './http'
 
 const app = express()
@@ -64,6 +72,26 @@ app.use('/api/tasks', (req: AuthedRequest, res, next) => {
   next()
 })
 app.use('/api/tasks', taskRoutes)
+
+app.use('/api/checkins', (req: AuthedRequest, res, next) => {
+  if (requireUser(req, res) === null) return
+  next()
+})
+app.use('/api/checkins', checkinRoutes)
+
+for (const [prefix, router] of [
+  ['/api/activity', activityRoutes],
+  ['/api/tags', tagRoutes],
+  ['/api/task-configs', taskConfigRoutes],
+  ['/api/context-questions', contextQuestionRoutes],
+  ['/api/state', stateRoutes],
+] as const) {
+  app.use(prefix, (req: AuthedRequest, res, next) => {
+    if (requireUser(req, res) === null) return
+    next()
+  })
+  app.use(prefix, router)
+}
 
 app.use('/api', (_req, res) => {
   fail(res, 404, 'API route not found.')

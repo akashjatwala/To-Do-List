@@ -29,6 +29,7 @@ export interface TaskDTO {
   recurrence: string
   recurrenceConfig: RecurrenceConfig | null
   duration: number | null
+  preferredTime: string | null
   teamId: string | null
   teamName: string | null
   userId: number
@@ -234,6 +235,7 @@ export function tasksFor(userId: number): TaskDTO[] {
     recurrence: row.recurrence ?? 'none',
     recurrenceConfig: readRecurrenceConfig(row.recurrence_config),
     duration: row.duration ?? null,
+    preferredTime: row.preferred_time ?? null,
     teamId: row.team_id,
     teamName: row.team_name,
     userId: row.user_id,

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, errorMessage } from '@/api'
 import type {
   BootstrapData,
+  CheckinStatus,
   Comment,
+  DailyState,
   Priority,
   Recurrence,
   RecurrenceConfig,
@@ -15,9 +17,12 @@ import type {
   View,
 } from '@/types'
 import { dateInputValue, dueFromDateInput, formatDateValue, todayDateValue } from '@/lib/date'
+import { localDateString } from '@/lib/checkin'
 import AuthScreen from './components/AuthScreen'
 import AccountMenu from './components/AccountMenu'
 import SettingsModal from './components/SettingsModal'
+import CheckinModal from './components/CheckinModal'
+import DailyStateCard from './components/DailyStateCard'
 import TaskComposer, { type NewTaskInput } from './components/TaskComposer'
 import { CompletedColumn, StickyBoard } from './components/StickyBoard'
 import TaskDetail from './components/TaskDetail'
@@ -32,6 +37,7 @@ import {
   InboxIcon,
   MoonIcon,
   PlusIcon,
+  SmileIcon,
   SunIcon,
   UsersIcon,
   XIcon,
@@ -58,8 +64,13 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
+  const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null)
+  const [checkinOpen, setCheckinOpen] = useState(false)
+  const [checkinMode, setCheckinMode] = useState<'prompt' | 'edit'>('prompt')
+  const [dailyStateData, setDailyStateData] = useState<DailyState | null>(null)
   const toastId = useRef(0)
   const lastTeamId = useRef<string | null>(null)
+  const checkinCheckedFor = useRef<number | null>(null)
 
   const notify = useCallback((message: string, tone: ToastTone = 'info') => {
     const id = (toastId.current += 1)
@@ -93,6 +104,34 @@ export default function App() {
     }
   }, [notify])
 
+  const currentUserId = data?.user.id ?? null
+
+  // Show the check-in first after login, or when the app opens on a new local
+  // day, but only while today's check-in is neither completed nor skipped.
+  // Runs once per signed-in user per app session.
+  useEffect(() => {
+    if (currentUserId === null) return
+    if (checkinCheckedFor.current === currentUserId) return
+    checkinCheckedFor.current = currentUserId
+    let cancelled = false
+    api
+      .getCheckin(localDateString())
+      .then((status) => {
+        if (cancelled) return
+        setCheckinStatus(status)
+        if (status.state === 'not_asked' || status.state === 'partial') {
+          setCheckinMode('prompt')
+          setCheckinOpen(true)
+        }
+      })
+      .catch(() => {
+        /* never block the app because the check-in lookup failed */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentUserId])
+
   const toggleTheme = useCallback(() => {
     setDark((previous) => {
       const next = !previous
@@ -124,6 +163,27 @@ export default function App() {
       setSelectedId(null)
     }
   }, [data, selectedId])
+
+  // Load the read-only daily state for today (personal view only). It reloads
+  // whenever the check-in changes, so a mid-day edit updates the summary.
+  useEffect(() => {
+    if (currentUserId === null || view.kind !== 'my' || selectedDate !== todayDateValue()) {
+      setDailyStateData(null)
+      return
+    }
+    let cancelled = false
+    api
+      .getState(selectedDate, todayDateValue())
+      .then((next) => {
+        if (!cancelled) setDailyStateData(next)
+      })
+      .catch(() => {
+        if (!cancelled) setDailyStateData(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentUserId, selectedDate, view.kind, checkinStatus?.checkin?.updatedAt, checkinStatus?.state])
 
   const currentTeam: Team | undefined =
     view.kind === 'collab' && view.teamId
@@ -176,6 +236,9 @@ export default function App() {
     setView({ kind: 'my' })
     setSelectedDate(todayDateValue())
     setComposerOpen(false)
+    checkinCheckedFor.current = null
+    setCheckinStatus(null)
+    setCheckinOpen(false)
   }
 
   const handleLogout = async () => {
@@ -193,6 +256,18 @@ export default function App() {
 
   const resetDateView = () => {
     setSelectedDate(todayDateValue())
+  }
+
+  const openCheckin = async () => {
+    const date = localDateString()
+    try {
+      const status = await api.getCheckin(date)
+      setCheckinStatus(status)
+    } catch {
+      /* fall back to whatever state we already hold */
+    }
+    setCheckinMode('edit')
+    setCheckinOpen(true)
   }
 
   const openMyTasks = () => {
@@ -225,6 +300,7 @@ export default function App() {
         recurrence: input.recurrence,
         recurrenceConfig: input.recurrenceConfig,
         duration: input.duration,
+        preferredTime: input.preferredTime,
       })
       await refresh()
       return true
@@ -301,6 +377,7 @@ export default function App() {
       recurrence?: Recurrence
       recurrenceConfig?: RecurrenceConfig | null
       duration?: number | null
+      preferredTime?: string | null
     },
   ) => {
     try {
@@ -500,6 +577,21 @@ export default function App() {
               <div className="ml-auto flex shrink-0 items-center gap-1">
                 <button
                   type="button"
+                  onClick={openCheckin}
+                  className="icon-btn"
+                  aria-label="Mood and context check-in"
+                  title={
+                    checkinStatus?.state === 'completed'
+                      ? 'Mood check-in · done today'
+                      : checkinStatus?.state === 'skipped'
+                        ? 'Mood check-in · skipped today'
+                        : 'Mood check-in'
+                  }
+                >
+                  <SmileIcon className="h-4.5 w-4.5" />
+                </button>
+                <button
+                  type="button"
                   onClick={toggleTheme}
                   className="icon-btn hidden sm:inline-flex"
                   aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
@@ -692,6 +784,16 @@ export default function App() {
               </div>
             )}
 
+            {!isCollab && isToday && dailyStateData && (
+              <div className="mb-4">
+                <DailyStateCard
+                  state={dailyStateData}
+                  notify={notify}
+                  onState={setDailyStateData}
+                />
+              </div>
+            )}
+
             {view.kind === 'collab' && !currentTeam ? (
               <div className="animate-in flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 px-6 py-14 text-center dark:border-slate-800">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500 dark:bg-indigo-500/10 dark:text-indigo-400">
@@ -808,6 +910,17 @@ export default function App() {
             notify('Password updated. Other devices were signed out.', 'success')
           }}
           onDeleted={handleAccountDeleted}
+        />
+      )}
+
+      {checkinOpen && (
+        <CheckinModal
+          mode={checkinMode}
+          date={checkinStatus?.date ?? localDateString()}
+          initial={checkinStatus?.checkin ?? null}
+          onClose={() => setCheckinOpen(false)}
+          onChanged={setCheckinStatus}
+          notify={notify}
         />
       )}
 

@@ -1,3 +1,5 @@
+import type { CheckinAnswerKey } from './lib/checkin'
+
 export interface User {
   id: number
   email: string
@@ -38,6 +40,7 @@ export interface Task {
   recurrence: Recurrence
   recurrenceConfig: RecurrenceConfig | null
   duration: number | null
+  preferredTime: string | null
   teamId: string | null
   teamName: string | null
   userId: number
@@ -88,4 +91,254 @@ export interface Toast {
   id: number
   message: string
   tone: ToastTone
+}
+
+/** `not_asked` means there is no check-in record for that day. */
+export type CheckinState = 'not_asked' | 'completed' | 'partial' | 'skipped'
+
+export type CheckinAnswers = Record<CheckinAnswerKey, number | null>
+
+export interface Checkin {
+  id: number
+  date: string
+  answers: CheckinAnswers
+  skipped: boolean
+  context: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface CheckinStatus {
+  date: string
+  state: CheckinState
+  checkin: Checkin | null
+}
+
+// ---- Phase 2: activity sessions and daily records ----
+
+/** One stretch of real activity for a task. Several per day are normal. */
+export interface ActivitySession {
+  id: string
+  taskId: string
+  date: string
+  startedAt: number
+  endedAt: number | null
+  durationMinutes: number
+  note: string | null
+  source: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** A status the user can state for a day. */
+export type ExplicitDailyStatus = 'completed' | 'partial' | 'skipped' | 'postponed'
+
+/**
+ * The derived record for one task on one local day. `unknown` means nothing was
+ * recorded; `pending` means the day is not over yet. Missing is never zero.
+ */
+export type DailyStatus = ExplicitDailyStatus | 'pending' | 'unknown'
+
+export interface DailyActivity {
+  date: string
+  targetMinutes: number | null
+  totalMinutes: number
+  sessionCount: number
+  performed: boolean | null
+  targetAchieved: boolean | null
+  status: DailyStatus
+  reason: string | null
+  configVersionId: number | null
+  checkinId: number | null
+}
+
+/** One version of a task's configuration; old versions are kept. */
+export interface TaskConfig {
+  id: number
+  taskId: string
+  version: number
+  effectiveFrom: number
+  name: string
+  category: string | null
+  priority: string | null
+  frequency: string | null
+  frequencyConfig: string | null
+  targetDuration: number | null
+  preferredTime: string | null
+  active: boolean
+  tagIds: number[]
+}
+
+export interface TagSummary {
+  id: number
+  name: string
+  taskCount: number
+}
+
+// ---- Phase 2a: daily state summary and display-only estimates ----
+
+export type SubScoreName = 'physical' | 'mental' | 'capacity'
+
+export interface SubScore {
+  name: SubScoreName
+  score: number | null
+  answered: number
+  total: number
+}
+
+export interface ReadinessScore {
+  score: number | null
+  answered: number
+  total: number
+  state: 'ready' | 'partial' | 'none'
+  phrases: string[]
+  line: string
+  subScores: SubScore[]
+}
+
+export interface BaselineComparison {
+  weekdayAverage: number | null
+  weekdaySample: number
+  delta: number | null
+  line: string | null
+}
+
+export interface FieldEstimate {
+  key: CheckinAnswerKey
+  value: number
+  range: [number, number]
+  basis: string
+  sample: number
+}
+
+export interface FieldEvaluation {
+  key: CheckinAnswerKey
+  sample: number
+  mae: number | null
+  coverage: number | null
+  baselines: { sameAsYesterday: number | null; personalAverage: number | null; sameWeekday: number | null }
+  beatsBaseline: boolean
+}
+
+export interface EstimatesResult {
+  available: boolean
+  reason: string | null
+  estimates: FieldEstimate[]
+  evaluation: FieldEvaluation[]
+  beatsBaseline: boolean | null
+  evaluationNote: string
+  shown: boolean
+}
+
+export interface SimilarOutcome {
+  id: string
+  name: string
+  performedDays: number
+  consideredDays: number
+}
+
+export interface SimilarDay {
+  date: string
+  distance: number
+  overlap: number
+  score: number
+}
+
+export interface SimilarDaysResult {
+  available: boolean
+  reason: string | null
+  dayCount: number
+  days: SimilarDay[]
+  tasks: SimilarOutcome[]
+  tags: SimilarOutcome[]
+  line: string | null
+}
+
+export interface SubScoreTrend {
+  name: SubScoreName
+  direction: 'rising' | 'falling' | 'steady'
+  recentAverage: number
+  previousAverage: number
+  delta: number
+  line: string | null
+}
+
+export interface FieldStreak {
+  key: CheckinAnswerKey
+  days: number
+  direction: 'low' | 'high'
+  line: string
+}
+
+export interface RecentContextResult {
+  available: boolean
+  trends: SubScoreTrend[]
+  streaks: FieldStreak[]
+  lines: string[]
+}
+
+export interface AssociationResult {
+  correlation: number | null
+  sample: number
+  useful: boolean
+  note: string
+}
+
+export type DayReviewAnswer = 'much_better' | 'better' | 'about_same' | 'worse' | 'much_worse'
+
+export interface DayReview {
+  date: string
+  answer: DayReviewAnswer
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ReviewAlignment {
+  sample: number
+  correlation: number | null
+  changeRate: number | null
+  note: string
+}
+
+export interface LowCapacitySuggestion {
+  key: string
+  taskId: string | null
+  label: string
+}
+
+export interface LowCapacitySuggestions {
+  enabled: boolean
+  reason: string
+  capacityScore: number | null
+  suggestions: LowCapacitySuggestion[]
+  choices: Array<{ key: string; choice: 'accepted' | 'dismissed' }>
+}
+
+export interface LearnedWeights {
+  enabled: boolean
+  weights: Partial<Record<CheckinAnswerKey, number>>
+  reason: string
+}
+
+export interface StatePrefs {
+  showSummary: boolean
+  showEstimates: boolean
+}
+
+export interface DailyState {
+  date: string
+  today: string
+  prefs: StatePrefs
+  summary: { shown: boolean; readiness: ReadinessScore; baseline: BaselineComparison }
+  estimates: EstimatesResult
+  similarDays: SimilarDaysResult
+  recentContext: RecentContextResult
+  association: AssociationResult
+  review: { date: string; answer: DayReviewAnswer } | null
+  reviewAlignment: ReviewAlignment
+  advanced: {
+    perTagWeights: LearnedWeights
+    smarterEstimates: { enabled: boolean; reason: string }
+    lowCapacity: LowCapacitySuggestions
+  }
 }

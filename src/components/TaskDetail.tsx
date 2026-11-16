@@ -11,6 +11,7 @@ import {
   tagTint,
 } from '@/lib/taskmeta'
 import { Avatar, Spinner } from './ui'
+import ActivityLog from './ActivityLog'
 import RecurrenceEditor from './RecurrenceEditor'
 import { PriorityBadge, RecurrenceBadge, TagChips } from './TaskBadges'
 import {
@@ -45,6 +46,7 @@ interface TaskDetailProps {
     recurrence?: Recurrence
     recurrenceConfig?: RecurrenceConfig | null
     duration?: number | null
+    preferredTime?: string | null
   }) => Promise<boolean>
   onDelete: () => Promise<void>
   onAddSubtask: (text: string) => Promise<boolean>
@@ -78,6 +80,7 @@ export default function TaskDetail({
   const [progressValue, setProgressValue] = useState(task.progress ?? 0)
   const [tagInput, setTagInput] = useState('')
   const [durationValue, setDurationValue] = useState(task.duration ? String(task.duration) : '')
+  const [preferredTime, setPreferredTime] = useState(task.preferredTime ?? '')
   const [customRepeat, setCustomRepeat] = useState<RecurrenceConfig>(() =>
     task.recurrenceConfig ?? { mode: 'weekly', days: [new Date().getDay()] },
   )
@@ -93,6 +96,10 @@ export default function TaskDetail({
   useEffect(() => {
     setDurationValue(task.duration ? String(task.duration) : '')
   }, [task.id, task.duration])
+
+  useEffect(() => {
+    setPreferredTime(task.preferredTime ?? '')
+  }, [task.id, task.preferredTime])
 
   useEffect(() => {
     if (task.recurrenceConfig) setCustomRepeat(task.recurrenceConfig)
@@ -342,6 +349,40 @@ export default function TaskDetail({
                   </span>
                 </div>
               </label>
+
+              <label className="mt-3 block border-t border-slate-100 pt-3 dark:border-slate-800">
+                <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+                  <ClockIcon className="h-3.5 w-3.5" />
+                  Preferred time
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={preferredTime}
+                    onChange={(event) => {
+                      setPreferredTime(event.target.value)
+                      void onUpdate({ preferredTime: event.target.value || null })
+                    }}
+                    aria-label="Preferred time of day"
+                    className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  />
+                  {preferredTime && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreferredTime('')
+                        void onUpdate({ preferredTime: null })
+                      }}
+                      className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <span className="mt-1.5 block text-[11px] text-slate-400 dark:text-slate-500">
+                  A hint for when you usually do this — never a deadline.
+                </span>
+              </label>
             </div>
 
             {/* Priority & repeat */}
@@ -532,6 +573,9 @@ export default function TaskDetail({
                   : 'Set 100% to complete the task, or any lower value to keep it open.'}
               </p>
             </section>
+
+            {/* Activity log — real sessions and day records */}
+            <ActivityLog taskId={task.id} />
 
             {/* Subtasks */}
             <section className="mt-7">

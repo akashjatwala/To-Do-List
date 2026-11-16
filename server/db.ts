@@ -2,6 +2,8 @@ import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createCheckinSchema } from './checkins-store'
+import { createFoundationSchema, createStateSchema } from './ml/schema'
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), 'data')
 mkdirSync(DATA_DIR, { recursive: true })
@@ -108,6 +110,15 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_team_invites_email ON team_invites(email);
 `)
 
+// Daily mood/context check-ins and their append-only edit trail.
+createCheckinSchema(db)
+
+// Phase 2 foundation: tags, versioned task configs, sessions and daily records.
+createFoundationSchema(db)
+
+// Phase 2a: the read-only state layer's own tables (evening review, prefs).
+createStateSchema(db)
+
 // Lightweight migrations for databases created by older versions of the app.
 const taskColumns = db.prepare('PRAGMA table_info(tasks)').all() as unknown as Array<{
   name: string
@@ -132,6 +143,9 @@ if (!hasTaskColumn('duration')) {
 }
 if (!hasTaskColumn('recurrence_config')) {
   db.exec('ALTER TABLE tasks ADD COLUMN recurrence_config TEXT')
+}
+if (!hasTaskColumn('preferred_time')) {
+  db.exec('ALTER TABLE tasks ADD COLUMN preferred_time TEXT')
 }
 
 export interface UserRow {
@@ -184,6 +198,7 @@ export interface TaskRow {
   recurrence: string
   duration: number | null
   recurrence_config: string | null
+  preferred_time: string | null
 }
 
 export interface SubtaskRow {

@@ -9,7 +9,10 @@
     "dev:web": "vite",
     "build": "tsc -b && vite build",
     "start": "tsx server/index.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --import tsx --test \"server/**/*.test.ts\"",
+    "seed:sample": "node --import tsx server/ml/seed-sample.ts",
+    "seed:purge": "node --import tsx server/ml/seed-sample.ts --purge"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

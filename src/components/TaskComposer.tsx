@@ -31,6 +31,7 @@ export interface NewTaskInput {
   recurrence: Recurrence
   recurrenceConfig: RecurrenceConfig | null
   duration: number | null
+  preferredTime: string | null
   teamId: string | null
 }
 
@@ -60,6 +61,7 @@ export default function TaskComposer({
     days: [new Date().getDay()],
   }))
   const [duration, setDuration] = useState('')
+  const [preferredTime, setPreferredTime] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagDraft, setTagDraft] = useState('')
   const [teamId, setTeamId] = useState<string | null>(defaultTeamId)
@@ -119,6 +121,7 @@ export default function TaskComposer({
       recurrence,
       recurrenceConfig: recurrence === 'custom' ? customRepeat : null,
       duration: durationValue,
+      preferredTime: preferredTime || null,
       teamId,
     })
     setBusy(false)
@@ -128,6 +131,7 @@ export default function TaskComposer({
       setPriority('none')
       setRecurrence('none')
       setDuration('')
+      setPreferredTime('')
       setTags([])
       setTagDraft('')
       inputRef.current?.focus()
@@ -226,6 +230,20 @@ export default function TaskComposer({
             title="Ideal duration of the task, in minutes"
           />
           <span className="text-[11px] text-slate-400 dark:text-slate-500">min</span>
+        </label>
+
+        <label
+          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          title="Optional preferred time of day — a hint, never a deadline"
+        >
+          <ClockIcon className="h-4 w-4" />
+          <input
+            type="time"
+            value={preferredTime}
+            onChange={(event) => setPreferredTime(event.target.value)}
+            className="w-[5.5rem] cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-slate-600 outline-none dark:text-slate-300"
+            aria-label="Preferred time of day"
+          />
         </label>
 
         {showTeamSelect && (

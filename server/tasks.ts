@@ -18,6 +18,7 @@ import {
   text,
   type AuthedRequest,
 } from './http'
+import { syncTaskFoundation } from './ml/task-sync'
 
 const router = Router()
 
@@ -30,6 +31,14 @@ const DURATION_MAX = 60 * 24 * 7
 
 const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const
 type Priority = (typeof PRIORITIES)[number]
+
+const PREFERRED_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+
+/** Optional preferred time of day, stored as local "HH:MM". Missing stays missing. */
+function parsePreferredTime(value: unknown): string | null | undefined {
+  if (value === undefined || value === null || value === '') return null
+  return typeof value === 'string' && PREFERRED_TIME_RE.test(value) ? value : undefined
+}
 
 /** Priority is optional on create; anything unrecognised is rejected. */
 function parsePriority(value: unknown): Priority | null {
@@ -75,8 +84,8 @@ function spawnNextOccurrence(task: TaskRow): string {
   const config = readRecurrenceConfig(task.recurrence_config)
   const nextDue = advanceDue(task.due ?? now, task.recurrence as Recurrence, config)
   db.prepare(
-    `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, progress, priority, tags, recurrence, duration, recurrence_config)
-     VALUES (?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, progress, priority, tags, recurrence, duration, recurrence_config, preferred_time)
+     VALUES (?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     task.user_id,
@@ -90,6 +99,7 @@ function spawnNextOccurrence(task: TaskRow): string {
     task.recurrence,
     task.duration,
     task.recurrence_config,
+    task.preferred_time,
   )
 
   const subtasks = db
@@ -99,6 +109,8 @@ function spawnNextOccurrence(task: TaskRow): string {
     'INSERT INTO subtasks (id, task_id, text, done, position) VALUES (?, ?, ?, 0, ?)',
   )
   for (const subtask of subtasks) insert.run(randomUUID(), id, subtask.text, subtask.position)
+
+  syncTaskFoundation(db, db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as unknown as TaskRow)
 
   return id
 }
@@ -170,12 +182,14 @@ router.post('/', (req: AuthedRequest, res) => {
   }
   const tags = parseTags(req.body?.tags)
   if (tags === null) return badRequest(res, 'Those tags are not valid.')
+  const preferredTime = parsePreferredTime(req.body?.preferredTime)
+  if (preferredTime === undefined) return badRequest(res, 'That preferred time is not valid.')
 
   const id = randomUUID()
   const now = Date.now()
   db.prepare(
-    `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, priority, tags, recurrence, duration, recurrence_config)
-     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, priority, tags, recurrence, duration, recurrence_config, preferred_time)
+     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     userId,
@@ -189,7 +203,11 @@ router.post('/', (req: AuthedRequest, res) => {
     recurrence,
     duration,
     recurrenceConfig ? JSON.stringify(recurrenceConfig) : null,
+    preferredTime,
   )
+
+  // Mirror the task's tags and configuration into the learning tables.
+  syncTaskFoundation(db, db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as unknown as TaskRow)
 
   res.status(201).json({ id })
 })
@@ -354,6 +372,13 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
     values.push(JSON.stringify(tags))
   }
 
+  if (req.body?.preferredTime !== undefined) {
+    const preferredTime = parsePreferredTime(req.body.preferredTime)
+    if (preferredTime === undefined) return badRequest(res, 'That preferred time is not valid.')
+    updates.push('preferred_time = ?')
+    values.push(preferredTime)
+  }
+
   if (updates.length === 0) return badRequest(res, 'Nothing to update.')
   values.push(loaded.task.id)
   db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`).run(...values)
@@ -367,6 +392,9 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
       loaded.task.id,
     )
   }
+
+  // Keep the learning tables in step with the edited task.
+  syncTaskFoundation(db, db.prepare('SELECT * FROM tasks WHERE id = ?').get(loaded.task.id) as unknown as TaskRow)
 
   res.json({ ok: true, spawnedId })
 })

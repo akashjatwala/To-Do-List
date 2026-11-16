@@ -154,6 +154,23 @@
     @apply dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white;
   }
 
+  /* Check-in wizard: a soft per-question accent, driven by --accent. */
+  .checkin-surface {
+    background-image: radial-gradient(
+      140% 95% at 50% -10%,
+      color-mix(in oklab, var(--accent, #6366f1) 16%, transparent),
+      transparent 62%
+    );
+  }
+
+  .checkin-choice-emoji {
+    transition: transform 0.18s ease;
+  }
+
+  .checkin-choice[data-selected='true'] .checkin-choice-emoji {
+    transform: scale(1.18);
+  }
+
   .progress-range {
     @apply h-1.5 cursor-pointer appearance-none rounded-full bg-slate-100 dark:bg-slate-800;
     @apply focus-visible:ring-4 focus-visible:ring-indigo-500/15 focus-visible:outline-none;
@@ -243,6 +260,13 @@
 
   .sticky-note,
   .sticky-note:hover {
+    transform: none;
+  }
+
+  .checkin-choice,
+  .checkin-choice-emoji,
+  .checkin-choice[data-selected='true'] .checkin-choice-emoji {
+    transition: none;
     transform: none;
   }
 }
