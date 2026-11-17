@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import type { Task } from '@/types'
 import { formatDuration, PRIORITY_META, STICKY_META, recurrenceShort } from '@/lib/taskmeta'
+import { noteTilt, pinClass } from '@/lib/notes'
 import {
   CheckIcon,
   ClockIcon,
@@ -21,13 +22,25 @@ interface BoardProps {
   onDelete: (task: Task) => void
 }
 
-/** Small deterministic tilt so notes look pinned by hand, not laid out by a grid. */
-function tilt(id: string): number {
-  let hash = 0
-  for (let index = 0; index < id.length; index += 1) {
-    hash = (hash * 31 + id.charCodeAt(index)) % 997
-  }
-  return ((hash % 5) - 2) * 0.9
+/**
+ * A decorative push-pin, centred on a note's top edge. It is not interactive
+ * (the note still drags and double-clicks as before) and is hidden from screen
+ * readers; the colour is chosen by a stable rule so a note keeps its pin.
+ */
+function PushPin({ taskId }: { taskId: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`sticky-pin pointer-events-none absolute -top-3 left-1/2 z-20 -translate-x-1/2 ${pinClass(taskId)}`}
+    >
+      <svg viewBox="0 0 24 24" className="h-5 w-5 drop-shadow-sm" fill="none">
+        <ellipse cx="12" cy="21.5" rx="3.2" ry="1.1" className="fill-slate-900/15" />
+        <path d="M12 15.5v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="12" cy="9.5" r="6.2" fill="currentColor" />
+        <circle cx="9.9" cy="7.4" r="2.1" className="fill-white/60" />
+      </svg>
+    </span>
+  )
 }
 
 export function StickyBoard({
@@ -52,6 +65,36 @@ export function StickyBoard({
   useEffect(() => {
     setOrdered(tasks)
   }, [tasks])
+
+  // Notes already on screen when the board loads keep their pin still. A note
+  // that appears later (a task added while the board is open) presses its pin
+  // in once, briefly.
+  const knownIds = useRef<Set<string>>(new Set(tasks.map((task) => task.id)))
+  const [pressing, setPressing] = useState<Set<string>>(() => new Set())
+  const pressTimers = useRef<number[]>([])
+
+  useEffect(() => {
+    const fresh = tasks.filter((task) => !knownIds.current.has(task.id))
+    if (fresh.length === 0) return
+    const ids = fresh.map((task) => task.id)
+    for (const id of ids) knownIds.current.add(id)
+    setPressing((prev) => new Set([...prev, ...ids]))
+    const timer = window.setTimeout(() => {
+      setPressing((prev) => {
+        const next = new Set(prev)
+        for (const id of ids) next.delete(id)
+        return next
+      })
+    }, 320)
+    pressTimers.current.push(timer)
+  }, [tasks])
+
+  useEffect(
+    () => () => {
+      for (const timer of pressTimers.current) window.clearTimeout(timer)
+    },
+    [],
+  )
 
   const clearDrag = () => {
     dragId.current = null
@@ -129,13 +172,14 @@ export function StickyBoard({
   }
 
   return (
-    <div className="grid gap-x-4 gap-y-6 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="sticky-board grid gap-x-4 gap-y-6 rounded-[28px] p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-3">
       {ordered.map((task) => {
         const meta = STICKY_META[task.priority]
         const doneSubtasks = task.subtasks.filter((subtask) => subtask.done).length
         const repeat = recurrenceShort(task.recurrence, task.recurrenceConfig)
         const isDragging = draggingId === task.id
         const isDropTarget = dropTarget?.id === task.id
+        const isNew = pressing.has(task.id)
         return (
           <article
             key={task.id}
@@ -149,12 +193,13 @@ export function StickyBoard({
               if ((event.target as HTMLElement).closest('[data-note-action]')) return
               onOpen(task)
             }}
-            style={{ '--tilt': `${tilt(task.id)}deg` } as CSSProperties}
+            style={{ '--tilt': `${noteTilt(task.id)}deg` } as CSSProperties}
             title="Drag to rearrange · Double-click to open"
-            className={`sticky-note group relative flex min-h-[10rem] cursor-grab flex-col border-2 px-4 pt-5 pb-4 active:cursor-grabbing ${meta.note} ${
+            className={`sticky-note group relative flex min-h-[10rem] cursor-grab flex-col border-2 px-4 pt-7 pb-4 active:cursor-grabbing ${meta.note} ${
               isDragging ? 'opacity-40' : ''
-            }`}
+            } ${isNew ? 'sticky-pin-new' : ''}`}
           >
+            <PushPin taskId={task.id} />
             <span
               aria-hidden="true"
               className={`sticky-tape pointer-events-none absolute -top-2.5 left-1/2 h-4 w-16 -translate-x-1/2 -rotate-2 rounded-[3px] opacity-95 ${meta.tape}`}

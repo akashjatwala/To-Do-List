@@ -37,7 +37,6 @@ import {
   InboxIcon,
   MoonIcon,
   PlusIcon,
-  SmileIcon,
   SunIcon,
   UsersIcon,
   XIcon,
@@ -67,6 +66,7 @@ export default function App() {
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null)
   const [checkinOpen, setCheckinOpen] = useState(false)
   const [checkinMode, setCheckinMode] = useState<'prompt' | 'edit'>('prompt')
+  const [checkinCelebrate, setCheckinCelebrate] = useState(false)
   const [dailyStateData, setDailyStateData] = useState<DailyState | null>(null)
   const toastId = useRef(0)
   const lastTeamId = useRef<string | null>(null)
@@ -239,6 +239,7 @@ export default function App() {
     checkinCheckedFor.current = null
     setCheckinStatus(null)
     setCheckinOpen(false)
+    setCheckinCelebrate(false)
   }
 
   const handleLogout = async () => {
@@ -529,15 +530,6 @@ export default function App() {
                 >
                   <InboxIcon className="h-4 w-4 shrink-0" />
                   <span className="truncate">My task</span>
-                  <span
-                    className={`rounded px-1 text-[10px] ${
-                      !isCollab
-                        ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200'
-                        : 'bg-slate-200/80 text-slate-500 dark:bg-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    {openCounts.personal}
-                  </span>
                 </button>
 
                 <div
@@ -575,21 +567,6 @@ export default function App() {
               </div>
 
               <div className="ml-auto flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  onClick={openCheckin}
-                  className="icon-btn"
-                  aria-label="Mood and context check-in"
-                  title={
-                    checkinStatus?.state === 'completed'
-                      ? 'Mood check-in · done today'
-                      : checkinStatus?.state === 'skipped'
-                        ? 'Mood check-in · skipped today'
-                        : 'Mood check-in'
-                  }
-                >
-                  <SmileIcon className="h-4.5 w-4.5" />
-                </button>
                 <button
                   type="button"
                   onClick={toggleTheme}
@@ -788,6 +765,11 @@ export default function App() {
               <div className="mb-4">
                 <DailyStateCard
                   state={dailyStateData}
+                  checkin={checkinStatus?.checkin ?? null}
+                  checkinState={checkinStatus?.state ?? 'not_asked'}
+                  celebrate={checkinCelebrate}
+                  onCelebrated={() => setCheckinCelebrate(false)}
+                  onEditCheckin={openCheckin}
                   notify={notify}
                   onState={setDailyStateData}
                 />
@@ -920,6 +902,7 @@ export default function App() {
           initial={checkinStatus?.checkin ?? null}
           onClose={() => setCheckinOpen(false)}
           onChanged={setCheckinStatus}
+          onFinished={() => setCheckinCelebrate(true)}
           notify={notify}
         />
       )}

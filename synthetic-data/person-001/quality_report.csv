@@ -1,0 +1,28 @@
+person_id,section,check,result,detail,synthetic
+person-001,data-quality,check-in answers are 1–5 or blank,pass,0 out-of-range answer(s),1
+person-001,data-quality,session durations are within a day,pass,0 bad duration(s),1
+person-001,data-quality,session ids are unique,pass,0 duplicate(s),1
+person-001,data-quality,no overlapping sessions within a task,pass,0 overlap(s),1
+person-001,data-quality,every observed row is flagged synthetic,pass,all rows flagged,1
+person-001,data-quality,coverage matrix met,pass,every minimum met,1
+person-001,data-quality,row cap respected,pass,6589 of 10000,1
+person-001,data-quality,deliberately-invalid entries were rejected,pass,12 rejected,1
+person-001,leakage,sessions fall inside their local day,pass,0 out of bounds,1
+person-001,leakage,no session logged more than 3 days after the fact,pass,0 later than allowed,1
+person-001,leakage,pending days carry no labels or sessions,pass,"checkins 0, statuses 0, sessions 0 (pending from index 360)",1
+person-001,leakage,no prediction recorded as an outcome,pass,0 row(s) with both a prediction and an outcome,1
+person-001,leakage,ground truth is present for the evaluated window,pass,ground truth covers the evaluated days,1
+person-001,phase2a,readiness scores can be computed from the check-ins,pass,299 scored day(s),1
+person-001,phase2a,readiness vs completion — Read a book,pass,"mean readiness 54.0 on days done vs 53.1 otherwise (gap 1.0; done 153, other 146)",1
+person-001,phase2a,readiness vs completion — Morning run,pass,"mean readiness 50.5 on days done vs 54.9 otherwise (gap -4.4; done 91, other 208)",1
+person-001,phase2a,readiness vs completion — Tidy the kitchen,pass,"mean readiness 54.2 on days done vs 52.6 otherwise (gap 1.6; done 174, other 125)",1
+person-001,phase2a,readiness vs completion — Call family,pass,"mean readiness 55.7 on days done vs 53.3 otherwise (gap 2.4; done 35, other 264)",1
+person-001,phase2a,readiness vs completion — Study Spanish,pass,"mean readiness 53.6 on days done vs 53.5 otherwise (gap 0.1; done 190, other 109)",1
+person-001,phase2a,readiness vs completion — Write journal,pass,"mean readiness 52.8 on days done vs 54.9 otherwise (gap -2.0; done 194, other 105)",1
+person-001,phase2a,readiness vs completion — Inbox triage,pass,"mean readiness 53.2 on days done vs 54.0 otherwise (gap -0.8; done 156, other 143)",1
+person-001,phase2a,readiness vs completion — Meditate,pass,"mean readiness 52.6 on days done vs 54.2 otherwise (gap -1.6; done 123, other 176)",1
+person-001,phase2a,readiness vs completion — Language exchange,pass,"mean readiness 51.2 on days done vs 53.7 otherwise (gap -2.5; done 15, other 284)",1
+person-001,phase2a,readiness vs completion — Old side project,pass,"mean readiness 52.5 on days done vs 53.8 otherwise (gap -1.3; done 47, other 252)",1
+person-001,phase2a,most tracked tasks can be assessed against readiness,pass,10 of 10 tracked task(s) have enough done/other days (need at least two thirds),1
+person-001,phase2a,a day-level completion rate can be derived,pass,derived,1
+person-001,phase2a,display estimates evaluated against simple baselines,pass,1 of 9 fields match or beat the best baseline,1

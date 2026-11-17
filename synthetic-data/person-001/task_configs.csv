@@ -1,0 +1,20 @@
+person_id,id,task_id,user_id,version,effective_from,name,category,priority,frequency,frequency_config,target_duration,preferred_time,active,created_at,tag_ids,synthetic
+person-001,1,syn-person-001-task-read,1,1,2025-11-18T03:30:00.000Z,Read a book,,medium,daily,,60,,1,2025-11-18T03:30:00.000Z,5,1
+person-001,2,syn-person-001-task-read,1,2,2026-01-30T03:30:00.000Z,Read a book,,medium,daily,,75,,1,2026-01-30T03:30:00.000Z,5,1
+person-001,3,syn-person-001-task-read,1,3,2026-03-25T03:30:00.000Z,Read a book,,medium,daily,,75,,1,2026-03-25T03:30:00.000Z,3|5,1
+person-001,4,syn-person-001-task-run,1,1,2025-11-18T03:30:00.000Z,Morning run,,high,custom,"{""mode"":""weekly"",""days"":[1,3,5]}",30,07:00,1,2025-11-18T03:30:00.000Z,2|3,1
+person-001,5,syn-person-001-task-run,1,2,2026-05-19T03:30:00.000Z,Morning run,,high,custom,"{""mode"":""weekly"",""days"":[1,3,5]}",40,07:00,1,2026-05-19T03:30:00.000Z,2|3,1
+person-001,6,syn-person-001-task-kitchen,1,1,2025-11-18T03:30:00.000Z,Tidy the kitchen,,low,daily,,15,,1,2025-11-18T03:30:00.000Z,4,1
+person-001,7,syn-person-001-task-kitchen,1,2,2026-03-07T03:30:00.000Z,Tidy the kitchen,,medium,daily,,15,,1,2026-03-07T03:30:00.000Z,4,1
+person-001,8,syn-person-001-task-family,1,1,2025-11-18T03:30:00.000Z,Call family,,high,weekly,"{""mode"":""weekly"",""days"":[0]}",20,19:00,1,2025-11-18T03:30:00.000Z,6,1
+person-001,9,syn-person-001-task-family,1,2,2026-06-24T03:30:00.000Z,Call family,,medium,weekly,"{""mode"":""weekly"",""days"":[0]}",20,19:00,1,2026-06-24T03:30:00.000Z,6,1
+person-001,10,syn-person-001-task-study,1,1,2025-11-18T03:30:00.000Z,Study Spanish,,medium,daily,,25,18:30,1,2025-11-18T03:30:00.000Z,7,1
+person-001,11,syn-person-001-task-study,1,2,2026-07-13T03:30:00.000Z,Study Spanish,,medium,daily,,30,18:30,1,2026-07-13T03:30:00.000Z,7,1
+person-001,12,syn-person-001-task-journal,1,1,2025-11-18T03:30:00.000Z,Write journal,,,daily,,10,22:30,1,2025-11-18T03:30:00.000Z,5,1
+person-001,13,syn-person-001-task-journal,1,2,2026-05-01T03:30:00.000Z,Write journal,,low,daily,,10,22:30,1,2026-05-01T03:30:00.000Z,5,1
+person-001,14,syn-person-001-task-inbox,1,1,2025-11-18T03:30:00.000Z,Inbox triage,,low,daily,,20,,1,2025-11-18T03:30:00.000Z,8,1
+person-001,15,syn-person-001-task-meditate,1,1,2026-04-13T03:30:00.000Z,Meditate,,medium,daily,,10,07:30,1,2026-04-13T03:30:00.000Z,3,1
+person-001,16,syn-person-001-task-language-exchange,1,1,2026-06-07T03:30:00.000Z,Language exchange,,low,weekly,"{""mode"":""weekly"",""days"":[3]}",30,20:00,1,2026-06-07T03:30:00.000Z,6|7,1
+person-001,17,syn-person-001-task-language-exchange,1,2,2026-09-05T03:30:00.000Z,Language exchange,,low,weekly,"{""mode"":""weekly"",""days"":[3]}",30,20:00,1,2026-09-05T03:30:00.000Z,7,1
+person-001,18,syn-person-001-task-old-project,1,1,2025-11-18T03:30:00.000Z,Old side project,,low,daily,,45,,1,2025-11-18T03:30:00.000Z,8,1
+person-001,19,syn-person-001-task-old-project,1,2,2026-03-26T03:30:00.000Z,Old side project,,low,daily,,45,,0,2026-03-26T03:30:00.000Z,8,1

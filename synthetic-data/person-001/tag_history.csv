@@ -1,0 +1,11 @@
+person_id,id,tag_id,user_id,name,normalized,action,merged_into_id,recorded_at,synthetic
+person-001,1,1,1,Chores,chores,create,,2025-11-17T18:30:00.000Z,1
+person-001,2,2,1,Exercise,exercise,create,,2025-11-17T18:30:00.000Z,1
+person-001,3,3,1,Health,health,create,,2025-11-17T18:30:00.000Z,1
+person-001,4,4,1,Household,household,create,,2025-11-17T18:30:00.000Z,1
+person-001,5,5,1,Reading,reading,create,,2025-11-17T18:30:00.000Z,1
+person-001,6,6,1,Relationship,relationship,create,,2025-11-17T18:30:00.000Z,1
+person-001,7,7,1,Study,study,create,,2025-11-17T18:30:00.000Z,1
+person-001,8,8,1,Work,work,create,,2025-11-17T18:30:00.000Z,1
+person-001,9,7,1,Languages,languages,rename,,2026-07-31T03:30:00.000Z,1
+person-001,10,1,1,Chores,chores,merge,4,2026-02-17T03:30:00.000Z,1

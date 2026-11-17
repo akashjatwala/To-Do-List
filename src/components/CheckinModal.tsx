@@ -32,6 +32,11 @@ interface CheckinModalProps {
   initial: Checkin | null
   onClose: () => void
   onChanged: (status: CheckinStatus) => void
+  /**
+   * Called once, only when the person finishes the check-in (not when they
+   * skip it or leave midway). Used to play the Energy Level celebration.
+   */
+  onFinished?: (status: CheckinStatus) => void
   notify: (message: string, tone?: ToastTone) => void
   /** Only used if the app already knows the user's name. */
   name?: string | null
@@ -93,6 +98,7 @@ export default function CheckinModal({
   initial,
   onClose,
   onChanged,
+  onFinished,
   notify,
   name = null,
 }: CheckinModalProps) {
@@ -196,14 +202,16 @@ export default function CheckinModal({
     clearTimer()
     setBusy(true)
     try {
-      await save({ notifyOnDone: true })
+      const status = await save({ notifyOnDone: true })
+      // Only a finished check-in celebrates; skipping and leaving do not.
+      onFinished?.(status)
       onClose()
     } catch (error) {
       notify(errorMessage(error), 'error')
     } finally {
       setBusy(false)
     }
-  }, [busy, clearTimer, notify, onClose, save])
+  }, [busy, clearTimer, notify, onClose, onFinished, save])
 
   /** Leave midway: persist what was answered so the next open can resume. */
   const dismiss = useCallback(() => {
