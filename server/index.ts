@@ -16,6 +16,11 @@ import {
   taskConfigRoutes,
 } from './ml/routes'
 import stateRoutes from './ml/state-routes'
+import offDayRoutes from './ml/off-day-routes'
+import predictionRoutes from './ml/prediction-routes'
+import learningRoutes from './ml/health-routes'
+import { startRetrainScheduler } from './ml/learning'
+import { db } from './db'
 import { fail, parseCookies, SESSION_COOKIE, unauthorized, type AuthedRequest } from './http'
 
 const app = express()
@@ -85,6 +90,9 @@ for (const [prefix, router] of [
   ['/api/task-configs', taskConfigRoutes],
   ['/api/context-questions', contextQuestionRoutes],
   ['/api/state', stateRoutes],
+  ['/api/off-days', offDayRoutes],
+  ['/api/predictions', predictionRoutes],
+  ['/api/ml', learningRoutes],
 ] as const) {
   app.use(prefix, (req: AuthedRequest, res, next) => {
     if (requireUser(req, res) === null) return
@@ -125,3 +133,12 @@ app.use(
 app.listen(PORT, () => {
   console.log(`\n  To-Do API ready at http://localhost:${PORT}\n`)
 })
+
+// ---- Periodic retraining (Phase 6, §1) ----
+// A lightweight, unref'd timer that asks the Phase 5 gate whether a retrain is
+// due and rate-limits the work inside `maybeRetrain`. Set ML_RETRAIN_EVERY_MS to
+// change the interval, or ML_DISABLE_SCHEDULER=1 to turn it off.
+if (process.env.ML_DISABLE_SCHEDULER !== '1') {
+  const everyMs = Number(process.env.ML_RETRAIN_EVERY_MS ?? 6 * 60 * 60 * 1000)
+  startRetrainScheduler(db, { everyMs: Number.isFinite(everyMs) ? everyMs : 6 * 60 * 60 * 1000 })
+}

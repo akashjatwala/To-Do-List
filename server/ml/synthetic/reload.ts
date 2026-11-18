@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
-import { openSyntheticDb, createSyntheticUser, assertSynthetic } from './isolation'
+import { openSyntheticDb, createSyntheticUser, assertSynthetic, SYNTHETIC_FLAG } from './isolation'
 import { OBSERVED_DIR } from './export-csv'
 import { fromIso, intCell, optionalCell, optionalInt, parseCsvRecords, type CsvRecord } from './csv'
 import type { SyntheticConfig } from './config'
@@ -16,9 +16,11 @@ import type { SyntheticConfig } from './config'
  * marker table.
  *
  * Layer files and ground truth are deliberately **not** loaded into the
- * database. They stay file-only (a known limitation noted in the README): the
- * database mirrors the app's own tables, and the app has no tables for the
- * synthetic-only layers.
+ * database in general. Two exceptions were added in Phase 4: the off-day layer
+ * loads into the app's own `off_days` table, and the recommendation layer loads
+ * into the synthetic-only `synthetic_recommendations` table, so the Phase 4
+ * checks can run against recommendations end to end. Ground truth stays
+ * file-only and is never written into the database.
  */
 
 export const SYNTHETIC_DB_PATH = join(OBSERVED_DIR, 'synthetic.db')
@@ -52,6 +54,16 @@ export const RELOAD_FILES = [
   'session_context.csv',
   'state_suggestion_choices.csv',
 ] as const
+
+/** The optional Phase 3 layer files the reload also loads when present. */
+export const RELOAD_LAYER_FILES = ['layer_off_days.csv', 'layer_recommendations.csv'] as const
+
+/** The app's `off_days.kind` set. The generator's `personal` maps to `other`. */
+function offDayKind(value: string): string | null {
+  if (!value) return null
+  if (value === 'sick' || value === 'travel' || value === 'holiday') return value
+  return 'other'
+}
 
 export function reloadDataset(config: SyntheticConfig, dbPath = SYNTHETIC_DB_PATH): ReloadResult {
   const dir = join(OBSERVED_DIR, config.personId)
@@ -87,6 +99,8 @@ export function reloadDataset(config: SyntheticConfig, dbPath = SYNTHETIC_DB_PAT
         'tags',
         'tasks',
         'state_suggestion_choices',
+        'off_days',
+        'synthetic_recommendations',
       ]
       for (const table of userIdTables) {
         if (table === 'task_config_tags') {
@@ -321,6 +335,40 @@ export function reloadDataset(config: SyntheticConfig, dbPath = SYNTHETIC_DB_PAT
         row.local_date,
         row.suggestion_key,
         row.choice,
+        fromIso(row.created_at),
+      )
+    })
+
+    // Phase 4 layers: the off-day layer into the app's own table, and the
+    // recommendation layer into the synthetic-only table. Both are optional.
+    insertAll('off_days', readRecords(dir, 'layer_off_days.csv'), (row) => {
+      db.prepare(
+        `INSERT INTO off_days (user_id, kind, start_date, end_date, note, source, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        userId,
+        offDayKind(row.kind),
+        row.start_date,
+        row.end_date,
+        optionalCell(row.reason),
+        SYNTHETIC_FLAG,
+        fromIso(row.start_date),
+        fromIso(row.start_date),
+      )
+    })
+
+    insertAll('synthetic_recommendations', readRecords(dir, 'layer_recommendations.csv'), (row) => {
+      db.prepare(
+        `INSERT INTO synthetic_recommendations (id, user_id, local_date, task_id, kind, exploratory, response, synthetic, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      ).run(
+        intCell(row.id),
+        userId,
+        row.local_date,
+        row.task_id,
+        row.kind,
+        intCell(row.exploratory),
+        row.response,
         fromIso(row.created_at),
       )
     })

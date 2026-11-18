@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
-import { createFoundationSchema } from './schema'
+import { createFoundationSchema, createPredictionSchema } from './schema'
 import { syncTaskFoundation } from './task-sync'
 import { listTags, mergeTags, renameTag, resolveTagChain, syncTaskTags } from './tags'
 import {
@@ -57,6 +57,7 @@ function freshDb(): DatabaseSync {
   `)
   db.exec('CREATE TABLE checkins (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, skipped INTEGER)')
   createFoundationSchema(db)
+  createPredictionSchema(db)
   return db
 }
 

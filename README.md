@@ -1,10 +1,18 @@
 # To-do.
 
-A focused to-do list app for individuals and small teams. Personal lists stay private; teams share tasks, subtasks, and comment threads.
+A focused to-do list app for individuals and small teams, with a private, on-device
+learning system that predicts what you are realistically likely to get done and
+suggests suitable times.
+
+Personal lists stay private; teams share tasks, subtasks, and comment threads.
+The learning system is a separate layer on top of the existing app: it records what
+you actually do, learns from it locally, and never sends personal data anywhere.
 
 ## Features
 
-- Email + password accounts with “remember me” sessions
+**Lists and tasks**
+
+- Email + password accounts with "remember me" sessions
 - Account settings from the sidebar account menu: change password (other devices get signed out) or delete your account
 - Personal to-do lists
 - Shared team lists with host/member roles
@@ -24,6 +32,23 @@ A focused to-do list app for individuals and small teams. Personal lists stay pr
 - Task comments
 - Light and dark themes (follows your system by default)
 - Responsive layout with a slide-over task panel
+
+**Learning system (local, on-device)**
+
+- A daily check-in (nine optional questions) and an optional evening review
+- Activity logging: timed sessions and one-tap per-day statuses (completed / partial / skipped / postponed)
+- Per-activity statistics, a readiness/energy view, and similar-day context
+- Predictions: how likely you are to do a task, whether you will hit the target, how long it usually takes, and a suggested time window
+- Off days (sick / travel / holiday / other) that reduce confidence rather than inventing data
+- Versioned tags, priority, target duration and preferred time, with full history
+- Local model training, versioning, promotion, rollback and a plain-words model health view
+- Continuous learning: recording activity updates statistics immediately and retraining is gated and rate-limited
+- Drift notes and dated configuration changes, shown as associations, never as causes
+- Privacy controls: everything stays local, and you can delete your check-in history
+
+The prediction numbers and the model behaviour are described in the
+[docs](#documentation) below. No accuracy figure is claimed for your own data yet —
+see [docs/privacy-and-limits.md](docs/privacy-and-limits.md).
 
 ## Quick start
 
@@ -47,15 +72,25 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 
 ## How it works
 
-- `server/` — Express 5 API. `db.ts` defines a SQLite schema (users, sessions, password resets, teams, members, invites, tasks, subtasks, comments); `auth.ts` handles hashed session/reset tokens; route files expose `/api/auth`, `/api/teams`, `/api/invites`, and `/api/tasks`.
+- `server/` — Express 5 API. `db.ts` defines a SQLite schema (users, sessions, password resets, teams, members, invites, tasks, subtasks, comments); `auth.ts` handles hashed session/reset tokens; route files expose `/api/auth`, `/api/teams`, `/api/invites`, `/api/tasks` and `/api/checkins`.
+- `server/ml/` — the learning system: data collection, validation, feature engineering, training, evaluation, prediction, continuous learning, model versioning, drift and privacy. See [docs/architecture.md](docs/architecture.md).
 - `src/` — React 19 + Tailwind CSS 4 frontend. `App.tsx` loads a single `/api/bootstrap` payload and handles mutations; components live in `src/components/`.
 - Data is stored in `server/data/todo.db` (created automatically, git-ignored).
+- `server/ml/synthetic/` — a generated one-year dataset and evaluation harness used to test the pipeline before any real data exists. It is isolated from the app database and is never an accuracy claim. See [docs/synthetic-data.md](docs/synthetic-data.md).
 
-### Development notes
+## Documentation
 
-- No mail service is configured. In development, password reset codes are shown in the UI and printed to the server console.
-- Session cookies are `httpOnly`; only SHA-256 hashes of session tokens are stored.
-- Deleting a task requires being its creator or the team host. Comments can be deleted by their author or the host.
+| Document | What it covers |
+| --- | --- |
+| [docs/architecture.md](docs/architecture.md) | How the app and the learning system fit together, layer by layer |
+| [docs/data-model.md](docs/data-model.md) | Every database table and what it holds |
+| [docs/checkin-and-energy.md](docs/checkin-and-energy.md) | The daily check-in, its questions, and the energy/readiness display |
+| [docs/predictions.md](docs/predictions.md) | What is predicted, from what inputs, and how it is shown |
+| [docs/ml.md](docs/ml.md) | Features, algorithms and why they were chosen, training, versioning, health and drift |
+| [docs/synthetic-data.md](docs/synthetic-data.md) | The generated dataset and the evaluation harness |
+| [docs/operations.md](docs/operations.md) | Running, training, retraining, health checks and rollback |
+| [docs/privacy-and-limits.md](docs/privacy-and-limits.md) | What is stored, what stays local, and the honest limits |
+| [docs/decisions.md](docs/decisions.md) | The main design choices and their reasons |
 
 ## Scripts
 
@@ -65,3 +100,20 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 | `npm run build` | Type-check and build the frontend |
 | `npm start` | Serve the built app and API on port 3001 |
 | `npm run preview` | Preview the Vite build |
+| `npm test` | Run the whole test suite (server + frontend) |
+| `npm run seed:sample` | Load a small sample dataset for local testing |
+| `npm run seed:purge` | Remove the sample dataset |
+| `npm run synthetic:generate` | Generate the synthetic one-year dataset |
+| `npm run synthetic:reload` | Load the synthetic dataset into its isolated database |
+| `npm run synthetic:report` | Run the evaluation harness over the synthetic data |
+| `npm run synthetic:train` | Train models on the synthetic data (sandbox only) |
+| `npm run synthetic:asof` | Rebuild the synthetic data as it stood on a cutoff date |
+| `npm run synthetic:purge` | Delete the synthetic dataset |
+
+## Development notes
+
+- No mail service is configured. In development, password reset codes are shown in the UI and printed to the server console.
+- Session cookies are `httpOnly`; only SHA-256 hashes of session tokens are stored.
+- Deleting a task requires being its creator or the team host. Comments can be deleted by their author or the host.
+- The learning system runs locally only. File logging is opt-in with `ML_LOG_FILE`; nothing is uploaded. See [docs/privacy-and-limits.md](docs/privacy-and-limits.md).
+- The retraining scheduler can be turned off with `ML_DISABLE_SCHEDULER=1`, and its interval changed with `ML_RETRAIN_EVERY_MS`. See [docs/operations.md](docs/operations.md).

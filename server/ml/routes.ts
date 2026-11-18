@@ -8,6 +8,7 @@ import {
   createSession,
   deleteSession,
   existingRanges,
+  getSession,
   listSessions,
   validateSession,
   type SessionRow,
@@ -27,6 +28,7 @@ import {
   suggestedQuestionsForTask,
   type QuestionKind,
 } from './context-questions'
+import { recordActivityOutcomeSafe } from './learning'
 
 const TAG_NAME_MAX = 24
 const REASON_MAX = 500
@@ -128,12 +130,18 @@ activityRoutes.post('/sessions', (req: AuthedRequest, res) => {
   if (!result.ok) return badRequest(res, result.error)
 
   const row = createSession(db, userId, result.value)
+  // Immediate learning: store the check-in/outcome link for the day that changed.
+  recordActivityOutcomeSafe(db, userId, result.value.taskId, result.value.localDate, serverToday())
   res.status(201).json({ session: sessionDTO(row) })
 })
 
 activityRoutes.delete('/sessions/:id', (req: AuthedRequest, res) => {
-  const deleted = deleteSession(db, req.userId!, param(req, 'id'))
+  const userId = req.userId!
+  const id = param(req, 'id')
+  const existing = getSession(db, userId, id)
+  const deleted = deleteSession(db, userId, id)
   if (!deleted) return notFound(res, 'Session not found.')
+  if (existing) recordActivityOutcomeSafe(db, userId, existing.task_id, existing.local_date, serverToday())
   res.json({ ok: true })
 })
 
@@ -190,6 +198,7 @@ activityRoutes.put('/day', (req: AuthedRequest, res) => {
   }
   setDailyStatus(db, userId, taskId, date, status as ExplicitStatus, reason)
   const today = parseLocalDate(req.body?.today) ?? serverToday()
+  recordActivityOutcomeSafe(db, userId, taskId, date, today)
   res.json({ day: dailyActivity(db, userId, taskId, date, today) })
 })
 
@@ -201,6 +210,7 @@ activityRoutes.delete('/day', (req: AuthedRequest, res) => {
   if (!date) return badRequest(res, 'Provide a valid local date as YYYY-MM-DD.')
   clearDailyStatus(db, userId, taskId, date)
   const today = parseLocalDate(req.query.today) ?? serverToday()
+  recordActivityOutcomeSafe(db, userId, taskId, date, today)
   res.json({ day: dailyActivity(db, userId, taskId, date, today) })
 })
 

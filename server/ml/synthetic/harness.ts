@@ -2,58 +2,29 @@ import type { DatabaseSync } from 'node:sqlite'
 import { generateModel } from './generate'
 import { buildCoverageReport, formatCoverageReport, type CoverageReport } from './coverage'
 import { countRows } from './model'
-import { combineReports, runModelChecks, runPhase2aChecks, type CheckResult, type ChecksReport } from './checks'
+import { combineReports, runModelChecks, runPhase2aChecks, runPhase4Checks, type CheckResult, type ChecksReport } from './checks'
+import { runPhase5Checks } from './phase5-checks'
+import { runPhase6Checks } from './phase6-checks'
 import { type SyntheticConfig } from './config'
 import type { SyntheticModel } from './model'
 /**
- * Evaluation harness scaffold (Phase 3).
+ * Evaluation harness (Phase 3, extended in Phase 5).
  *
- * This is the structure the later phases plug into. It runs, right now, the
- * checks that can honestly be run before any model exists: the data-quality and
- * leakage checks, and the Phase 2a checks (does the readiness score relate to
- * what got done, per task; do the display estimates hold up against the simple
- * baselines).
+ * It runs, against the reloaded synthetic database, the checks that can honestly
+ * be run: the data-quality and leakage checks, the Phase 2a checks (does the
+ * readiness score relate to what got done, per task; do the display estimates
+ * hold up against the simple baselines), the Phase 4 pipeline checks, and the
+ * Phase 5 model checks — Brier score and calibration against the baselines and
+ * the hidden ground-truth probabilities, a learning curve, feature ablations,
+ * the mood-zero-effect control, drift, promotion/rollback and shadow mode.
  *
- * Every Phase 5 metric — Brier score, calibration, learning curves, ablations,
- * drift, promotion/rollback and the mood-zero-effect control — is present as a
- * clearly-labelled stub. A stub **refuses to report a number**: calling it
- * throws with the reason, so there is no way to accidentally print a fabricated
- * accuracy figure before real predictions exist.
+ * Every Phase 5 number is computed on **synthetic data** and is never an accuracy
+ * claim about the real user. Where there is not enough data to score something,
+ * the check says so instead of inventing a number.
  *
  * Results are always reported per task and per tag, and across at least three
  * seeds with the weakest shown next to the best — never as one blended score.
  */
-
-export interface Phase5Metric {
-  key: string
-  label: string
-  implemented: false
-  /** Why it cannot run yet, in plain language. */
-  reason: string
-  /** Calling this always throws; it never returns a number. */
-  report: () => never
-}
-
-const PHASE5_REASON =
-  'No model exists yet, so this metric has no predictions to score. It stays a stub and will not report a number.'
-
-export const PHASE5_METRICS: Phase5Metric[] = [
-  'Brier score',
-  'Calibration / reliability curve',
-  'Learning curve (1, 2, 4, 8, 12+ weeks)',
-  'Feature ablation',
-  'Drift detection',
-  'Model promotion and rollback',
-  'Mood-zero-effect control',
-].map((label) => ({
-  key: label.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-  label,
-  implemented: false as const,
-  reason: PHASE5_REASON,
-  report: () => {
-    throw new Error(`${label}: ${PHASE5_REASON}`)
-  },
-}))
 
 export interface SeedRun {
   seed: number
@@ -70,6 +41,9 @@ export interface HarnessReport {
   best: SeedRun
   weakest: SeedRun
   phase2a: CheckResult[]
+  phase4: CheckResult[]
+  phase5: CheckResult[]
+  phase6: CheckResult[]
   /** A short, honest summary line. */
   summary: string
 }
@@ -108,16 +82,19 @@ export function runHarness(config: SyntheticConfig, seeds: number[], db?: Databa
   const weakest = sorted[sorted.length - 1]
 
   const phase2a = db && userId !== undefined ? runPhase2aChecks(db, userId, config) : []
+  const phase4 = db && userId !== undefined ? runPhase4Checks(db, userId, config) : []
+  const phase5 = db && userId !== undefined ? runPhase5Checks(db, userId, config) : []
+  const phase6 = db && userId !== undefined ? runPhase6Checks(db, userId, config) : []
   const summary = runs.every((run) => run.failed === 0 && run.coverageOk)
-    ? `All available checks pass across ${runs.length} seed(s); ${best.seed} is best and ${weakest.seed} weakest. Phase 5 metrics are stubs and report nothing.`
+    ? `All available checks pass across ${runs.length} seed(s); ${best.seed} is best and ${weakest.seed} weakest. Phase 5 and Phase 6 model checks run on the reloaded synthetic data only.`
     : `Checks failed: ${runs.reduce((sum, run) => sum + run.failed, 0)} failure(s) across ${runs.length} seed(s); weakest seed ${weakest.seed}.`
 
-  return { personId: config.personId, seeds: runs, best, weakest, phase2a, summary }
+  return { personId: config.personId, seeds: runs, best, weakest, phase2a, phase4, phase5, phase6, summary }
 }
 
 export function harnessReport(personId: string, report: HarnessReport): ChecksReport {
   const modelChecks = report.seeds.flatMap((run) => run.checks.map((row) => ({ ...row, section: `seed-${run.seed} ${row.section}` })))
-  return combineReports(personId, 'harness', modelChecks, report.phase2a)
+  return combineReports(personId, 'harness', modelChecks, report.phase2a, report.phase4, report.phase5, report.phase6)
 }
 
 export function formatHarnessReport(report: HarnessReport): string {
@@ -136,8 +113,18 @@ export function formatHarnessReport(report: HarnessReport): string {
     lines.push('  Phase 2a (from the reloaded database):')
     for (const row of report.phase2a) lines.push(`    [${row.ok ? 'ok ' : 'FAIL'}] ${row.name} — ${row.detail}`)
   }
-  lines.push('  Phase 5 metrics (not run):')
-  for (const metric of PHASE5_METRICS) lines.push(`    [stub] ${metric.label}`)
+  if (report.phase4.length > 0) {
+    lines.push('  Phase 4 (from the reloaded database; pipeline checks only, never accuracy claims):')
+    for (const row of report.phase4) lines.push(`    [${row.ok ? 'ok ' : 'FAIL'}] ${row.name} — ${row.detail}`)
+  }
+  if (report.phase5.length > 0) {
+    lines.push('  Phase 5 (SYNTHETIC DATA ONLY — model checks, never accuracy claims about the real user):')
+    for (const row of report.phase5) lines.push(`    [${row.ok ? 'ok ' : 'FAIL'}] ${row.name} — ${row.detail}`)
+  }
+  if (report.phase6.length > 0) {
+    lines.push('  Phase 6 (SYNTHETIC DATA ONLY — continuous learning, drift, promotion/rollback and live health; never accuracy claims):')
+    for (const row of report.phase6) lines.push(`    [${row.ok ? 'ok ' : 'FAIL'}] ${row.name} — ${row.detail}`)
+  }
   lines.push(`  ${report.summary}`)
   return lines.join('\n')
 }

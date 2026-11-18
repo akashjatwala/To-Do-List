@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { configForDate } from './task-config'
 import { listSessions, type SessionRow } from './sessions'
+import { offDayCovering, type OffDayKind } from './off-days'
 
 /**
  * Daily activity derivation and labelling.
@@ -38,6 +39,10 @@ export interface DailyActivity {
   configVersionId: number | null
   /** That day's check-in id from Phase 1, or null when there was none. */
   checkinId: number | null
+  /** The day was marked off. It is flagged, never rewritten as a failure. */
+  offDay: boolean
+  /** The off-day reason, when the user gave one. */
+  offDayKind: OffDayKind | null
 }
 
 export interface DeriveInput {
@@ -50,6 +55,9 @@ export interface DeriveInput {
   explicitReason: string | null
   configVersionId: number | null
   checkinId: number | null
+  /** Set when the whole day is marked off. Defaults to false. */
+  offDay?: boolean
+  offDayKind?: OffDayKind | null
 }
 
 export function deriveDailyActivity(input: DeriveInput): DailyActivity {
@@ -94,6 +102,8 @@ export function deriveDailyActivity(input: DeriveInput): DailyActivity {
     reason: input.explicitReason,
     configVersionId: input.configVersionId,
     checkinId: input.checkinId,
+    offDay: input.offDay ?? false,
+    offDayKind: input.offDayKind ?? null,
   }
 }
 
@@ -178,6 +188,7 @@ export function dailyActivity(
     limit: 1000,
   })
   const explicit = getDailyStatus(db, userId, taskId, date)
+  const offDay = offDayCovering(db, userId, date)
   return deriveDailyActivity({
     date,
     today,
@@ -187,6 +198,8 @@ export function dailyActivity(
     explicitReason: explicit?.reason ?? null,
     configVersionId: config?.id ?? null,
     checkinId: checkinIdFor(db, userId, date),
+    offDay: offDay !== undefined,
+    offDayKind: offDay?.kind ?? null,
   })
 }
 

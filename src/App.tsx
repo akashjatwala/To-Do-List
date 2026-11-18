@@ -23,6 +23,8 @@ import AccountMenu from './components/AccountMenu'
 import SettingsModal from './components/SettingsModal'
 import CheckinModal from './components/CheckinModal'
 import DailyStateCard from './components/DailyStateCard'
+import OffDayCard from './components/OffDayCard'
+import PredictionPanel from './components/PredictionPanel'
 import TaskComposer, { type NewTaskInput } from './components/TaskComposer'
 import { CompletedColumn, StickyBoard } from './components/StickyBoard'
 import TaskDetail from './components/TaskDetail'
@@ -761,6 +763,12 @@ export default function App() {
               </div>
             )}
 
+            {!isCollab && (
+              <div className="mb-4">
+                <OffDayCard date={selectedDate} notify={notify} onChanged={refresh} />
+              </div>
+            )}
+
             {!isCollab && isToday && dailyStateData && (
               <div className="mb-4">
                 <DailyStateCard
@@ -772,6 +780,18 @@ export default function App() {
                   onEditCheckin={openCheckin}
                   notify={notify}
                   onState={setDailyStateData}
+                />
+              </div>
+            )}
+
+            {!isCollab && isToday && (
+              <div className="mb-4">
+                <PredictionPanel
+                  date={selectedDate}
+                  today={todayDateValue()}
+                  notify={notify}
+                  onOpenCheckin={openCheckin}
+                  refreshKey={`${checkinStatus?.checkin?.updatedAt ?? 0}:${data?.tasks.length ?? 0}`}
                 />
               </div>
             )}

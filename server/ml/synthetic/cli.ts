@@ -10,8 +10,10 @@ import { openSyntheticDb, createSyntheticUser } from './isolation'
 import { SYNTHETIC_DB_PATH, reloadDataset } from './reload'
 import { purgeSyntheticData } from './purge'
 import { exportAsOf } from './as-of'
-import { combineReports, formatChecksReport, reportToCsvRows, runModelChecks, runPhase2aChecks } from './checks'
+import { combineReports, formatChecksReport, reportToCsvRows, runModelChecks, runPhase2aChecks, runPhase4Checks } from './checks'
 import { runHarness, formatHarnessReport } from './harness'
+import { trainUserModels } from '../pipeline'
+import { promoteCandidate } from '../registry'
 import { toCsv, type Cell } from './csv'
 
 /**
@@ -23,6 +25,7 @@ import { toCsv, type Cell } from './csv'
  *   asof --date YYYY-MM-DD
  *   reload
  *   report [--seeds 1,2,3]
+ *   train [--promote] [--fresh] [--seed N] [--folds N] [--commit SHA]
  *
  * The command prints the estimated row count before generating, refuses to
  * exceed the hard cap, and only ever shows the manifest, the coverage report and
@@ -122,6 +125,7 @@ function generate(flags: Flags): void {
       config.endDate,
       runModelChecks(model, config, coverage),
       runPhase2aChecks(db, user.userId, config),
+      runPhase4Checks(db, user.userId, config),
     )
     const reportPath = writeQualityReport(config.personId, reportToCsvRows(checks))
 
@@ -192,6 +196,70 @@ function report(flags: Flags): void {
   }
 }
 
+function train(flags: Flags): void {
+  const config = seedConfig()
+  const reloaded = reloadDataset(config, SYNTHETIC_DB_PATH)
+  const db = openSyntheticDb(SYNTHETIC_DB_PATH)
+  try {
+    const seed = typeof flags.seed === 'string' ? Number(flags.seed) : config.seed
+    const folds = typeof flags.folds === 'string' ? Number(flags.folds) : undefined
+    if (flags.fresh === true) {
+      db.prepare('DELETE FROM ml_shadow WHERE user_id = ?').run(reloaded.userId)
+      db.prepare('DELETE FROM ml_models WHERE user_id = ?').run(reloaded.userId)
+      console.log('  (--fresh: cleared the existing model registry for this person)')
+    }
+    const result = trainUserModels(db, reloaded.userId, {
+      synthetic: true,
+      register: true,
+      seed,
+      folds,
+      gitCommit: typeof flags.commit === 'string' ? flags.commit : null,
+    })
+
+    console.log('Model training (SYNTHETIC DATA — never an accuracy claim about the real user)')
+    console.log(`  person:   ${config.personId}`)
+    console.log(`  window:   ${result.from} .. ${result.to} (${result.monthsOfData} month(s) of data)`)
+    console.log(
+      `  rows:     ${result.rows} (completion ${result.labelledCount}, target ${result.targetCount}, duration ${result.durationCount}); ${result.featureNames.length} features`,
+    )
+    console.log('  candidates (chronological validation, versus the baseline):')
+    for (const candidate of result.candidates) {
+      const m = candidate.metrics
+      const score =
+        candidate.kind === 'duration'
+          ? `MAE ${fmt(m.mae, 1)} vs median ${fmt(m.baselineMae, 1)}`
+          : `Brier ${fmt(m.brier)} vs baseline ${fmt(m.baselineBrier)}; ECE ${fmt(m.ece)}`
+      console.log(`    ${candidate.kind.padEnd(10)} ${candidate.chosenType.padEnd(9)} ${candidate.version}  ${score}${candidate.smallData ? '  [small data — baseline used]' : ''}`)
+    }
+    if (result.timing.length > 0) {
+      console.log('  timing (learned peak vs the simple baselines):')
+      for (const t of result.timing) {
+        console.log(
+          `    ${t.taskId.padEnd(24)} sessions ${String(t.sessions).padStart(3)}  adherence ${fmt(t.adherence)} vs preferred ${fmt(t.preferredTimeBaseline)} vs busiest-bin ${fmt(t.historicalFrequencyBaseline)}`,
+        )
+      }
+    }
+    for (const note of result.notes) console.log(`  note: ${note}`)
+
+    if (flags.promote === true) {
+      console.log('  promotion gate:')
+      for (const candidate of result.candidates) {
+        if (candidate.id === null) continue
+        const decision = promoteCandidate(db, reloaded.userId, candidate.id)
+        console.log(`    ${candidate.kind.padEnd(10)} ${decision.ok ? 'PROMOTED' : 'kept as candidate'} — ${decision.reason}`)
+      }
+    } else {
+      console.log('  (candidates registered; pass --promote to run the promotion gate)')
+    }
+  } finally {
+    db.close()
+  }
+}
+
+function fmt(value: number | null | undefined, digits = 3): string {
+  return value === null || value === undefined || !Number.isFinite(value) ? 'n/a' : value.toFixed(digits)
+}
+
 function main(): void {
   const [sub, ...rest] = process.argv.slice(2)
   const flags = parseFlags(rest)
@@ -212,8 +280,11 @@ function main(): void {
       case 'report':
         report(flags)
         break
+      case 'train':
+        train(flags)
+        break
       default:
-        console.log('Usage: cli.ts generate|purge|asof|reload|report')
+        console.log('Usage: cli.ts generate|purge|asof|reload|report|train')
         console.log(`Today is ${todayLocalDate()}; the checked-in dataset ends ${CONFIG.endDate}.`)
         process.exitCode = 1
     }

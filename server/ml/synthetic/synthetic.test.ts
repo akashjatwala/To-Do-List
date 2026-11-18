@@ -4,7 +4,7 @@ import { resolveConfig } from './config'
 import { generateModel, estimateRows, planGeneration } from './generate'
 import { countRows } from './model'
 import { buildCoverageReport } from './coverage'
-import { runModelChecks, runPhase2aChecks, combineReports } from './checks'
+import { runModelChecks, runPhase2aChecks, runPhase4Checks, combineReports, type Phase4GroundTruth } from './checks'
 import { filterModelAsOf, asOfCutoff } from './as-of'
 import { writeModel } from './writer'
 import { canPromoteModel, openSyntheticDb, registerSyntheticModel, createSyntheticUser } from './isolation'
@@ -190,6 +190,59 @@ test('the reloaded database reproduces the Phase 2a checks', () => {
     const checks = combineReports(QUICK.personId, QUICK.endDate, runPhase2aChecks(db, user.userId, QUICK))
     const failed = checks.checks.filter((row) => !row.ok)
     assert.equal(failed.length, 0, failed.map((row) => `${row.name}: ${row.detail}`).join('; '))
+  } finally {
+    db.close()
+  }
+})
+
+test('the Phase 4 pipeline checks pass on the reloaded database', () => {
+  const db = openSyntheticDb(':memory:')
+  try {
+    const user = createSyntheticUser(db, {
+      personId: QUICK.personId,
+      label: QUICK.personLabel,
+      kind: 'named',
+      archetype: null,
+      heldOut: false,
+      seed: QUICK.seed,
+    })
+    const model = generateModel(QUICK, user.userId)
+    writeModel(db, model)
+    // Off days travel as a layer file in Phase 3 and only reach the app's
+    // `off_days` table on reload; insert them here so the check is exercised.
+    for (const off of model.offDays) {
+      db.prepare(
+        `INSERT INTO off_days (user_id, kind, start_date, end_date, note, source, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'synthetic', ?, ?)`,
+      ).run(
+        user.userId,
+        off.kind === 'personal' ? 'other' : off.kind,
+        off.start_date,
+        off.end_date,
+        off.reason,
+        Date.parse(off.start_date),
+        Date.parse(off.start_date),
+      )
+    }
+    // Score against the generator's own hidden ground truth, injected so the
+    // test never depends on a file on disk. Still a pipeline check, not accuracy.
+    const groundTruth: Phase4GroundTruth[] = model.gtDaily.map((row) => ({
+      date: row.date,
+      taskId: row.task_id,
+      trueProbability: row.true_probability,
+      truePerformed: row.true_performed,
+      offDay: row.off_day,
+    }))
+    const checks = combineReports(
+      QUICK.personId,
+      QUICK.endDate,
+      runPhase4Checks(db, user.userId, QUICK, { groundTruth }),
+    )
+    const failed = checks.checks.filter((row) => !row.ok)
+    assert.equal(failed.length, 0, failed.map((row) => `${row.name}: ${row.detail}`).join('; '))
+    // The Brier number is present and bounded; it is never an accuracy claim.
+    const scored = checks.checks.find((row) => row.name.startsWith('predictions can be scored'))
+    assert.ok(scored && /Brier 0\.\d+/.test(scored.detail))
   } finally {
     db.close()
   }

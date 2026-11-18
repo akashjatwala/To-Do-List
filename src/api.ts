@@ -9,6 +9,10 @@ import type {
   DayReview,
   DayReviewAnswer,
   ExplicitDailyStatus,
+  OffDay,
+  OffDayKind,
+  PredictionPlanResponse,
+  PredictionSettings,
   Priority,
   Recurrence,
   RecurrenceConfig,
@@ -213,6 +217,47 @@ export const api = {
     put<DayReview>('/api/state/review', { date, answer }),
   saveSuggestionChoice: (date: string, key: string, choice: 'accepted' | 'dismissed') =>
     put<{ ok: true }>('/api/state/suggestions', { date, key, choice }),
+
+  // ---- Phase 4: off days and prediction settings ----
+
+  listOffDays: () => request<{ items: OffDay[] }>('/api/off-days'),
+  getOffDayDay: (date: string) =>
+    request<{
+      date: string
+      offDay: OffDay | null
+      onOffDay: boolean
+      daysSinceOff: number | null
+      reducedConfidence: boolean
+    }>(`/api/off-days/day?date=${encodeURIComponent(date)}`),
+  createOffDay: (input: { kind: OffDayKind | null; startDate: string; endDate: string; note?: string | null }) =>
+    post<{ offDay: OffDay }>('/api/off-days', input),
+  updateOffDay: (
+    id: number,
+    input: { kind: OffDayKind | null; startDate: string; endDate: string; note?: string | null },
+  ) => patch<{ offDay: OffDay }>(`/api/off-days/${id}`, input),
+  deleteOffDay: (id: number) => del<{ ok: true }>(`/api/off-days/${id}`),
+  getPredictionSettings: () => request<{ settings: PredictionSettings }>('/api/off-days/settings'),
+  savePredictionSettings: (input: Partial<PredictionSettings>) =>
+    put<{ settings: PredictionSettings }>('/api/off-days/settings', input),
+
+  // ---- Phase 4: predictions and feedback ----
+
+  getPlan: (date: string, today: string) =>
+    request<PredictionPlanResponse>(
+      `/api/predictions/plan?date=${encodeURIComponent(date)}&today=${encodeURIComponent(today)}`,
+    ),
+  getTaskPrediction: (taskId: string, date: string, today: string) =>
+    request<{ gate: boolean; offDay: boolean; checkinState: string; prediction: import('./types').TaskPrediction | null }>(
+      `/api/predictions/task?taskId=${encodeURIComponent(taskId)}&date=${encodeURIComponent(date)}&today=${encodeURIComponent(today)}`,
+    ),
+  savePredictionFeedback: (input: {
+    date: string
+    taskId: string
+    kind: 'time' | 'plan' | 'reschedule' | 'drop'
+    exploratory?: boolean
+    shown?: boolean
+    followed?: boolean | null
+  }) => post<{ ok: true }>('/api/predictions/feedback', input),
 }
 
 export function errorMessage(error: unknown): string {

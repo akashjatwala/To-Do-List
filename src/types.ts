@@ -150,6 +150,90 @@ export interface DailyActivity {
   reason: string | null
   configVersionId: number | null
   checkinId: number | null
+  /** The day was marked off. Flagged, never rewritten as a failure. */
+  offDay: boolean
+  offDayKind: OffDayKind | null
+}
+
+/** Why a day was marked off. `null` means "off, no reason given". */
+export type OffDayKind = 'sick' | 'travel' | 'holiday' | 'other'
+
+/** One off-day record, possibly spanning several days. */
+export interface OffDay {
+  id: number
+  kind: OffDayKind | null
+  startDate: string
+  endDate: string
+  note: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+/** The user's configurable prediction thresholds. */
+export interface PredictionSettings {
+  reducedConfidenceDays: number
+  explorationShare: number
+  stage2MinDays: number
+}
+
+export type PredictionConfidence = 'low' | 'medium' | 'high'
+
+/** One activity's prediction for one day. A suggestion, never a decision. */
+export interface TaskPrediction {
+  taskId: string
+  date: string
+  source: 'baseline' | 'model'
+  modelVersion: string
+  stage: 1 | 2
+  confidence: PredictionConfidence
+  dataSufficiencyDays: number
+  completionProbability: number
+  targetProbability: number | null
+  expectedDuration: number | null
+  durationLow: number | null
+  durationHigh: number | null
+  recommendedStart: number | null
+  recommendedEnd: number | null
+  exploratory: boolean
+  explanation: string
+  inputs: Record<string, unknown>
+}
+
+export interface PlanEntry {
+  taskId: string
+  text: string
+  priority: string | null
+  remainingTargetMinutes: number | null
+  doneMinutes: number
+  prediction: TaskPrediction
+  rankScore: number
+}
+
+export interface PlanSuggestion {
+  taskId: string
+  text: string
+  kind: 'reschedule' | 'drop'
+  message: string
+}
+
+export interface PredictionPlan {
+  date: string
+  offDay: boolean
+  offDayKind: OffDayKind | null
+  reducedConfidence: boolean
+  checkinState: string
+  readiness: { score: number | null; line: string; state: string }
+  entries: PlanEntry[]
+  suggestions: PlanSuggestion[]
+  note: string
+}
+
+export interface PredictionPlanResponse {
+  gate: boolean
+  checkinState: string
+  offDay: boolean
+  plan: PredictionPlan | null
+  predictions: unknown[]
 }
 
 /** One version of a task's configuration; old versions are kept. */

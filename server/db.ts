@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createCheckinSchema } from './checkins-store'
-import { createFoundationSchema, createStateSchema } from './ml/schema'
+import { createFoundationSchema, createMlSchema, createPredictionSchema, createStateSchema } from './ml/schema'
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), 'data')
 mkdirSync(DATA_DIR, { recursive: true })
@@ -118,6 +118,13 @@ createFoundationSchema(db)
 
 // Phase 2a: the read-only state layer's own tables (evening review, prefs).
 createStateSchema(db)
+
+// Phase 4: off days, the prediction log and the feedback trail. These are the
+// learning system's own tables and never hold observed outcomes.
+createPredictionSchema(db)
+
+// Phase 5: the model registry, the shadow-mode log and the retrain bookkeeping.
+createMlSchema(db)
 
 // Lightweight migrations for databases created by older versions of the app.
 const taskColumns = db.prepare('PRAGMA table_info(tasks)').all() as unknown as Array<{

@@ -17,7 +17,8 @@
     "synthetic:purge": "node --import tsx server/ml/synthetic/cli.ts purge",
     "synthetic:asof": "node --import tsx server/ml/synthetic/cli.ts asof",
     "synthetic:reload": "node --import tsx server/ml/synthetic/cli.ts reload",
-    "synthetic:report": "node --import tsx server/ml/synthetic/cli.ts report"
+    "synthetic:report": "node --import tsx server/ml/synthetic/cli.ts report",
+    "synthetic:train": "node --import tsx server/ml/synthetic/cli.ts train"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

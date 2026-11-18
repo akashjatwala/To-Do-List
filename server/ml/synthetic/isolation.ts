@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { createCheckinSchema } from '../../checkins-store'
-import { createFoundationSchema, createStateSchema } from '../schema'
+import { createFoundationSchema, createMlSchema, createPredictionSchema, createStateSchema } from '../schema'
 
 /**
  * Isolation for the synthetic dataset (Phase 3).
@@ -51,6 +51,22 @@ function createSyntheticSchema(db: DatabaseSync): void {
       promoted INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
     );
+
+    -- The Phase 3 recommendation/suggestion layer, kept in a synthetic-only
+    -- table because the app itself has no table for it. Loading it lets the
+    -- Phase 4 pipeline checks exercise recommendations end to end.
+    CREATE TABLE IF NOT EXISTS synthetic_recommendations (
+      id INTEGER PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      local_date TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('plan', 'reschedule', 'drop')),
+      exploratory INTEGER NOT NULL DEFAULT 0,
+      response TEXT NOT NULL,
+      synthetic INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `)
 }
 
@@ -93,6 +109,8 @@ export function openSyntheticDb(path: string): DatabaseSync {
   createCheckinSchema(db)
   createFoundationSchema(db)
   createStateSchema(db)
+  createPredictionSchema(db)
+  createMlSchema(db)
   createSyntheticSchema(db)
   return db
 }

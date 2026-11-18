@@ -1,13 +1,31 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
 import { endOfLocalDay, startOfLocalDay } from './calendar'
 import { rangesOverlap, type SessionRange } from '../sessions'
 import { readinessFromCheckin } from '../readiness'
 import { evaluateEstimates } from '../estimates'
-import { listCheckins, type CheckinRow } from '../../checkins-store'
+import {
+  checkinState,
+  getCheckin,
+  listCheckins,
+  type CheckinAnswerKey,
+  type CheckinRow,
+} from '../../checkins-store'
+import { getPredictionSettings, offDayDates } from '../off-days'
+import {
+  addDays,
+  groupStatistics,
+  userCompletionPrior,
+  userTaskIds,
+} from '../statistics'
+import { logPrediction } from '../predictions'
+import { predictTask, taskContext, type PredictContext, type TaskPrediction } from '../predictors'
+import { GROUND_TRUTH_DIR } from './export-csv'
+import { parseCsvRecords, type Cell } from './csv'
 import type { SyntheticModel } from './model'
 import type { SyntheticConfig } from './config'
 import type { CoverageReport } from './coverage'
-import type { Cell } from './csv'
 
 /**
  * Data-quality, leakage and Phase 2a checks (Phase 3).
@@ -294,6 +312,358 @@ export function runPhase2aChecks(db: DatabaseSync, userId: number, config: Synth
       estimates.evaluations.length > 0
         ? `${estimates.evaluations.filter((row) => row.beatsBaseline).length} of ${estimates.evaluations.length} fields match or beat the best baseline`
         : estimates.note,
+    ),
+  )
+
+  return results
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 pipeline checks
+// ---------------------------------------------------------------------------
+
+const PHASE4_DEFAULT_WINDOW_DAYS = 60
+const PHASE4_CALIBRATION_BINS = 5
+const PHASE4_MIN_SCORED = 20
+/** A fixed timestamp for the log rows, so the check is reproducible. */
+const PHASE4_LOG_NOW = Date.parse('2026-11-18T00:00:00Z')
+
+export interface Phase4GroundTruth {
+  date: string
+  taskId: string
+  trueProbability: number
+  truePerformed: number
+  offDay: number
+}
+
+/**
+ * Read the hidden daily probability ground truth for one person. Ground truth
+ * never enters the database; it is read straight from the file and used only to
+ * score the pipeline.
+ */
+export function readPhase4GroundTruth(personId: string): Phase4GroundTruth[] {
+  const path = join(GROUND_TRUTH_DIR, 'daily_probability.csv')
+  if (!existsSync(path)) return []
+  const out: Phase4GroundTruth[] = []
+  for (const row of parseCsvRecords(readFileSync(path, 'utf8'))) {
+    if (row.person_id !== personId) continue
+    out.push({
+      date: row.date,
+      taskId: row.task_id,
+      trueProbability: Number(row.true_probability),
+      truePerformed: Number(row.true_performed),
+      offDay: Number(row.off_day),
+    })
+  }
+  return out
+}
+
+/** A small deterministic RNG so the exploration share is reproducible. */
+function mulberry32(seed: number): () => number {
+  let state = seed >>> 0
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0
+    let t = state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function checkinAnswers(row: CheckinRow): Partial<Record<CheckinAnswerKey, number>> {
+  const out: Partial<Record<CheckinAnswerKey, number>> = {}
+  for (const key of [
+    'feeling',
+    'energy',
+    'motivation',
+    'sleep',
+    'stress',
+    'free_time',
+    'focus',
+    'body',
+    'workload',
+  ] as const) {
+    const value = row[key]
+    if (value !== null) out[key] = value
+  }
+  return out
+}
+
+interface ScoredPrediction {
+  date: string
+  taskId: string
+  prediction: TaskPrediction
+  trueProbability: number | null
+  truePerformed: number | null
+}
+
+function countRows(db: DatabaseSync, sql: string, ...values: Array<string | number>): number {
+  return (db.prepare(sql).get(...values) as unknown as { n: number }).n
+}
+
+/**
+ * Phase 4 checks against the reloaded database: run the app's own prediction
+ * pipeline over past days (leak-free: each day is predicted only from what was
+ * known before it) and inspect the results.
+ *
+ * These are **pipeline checks only**. The Brier score and calibration bins are
+ * reported next to a constant-rate baseline purely to show the numbers can be
+ * computed; they are never a claim of accuracy, and no ground-truth column is
+ * ever written back into an observed table.
+ */
+export function runPhase4Checks(
+  db: DatabaseSync,
+  userId: number,
+  config: SyntheticConfig,
+  options: { windowDays?: number; groundTruth?: Phase4GroundTruth[] } = {},
+): CheckResult[] {
+  const results: CheckResult[] = []
+  const windowDays = Math.max(1, options.windowDays ?? PHASE4_DEFAULT_WINDOW_DAYS)
+
+  const bounds = db
+    .prepare('SELECT MIN(local_date) AS lo, MAX(local_date) AS hi FROM activity_sessions WHERE user_id = ?')
+    .get(userId) as unknown as { lo: string | null; hi: string | null }
+  if (!bounds.lo || !bounds.hi) {
+    results.push(check('phase4', 'predictions can be produced and scored', false, 'no observed days in the reloaded database'))
+    return results
+  }
+  const firstActive = bounds.lo
+  const lastActive = bounds.hi
+  const windowStart = addDays(lastActive, -(windowDays - 1))
+  const offDates = new Set(offDayDates(db, userId, firstActive, lastActive))
+
+  // Predict the first observed day (cold start), the recent window, and every
+  // off day, so each branch of the pipeline is actually exercised.
+  const daySet = new Set<string>([firstActive, ...offDates])
+  let cursor = windowStart
+  while (cursor <= lastActive) {
+    daySet.add(cursor)
+    cursor = addDays(cursor, 1)
+  }
+  const days = [...daySet].sort()
+
+  const settings = getPredictionSettings(db, userId)
+  const taskIds = userTaskIds(db, userId)
+  const groundTruth = options.groundTruth ?? readPhase4GroundTruth(config.personId)
+  const truthByKey = new Map(groundTruth.map((row) => [`${row.date}|${row.taskId}`, row]))
+
+  const statusBefore = countRows(db, 'SELECT COUNT(*) AS n FROM daily_activity_status WHERE user_id = ?', userId)
+  const sessionsBefore = countRows(db, 'SELECT COUNT(*) AS n FROM activity_sessions WHERE user_id = ?', userId)
+
+  const scored: ScoredPrediction[] = []
+  const random = mulberry32(0x5eed)
+  let suppressedOnOffDay = 0
+
+  for (const date of days) {
+    const previous = addDays(date, -1)
+    const checkinRow = getCheckin(db, userId, date)
+    const state = checkinRow ? checkinState(checkinRow) : 'not_asked'
+    const answers = checkinRow && checkinRow.skipped === 0 ? checkinAnswers(checkinRow) : null
+    const priorRate = userCompletionPrior(db, userId, taskIds, previous)
+    const tagStats = groupStatistics(db, userId, taskIds, previous, priorRate, 'tag')
+    const priorityStats = groupStatistics(db, userId, taskIds, previous, priorRate, 'priority')
+    const context: PredictContext = {
+      date,
+      today: previous,
+      nowMinutes: 8 * 60,
+      checkinState: state,
+      answers,
+      settings,
+      priorRate,
+      tagStats,
+      priorityStats,
+      random,
+      // Leak-free: only count a session if it had started before this day began.
+      asOfEpoch: startOfLocalDay(date) - 1,
+    }
+
+    for (const taskId of taskIds) {
+      const task = taskContext(db, taskId, date)
+      if (!task || !task.active) continue
+      const prediction = predictTask(db, userId, taskId, context)
+      if (!prediction) {
+        if (offDates.has(date)) suppressedOnOffDay += 1
+        continue
+      }
+      logPrediction(db, userId, prediction, state, PHASE4_LOG_NOW)
+      const truth = truthByKey.get(`${date}|${taskId}`)
+      scored.push({
+        date,
+        taskId,
+        prediction,
+        trueProbability: truth ? truth.trueProbability : null,
+        truePerformed: truth ? truth.truePerformed : null,
+      })
+    }
+  }
+
+  // --- Probability bounds ---------------------------------------------------
+  const outOfRange = scored.filter((row) => {
+    const p = row.prediction
+    return (
+      !(p.completionProbability >= 0 && p.completionProbability <= 1) ||
+      (p.targetProbability !== null && !(p.targetProbability >= 0 && p.targetProbability <= 1))
+    )
+  })
+  results.push(
+    check(
+      'phase4',
+      'every probability stays within [0, 1]',
+      scored.length > 0 && outOfRange.length === 0,
+      `${scored.length} prediction(s), ${outOfRange.length} out of range`,
+    ),
+  )
+
+  // --- Ordered intervals ----------------------------------------------------
+  const unordered = scored.filter((row) => {
+    const p = row.prediction
+    const durationOk =
+      p.expectedDuration === null ||
+      ((p.durationLow === null || p.durationLow <= p.expectedDuration) &&
+        (p.durationHigh === null || p.expectedDuration <= p.durationHigh))
+    const windowOk = p.recommendedStart === null || p.recommendedEnd === null || p.recommendedEnd > p.recommendedStart
+    return !durationOk || !windowOk
+  })
+  results.push(
+    check(
+      'phase4',
+      'durations and windows stay ordered',
+      unordered.length === 0,
+      `${unordered.length} unordered interval(s)`,
+    ),
+  )
+
+  // --- Low data reads as low confidence -------------------------------------
+  const lowDataNotLow = scored.filter(
+    (row) => row.prediction.dataSufficiencyDays < settings.stage2MinDays && row.prediction.confidence !== 'low',
+  )
+  const lowConfidence = scored.filter((row) => row.prediction.confidence === 'low').length
+  results.push(
+    check(
+      'phase4',
+      'low-data predictions read as low confidence',
+      lowDataNotLow.length === 0 && lowConfidence > 0,
+      `${lowConfidence} low-confidence prediction(s); ${lowDataNotLow.length} below ${settings.stage2MinDays} labelled days not marked low`,
+    ),
+  )
+
+  // --- Off days suppress predictions ----------------------------------------
+  const onOffDay = scored.filter((row) => offDates.has(row.date))
+  const onGtOffDay = scored.filter((row) => truthByKey.get(`${row.date}|${row.taskId}`)?.offDay === 1).length
+  const offDayOk =
+    onOffDay.length === 0 && onGtOffDay === 0 && (offDates.size === 0 || suppressedOnOffDay > 0)
+  results.push(
+    check(
+      'phase4',
+      'off days suppress predictions',
+      offDayOk,
+      offDates.size === 0
+        ? 'no off days recorded in the database — nothing to suppress'
+        : `${offDates.size} off day(s) in range; ${onOffDay.length} prediction(s) on them; ${onGtOffDay} on a ground-truth off day; ${suppressedOnOffDay} task-day(s) suppressed`,
+    ),
+  )
+
+  // --- Exploration respects its gates ---------------------------------------
+  const exploratory = scored.filter((row) => row.prediction.exploratory)
+  const badExploratory = exploratory.filter((row) => {
+    const task = taskContext(db, row.taskId, row.date)
+    const highPriority = task?.priority === 'high' || task?.priority === 'urgent'
+    return row.prediction.confidence === 'low' || row.prediction.stage !== 2 || highPriority
+  })
+  const exploratoryShare = scored.length > 0 ? exploratory.length / scored.length : 0
+  results.push(
+    check(
+      'phase4',
+      'exploration is rare, labelled and never on a high priority or low-confidence task',
+      badExploratory.length === 0 && exploratoryShare <= settings.explorationShare + 0.1,
+      `${exploratory.length} exploratory of ${scored.length} (${(exploratoryShare * 100).toFixed(1)}%, cap ${(settings.explorationShare * 100).toFixed(0)}%); ${badExploratory.length} that broke a gate`,
+    ),
+  )
+
+  // --- Predictions are logged, never outcomes -------------------------------
+  const statusAfter = countRows(db, 'SELECT COUNT(*) AS n FROM daily_activity_status WHERE user_id = ?', userId)
+  const sessionsAfter = countRows(db, 'SELECT COUNT(*) AS n FROM activity_sessions WHERE user_id = ?', userId)
+  const logged = countRows(db, 'SELECT COUNT(*) AS n FROM predictions WHERE user_id = ?', userId)
+  results.push(
+    check(
+      'phase4',
+      'the system logs predictions without writing outcomes',
+      logged === scored.length && statusAfter === statusBefore && sessionsAfter === sessionsBefore,
+      `logged ${logged} prediction(s); statuses ${statusBefore}→${statusAfter}, sessions ${sessionsBefore}→${sessionsAfter}`,
+    ),
+  )
+
+  // --- Pending days carry no labels -----------------------------------------
+  const pendingStatuses = countRows(
+    db,
+    'SELECT COUNT(*) AS n FROM daily_activity_status WHERE user_id = ? AND local_date > ?',
+    userId,
+    lastActive,
+  )
+  const pendingSessions = countRows(
+    db,
+    'SELECT COUNT(*) AS n FROM activity_sessions WHERE user_id = ? AND local_date > ?',
+    userId,
+    lastActive,
+  )
+  results.push(
+    check(
+      'phase4',
+      'pending days carry no labels or sessions',
+      pendingStatuses === 0 && pendingSessions === 0,
+      `after ${lastActive}: statuses ${pendingStatuses}, sessions ${pendingSessions}`,
+    ),
+  )
+
+  // --- Ground-truth scoring (pipeline check only) ---------------------------
+  const paired = scored.filter((row) => row.truePerformed !== null && row.trueProbability !== null)
+  if (paired.length < PHASE4_MIN_SCORED) {
+    results.push(
+      check(
+        'phase4',
+        'predictions can be scored against ground truth',
+        false,
+        `only ${paired.length} prediction(s) joined to ground truth (need ${PHASE4_MIN_SCORED}); is ground-truth/daily_probability.csv present?`,
+      ),
+    )
+    return results
+  }
+
+  const brier = paired.reduce((sum, row) => sum + (row.prediction.completionProbability - row.truePerformed!) ** 2, 0) / paired.length
+  const trueGap =
+    paired.reduce((sum, row) => sum + Math.abs(row.prediction.completionProbability - row.trueProbability!), 0) / paired.length
+  const observedRate = paired.reduce((sum, row) => sum + row.truePerformed!, 0) / paired.length
+  const naiveBrier = paired.reduce((sum, row) => sum + (observedRate - row.truePerformed!) ** 2, 0) / paired.length
+  results.push(
+    check(
+      'phase4',
+      'predictions can be scored against ground truth (pipeline check only)',
+      Number.isFinite(brier) && brier >= 0 && brier <= 1,
+      `Brier ${brier.toFixed(3)} vs constant-rate baseline ${naiveBrier.toFixed(3)}; mean |prediction − true probability| ${trueGap.toFixed(3)} over ${paired.length} prediction(s). Not an accuracy claim.`,
+    ),
+  )
+
+  const binRows: string[] = []
+  let worstGap = 0
+  for (let bin = 0; bin < PHASE4_CALIBRATION_BINS; bin += 1) {
+    const lo = bin / PHASE4_CALIBRATION_BINS
+    const hi = (bin + 1) / PHASE4_CALIBRATION_BINS
+    const inBin = paired.filter((row) => {
+      const p = row.prediction.completionProbability
+      return bin === PHASE4_CALIBRATION_BINS - 1 ? p >= lo && p <= hi : p >= lo && p < hi
+    })
+    if (inBin.length === 0) continue
+    const meanPredicted = inBin.reduce((sum, row) => sum + row.prediction.completionProbability, 0) / inBin.length
+    const observed = inBin.reduce((sum, row) => sum + row.truePerformed!, 0) / inBin.length
+    worstGap = Math.max(worstGap, Math.abs(meanPredicted - observed))
+    binRows.push(`${lo.toFixed(1)}–${hi.toFixed(1)}: predicted ${meanPredicted.toFixed(2)} vs observed ${observed.toFixed(2)} (n ${inBin.length})`)
+  }
+  results.push(
+    check(
+      'phase4',
+      'calibration is reported, never gated',
+      true,
+      `largest predicted-vs-observed gap ${worstGap.toFixed(2)}; ${binRows.join('; ')}`,
     ),
   )
 

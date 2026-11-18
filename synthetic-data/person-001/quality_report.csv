@@ -26,3 +26,12 @@ person-001,phase2a,readiness vs completion — Old side project,pass,"mean readi
 person-001,phase2a,most tracked tasks can be assessed against readiness,pass,10 of 10 tracked task(s) have enough done/other days (need at least two thirds),1
 person-001,phase2a,a day-level completion rate can be derived,pass,derived,1
 person-001,phase2a,display estimates evaluated against simple baselines,pass,1 of 9 fields match or beat the best baseline,1
+person-001,phase4,"every probability stays within [0, 1]",pass,"548 prediction(s), 0 out of range",1
+person-001,phase4,durations and windows stay ordered,pass,0 unordered interval(s),1
+person-001,phase4,low-data predictions read as low confidence,pass,21 low-confidence prediction(s); 0 below 10 labelled days not marked low,1
+person-001,phase4,off days suppress predictions,pass,no off days recorded in the database — nothing to suppress,1
+person-001,phase4,"exploration is rare, labelled and never on a high priority or low-confidence task",pass,"26 exploratory of 548 (4.7%, cap 10%); 0 that broke a gate",1
+person-001,phase4,the system logs predictions without writing outcomes,pass,"logged 548 prediction(s); statuses 614→614, sessions 1627→1627",1
+person-001,phase4,pending days carry no labels or sessions,pass,"after 2026-11-12: statuses 0, sessions 0",1
+person-001,phase4,predictions can be scored against ground truth (pipeline check only),pass,Brier 0.213 vs constant-rate baseline 0.212; mean |prediction − true probability| 0.156 over 409 prediction(s). Not an accuracy claim.,1
+person-001,phase4,"calibration is reported, never gated",pass,largest predicted-vs-observed gap 0.13; 0.4–0.6: predicted 0.56 vs observed 0.69 (n 58); 0.6–0.8: predicted 0.71 vs observed 0.61 (n 191); 0.8–1.0: predicted 0.89 vs observed 0.79 (n 160),1

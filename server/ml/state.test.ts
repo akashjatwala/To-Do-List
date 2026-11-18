@@ -11,7 +11,7 @@ import {
   skipCheckin,
   type CheckinAnswerKey,
 } from '../checkins-store'
-import { createFoundationSchema, createStateSchema } from './schema'
+import { createFoundationSchema, createPredictionSchema, createStateSchema } from './schema'
 import { syncTaskFoundation } from './task-sync'
 import { createSession } from './sessions'
 import {
@@ -61,6 +61,7 @@ function freshDb(): DatabaseSync {
   createCheckinSchema(db)
   createFoundationSchema(db)
   createStateSchema(db)
+  createPredictionSchema(db)
   return db
 }
 
