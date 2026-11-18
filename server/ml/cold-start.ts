@@ -1,7 +1,7 @@
 import type { CheckinState } from '../checkins-store'
 
 /**
- * Cold-start stages (Phase 4, §3).
+ * Cold-start stages.
  *
  * The system must never claim personalisation before it has the data to back it
  * up. Two stages, with an explicit, configurable threshold:

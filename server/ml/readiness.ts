@@ -7,7 +7,7 @@ import {
 } from '../checkins-store'
 
 /**
- * Readiness scoring (Phase 2a).
+ * Readiness scoring.
  *
  * Every check-in answer is stored as an ordinal 1–5 where **1 is the best end**
  * and 5 the worst. Before anything is scored the value is flipped so that

@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { TaskPrediction, PlanResult } from './predictors'
 
 /**
- * The prediction log and the feedback trail (Phase 4, §4).
+ * The prediction log and the feedback trail.
  *
  * Predictions are written **only** by the system, into their own table, and are
  * never written back as an observed outcome. The feedback trail records whether

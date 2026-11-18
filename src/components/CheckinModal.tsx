@@ -10,13 +10,14 @@ import {
   type CheckinAnswerValues,
 } from '@/lib/checkin'
 import { api, errorMessage } from '@/api'
+import { useReducedMotion } from '@/lib/useReducedMotion'
 import { ArrowRightIcon, CheckIcon, ChevronRightIcon, XIcon } from './Icons'
 import { Spinner } from './ui'
 
 /**
- * The daily check-in wizard (Phase 1a — presentation only).
+ * The daily check-in wizard.
  *
- * It uses the same questions, the same 1–5 scale and the same Phase 1 API as
+ * It uses the same questions, the same 1–5 scale and the same check-in API as
  * before; only how it looks and flows has changed. One question per screen, a
  * large header emoji, emoji-labelled options, tap-to-answer with a brief
  * highlight and automatic advance, a progress indicator, Back, and always
@@ -43,24 +44,6 @@ interface CheckinModalProps {
 }
 
 const ADVANCE_MS = 250
-
-/** Whether the user asked the system to reduce motion. */
-function useReducedMotion(): boolean {
-  const query = '(prefers-reduced-motion: reduce)'
-  const [reduced, setReduced] = useState(
-    () => typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-      ? window.matchMedia(query).matches
-      : false,
-  )
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
-    const media = window.matchMedia(query)
-    const onChange = () => setReduced(media.matches)
-    media.addEventListener('change', onChange)
-    return () => media.removeEventListener('change', onChange)
-  }, [])
-  return reduced
-}
 
 /** Turn a stored answer map into the full nine-key shape the API expects. */
 function toFullAnswers(answers: CheckinAnswerValues): Record<CheckinAnswerKey, number | null> {

@@ -20,7 +20,7 @@ interface EnergyDetailSheetProps {
 }
 
 /**
- * What is behind one sub-score (Phase 1b).
+ * What is behind one sub-score.
  *
  * It lists only the fields the person actually answered, each with its emoji
  * and the answer they gave. Where there is enough history it adds a neutral

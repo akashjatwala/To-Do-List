@@ -12,12 +12,9 @@ import type {
   OffDay,
   OffDayKind,
   PredictionPlanResponse,
-  PredictionSettings,
   Priority,
   Recurrence,
   RecurrenceConfig,
-  StatePrefs,
-  TagSummary,
   TaskConfig,
   Team,
   User,
@@ -158,9 +155,8 @@ export const api = {
   skipCheckin: (date: string) => post<CheckinStatus>('/api/checkins/skip', { date }),
   getCheckinHistory: (limit = 30) =>
     request<{ items: Checkin[] }>(`/api/checkins/history?limit=${limit}`),
-  deleteCheckins: () => del<{ ok: true }>('/api/checkins'),
 
-  // ---- Phase 2: sessions, daily records, tags and config history ----
+  // ---- Activity sessions, daily records, tags and config history ----
 
   listSessions: (taskId: string, limit = 50) =>
     request<{ items: ActivitySession[] }>(
@@ -197,30 +193,20 @@ export const api = {
       { method: 'DELETE' },
     ),
 
-  listTags: () => request<{ items: TagSummary[] }>('/api/tags'),
-  renameTag: (id: number, name: string) => patch<{ tag: { id: number; name: string } }>(`/api/tags/${id}`, { name }),
-  mergeTags: (sourceId: number, targetId: number) =>
-    post<{ tag: { id: number; name: string } }>('/api/tags/merge', { sourceId, targetId }),
-
   listTaskConfigs: (taskId: string) =>
     request<{ items: TaskConfig[] }>(`/api/task-configs/${encodeURIComponent(taskId)}`),
 
-  // ---- Phase 2a: daily state summary, estimates and the evening review ----
+  // ---- Daily state summary, estimates and the evening review ----
 
   getState: (date: string, today: string) =>
     request<DailyState>(`/api/state?date=${encodeURIComponent(date)}&today=${encodeURIComponent(today)}`),
-  getStatePrefs: () => request<StatePrefs>('/api/state/prefs'),
-  saveStatePrefs: (input: Partial<StatePrefs>) => put<StatePrefs>('/api/state/prefs', input),
-  getDayReview: (date: string) =>
-    request<DayReview | null>(`/api/state/review?date=${encodeURIComponent(date)}`),
   saveDayReview: (date: string, answer: DayReviewAnswer) =>
     put<DayReview>('/api/state/review', { date, answer }),
   saveSuggestionChoice: (date: string, key: string, choice: 'accepted' | 'dismissed') =>
     put<{ ok: true }>('/api/state/suggestions', { date, key, choice }),
 
-  // ---- Phase 4: off days and prediction settings ----
+  // ---- Off days and prediction settings ----
 
-  listOffDays: () => request<{ items: OffDay[] }>('/api/off-days'),
   getOffDayDay: (date: string) =>
     request<{
       date: string
@@ -236,19 +222,12 @@ export const api = {
     input: { kind: OffDayKind | null; startDate: string; endDate: string; note?: string | null },
   ) => patch<{ offDay: OffDay }>(`/api/off-days/${id}`, input),
   deleteOffDay: (id: number) => del<{ ok: true }>(`/api/off-days/${id}`),
-  getPredictionSettings: () => request<{ settings: PredictionSettings }>('/api/off-days/settings'),
-  savePredictionSettings: (input: Partial<PredictionSettings>) =>
-    put<{ settings: PredictionSettings }>('/api/off-days/settings', input),
 
-  // ---- Phase 4: predictions and feedback ----
+  // ---- Predictions and feedback ----
 
   getPlan: (date: string, today: string) =>
     request<PredictionPlanResponse>(
       `/api/predictions/plan?date=${encodeURIComponent(date)}&today=${encodeURIComponent(today)}`,
-    ),
-  getTaskPrediction: (taskId: string, date: string, today: string) =>
-    request<{ gate: boolean; offDay: boolean; checkinState: string; prediction: import('./types').TaskPrediction | null }>(
-      `/api/predictions/task?taskId=${encodeURIComponent(taskId)}&date=${encodeURIComponent(date)}&today=${encodeURIComponent(today)}`,
     ),
   savePredictionFeedback: (input: {
     date: string

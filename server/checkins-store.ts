@@ -169,6 +169,16 @@ export function checkinState(row: CheckinRow): CheckinState {
   return answered === CHECKIN_ANSWER_KEYS.length ? 'completed' : 'partial'
 }
 
+/** The answered questions only; NULL stays absent rather than becoming a value. */
+export function answeredValues(row: CheckinRow): Partial<Record<CheckinAnswerKey, number>> {
+  const out: Partial<Record<CheckinAnswerKey, number>> = {}
+  for (const key of CHECKIN_ANSWER_KEYS) {
+    const value = row[key]
+    if (value !== null) out[key] = value
+  }
+  return out
+}
+
 export function getCheckin(
   db: DatabaseSync,
   userId: number,

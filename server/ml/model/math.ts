@@ -1,5 +1,5 @@
 /**
- * Small numeric helpers shared by the candidate models (Phase 5, §2).
+ * Small numeric helpers shared by the candidate models.
  *
  * Deliberately tiny and dependency-free: the models here are regularised linear
  * models and small trees, trained by fixed, deterministic routines. No random
@@ -18,9 +18,6 @@ export function sigmoid(z: number): number {
   return e / (1 + e)
 }
 
-export function clamp(value: number, low: number, high: number): number {
-  return Math.max(low, Math.min(high, value))
-}
 
 export interface Standardizer {
   mean: number[]
@@ -59,14 +56,3 @@ export function dot(a: number[], b: number[]): number {
   return sum
 }
 
-/** A tiny deterministic PRNG, used only where a seed is required. */
-export function mulberry32(seed: number): () => number {
-  let state = seed >>> 0
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0
-    let t = state
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}

@@ -10,7 +10,7 @@ import { listSessions, type SessionRow } from './sessions'
 import { addDays as addDaysPure, diffDays, offDayDates, type OffDayKind } from './off-days'
 
 /**
- * Personal statistics (Phase 4, §1).
+ * Personal statistics.
  *
  * Everything here is derived from the user's **own** recorded days. Nothing is
  * imported from other people, nothing is invented, and an off day is left out of
@@ -19,7 +19,7 @@ import { addDays as addDaysPure, diffDays, offDayDates, type OffDayKind } from '
  * said they did not. `unknown` and `pending` days are never treated as a miss.
  *
  * The module is split into pure maths (rates, durations, timing, mood) and a
- * gather step that reads the user's rows once. Predictors (Phase 4, §2) consume
+ * gather step that reads the user's rows once. Predictors consume
  * these statistics; nothing here writes to the database.
  */
 

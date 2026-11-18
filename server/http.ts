@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'
+import { parseLocalDate } from './checkins-store'
 
 export interface AuthedRequest extends Request {
   userId?: number
@@ -75,4 +76,18 @@ export function optionalTimestamp(value: unknown): number | null | undefined {
   if (value === null) return null
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
   return value
+}
+
+/** The server's local calendar date, `YYYY-MM-DD`. */
+export function localDateString(date = new Date()): string {
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+/** Read a validated local date from a query string (GET) or body (other verbs). */
+export function resolveDate(req: Request, field = 'date'): string | null {
+  const value = req.method === 'GET' ? req.query[field] : (req.body as Record<string, unknown>)?.[field]
+  if (value === undefined || value === null || value === '') return null
+  return parseLocalDate(value)
 }

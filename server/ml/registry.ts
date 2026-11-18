@@ -3,7 +3,7 @@ import type { ModelArtifact, ModelKind } from './training'
 import { MAX_ECE } from './training'
 
 /**
- * Model registry, promotion, rollback and retraining gates (Phase 5, §4/§5).
+ * Model registry, promotion, rollback and retraining gates.
  *
  * This module is the only thing that decides what is served. The rules it
  * enforces, in code:
@@ -25,8 +25,6 @@ import { MAX_ECE } from './training'
  */
 
 export type ModelStatus = 'candidate' | 'champion' | 'retired' | 'rejected'
-
-export const MODEL_KINDS: ModelKind[] = ['completion', 'target', 'duration', 'timing']
 
 export interface StoredModelRow {
   id: number
@@ -114,14 +112,6 @@ function rowOf(db: DatabaseSync, id: number): StoredModelRow | undefined {
 
 export function getStoredModel(db: DatabaseSync, id: number): StoredModelRow | undefined {
   return rowOf(db, id)
-}
-
-export function listModels(db: DatabaseSync, userId: number, kind?: ModelKind): StoredModelRow[] {
-  const sql = kind
-    ? 'SELECT * FROM ml_models WHERE user_id = ? AND kind = ? ORDER BY id DESC'
-    : 'SELECT * FROM ml_models WHERE user_id = ? ORDER BY id DESC'
-  const args = kind ? [userId, kind] : [userId]
-  return db.prepare(sql).all(...args) as unknown as StoredModelRow[]
 }
 
 /** The single model currently served for a kind, or undefined. */
@@ -265,21 +255,6 @@ export function promoteCandidate(db: DatabaseSync, userId: number, candidateId: 
       : `Promoted: ${baseline.detail}. It is now the served model.`,
     retiredId,
   }
-}
-
-/** Mark a candidate as rejected, with the reason kept in its notes. */
-export function rejectCandidate(db: DatabaseSync, id: number, reason: string, now = Date.now()): boolean {
-  const row = rowOf(db, id)
-  if (!row || row.status === 'champion') return false
-  const notes = row.notes ? `${row.notes} | ${reason}` : reason
-  const result = db.prepare("UPDATE ml_models SET status = 'rejected', notes = ?, updated_at = ? WHERE id = ?").run(notes, now, id)
-  return Number(result.changes) > 0
-}
-
-/** Retire a model without promoting anything else. */
-export function retireModel(db: DatabaseSync, id: number, now = Date.now()): boolean {
-  const result = db.prepare("UPDATE ml_models SET status = 'retired', updated_at = ? WHERE id = ? AND status != 'retired'").run(now, id)
-  return Number(result.changes) > 0
 }
 
 /**

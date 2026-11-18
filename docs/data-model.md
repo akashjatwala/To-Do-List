@@ -14,6 +14,20 @@ One SQLite file: `server/data/todo.db` (created on first boot, git-ignored). For
 on. Every schema function is idempotent and safe to run on every boot, so starting the app
 twice changes nothing.
 
+The live database currently contains **32 tables**. Two cleanups were made on 2026-11-18:
+
+1. An unused scaffold of nine planning/target/weekly tables was removed after a code search
+   confirmed no module in `server/` or `src/` referenced them: `plan_blocks`,
+   `plan_block_events`, `plan_blocked_windows`, `plan_free_windows`, `planning_settings`,
+   `target_preferences`, `target_suggestions`, `weekly_reviews` and `weekly_review_dismissals`.
+2. Two pairs of identically shaped tables were merged:
+   `sessions` + `password_resets` → `auth_tokens(kind)`, and
+   `state_prefs` + `prediction_settings` → `user_settings`.
+
+Pre-change backups are kept at `server/data/todo.db.bak-20261118144155` and
+`server/data/todo.db.bak-20261118144721` (git-ignored). No check-in, task, prediction or ML
+table was removed, and the model code was left untouched.
+
 ## Table groups
 
 ### App core — `server/db.ts`
@@ -21,8 +35,7 @@ twice changes nothing.
 | Table | Holds |
 | --- | --- |
 | `users` | Account email and password hash |
-| `sessions` | Login sessions (token **hash** only) |
-| `password_resets` | Password-reset tokens (hash only) |
+| `auth_tokens` | Login sessions and password-reset codes in one table; `kind` distinguishes them. Only token **hashes** are stored |
 | `teams`, `team_members`, `team_invites` | Teams, membership roles, pending invites |
 | `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration, preferred time. `team_id NULL` means a personal task |
 | `subtasks` | Subtasks with position and done |
@@ -48,23 +61,27 @@ twice changes nothing.
 | `daily_activity_status` | What you explicitly said about a day: `completed` / `partial` / `skipped` / `postponed`, with an optional reason |
 | `context_questions` | Optional extra questions, attached to a task or suggested by a tag |
 | `session_context` | Answers to extra questions, recorded against a session |
+| `user_settings` | One user-keyed row for display preferences and prediction thresholds; both writers touch only their own columns |
 
 ### State layer — `createStateSchema`
 
 | Table | Holds |
 | --- | --- |
 | `day_reviews` | The single optional evening review per day (one of five answers) |
-| `state_prefs` | Display preferences for the summary and estimates |
 | `state_suggestion_choices` | Whether a low-capacity suggestion was accepted or dismissed |
+
+The display preferences used by this layer live in `user_settings` (foundation group).
 
 ### Prediction layer — `createPredictionSchema`
 
 | Table | Holds |
 | --- | --- |
 | `off_days` | One row per off period: kind (optional), start, end, note |
-| `prediction_settings` | Per-user thresholds: reduced-confidence days, exploration share, stage-2 minimum days |
 | `predictions` | The prediction **log**: source (baseline / model), model version, check-in state, probabilities, durations, recommended window, confidence, stage, explanation. Written by the server only |
 | `prediction_feedback` | Whether a suggestion was shown, exploratory, and followed — stored apart from both predictions and outcomes |
+
+The configurable thresholds (reduced-confidence days, exploration share, stage-2 minimum) live
+in `user_settings` (foundation group).
 
 ### ML and continuous learning — `createMlSchema`
 
@@ -82,6 +99,8 @@ twice changes nothing.
 
 ```mermaid
 erDiagram
+  users ||--o{ auth_tokens : "sessions and resets"
+  users ||--o| user_settings : "preferences and thresholds"
   users ||--o{ checkins : "one per day"
   checkins ||--o{ checkin_history : "edit trail"
   users ||--o{ tasks : owns

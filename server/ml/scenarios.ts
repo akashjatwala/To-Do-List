@@ -24,7 +24,7 @@ import { driftForTask, configChangesForTask } from './drift'
 import { modelHealthView } from './health'
 
 /**
- * Phase 6 scenario suite (§5).
+ * Scenario suite.
  *
  * Sixteen small, self-contained situations, each built on a fresh in-memory
  * database and run through the real code — no mocks. Each scenario asserts the

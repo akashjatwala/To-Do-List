@@ -30,7 +30,7 @@ import { deleteCheckinHistory, privacySummary } from './privacy'
 import { runScenarioSuite } from './scenarios'
 
 /**
- * Phase 6 tests.
+ * Continuous learning tests.
  *
  * These run the real continuous-learning, health, drift and privacy code on
  * small in-memory databases. They test the *machinery*: that recording stores
@@ -130,10 +130,10 @@ function reg(db: DatabaseSync, kind: 'completion' | 'target' | 'duration', versi
 }
 
 // ---------------------------------------------------------------------------
-// Scenario suite (§5)
+// Scenario suite
 // ---------------------------------------------------------------------------
 
-test('phase6 scenarios: every required situation behaves as specified', () => {
+test('learning scenarios: every required situation behaves as specified', () => {
   const outcomes = runScenarioSuite()
   const failed = outcomes.filter((outcome) => !outcome.ok)
   assert.equal(outcomes.length, 16, 'the suite should cover all sixteen situations')
@@ -147,7 +147,7 @@ test('phase6 scenarios: every required situation behaves as specified', () => {
 // Immediate learning: the linkage and per-tag statistics
 // ---------------------------------------------------------------------------
 
-test('phase6 learning: recording activity stores one linkage row and it is idempotent', () => {
+test('learning learning: recording activity stores one linkage row and it is idempotent', () => {
   const db = freshDb()
   const task = insertTask(db)
   const date = '2026-06-01'
@@ -162,7 +162,7 @@ test('phase6 learning: recording activity stores one linkage row and it is idemp
   db.close()
 })
 
-test('phase6 learning: a skipped day is linked as a real miss, an unrecorded day is not', () => {
+test('learning learning: a skipped day is linked as a real miss, an unrecorded day is not', () => {
   const db = freshDb()
   const task = insertTask(db)
   const skipped = '2026-06-01'
@@ -179,7 +179,7 @@ test('phase6 learning: a skipped day is linked as a real miss, an unrecorded day
   db.close()
 })
 
-test('phase6 learning: per-tag statistics follow immediately from the stored links', () => {
+test('learning learning: per-tag statistics follow immediately from the stored links', () => {
   const db = freshDb()
   const task = insertTask(db, { text: 'Gym' })
   const tagIds = [1, 2]
@@ -205,7 +205,7 @@ test('phase6 learning: per-tag statistics follow immediately from the stored lin
 // Retraining gate and rate limit
 // ---------------------------------------------------------------------------
 
-test('phase6 retrain: a first model is due, and a second attempt is rate-limited', () => {
+test('learning retrain: a first model is due, and a second attempt is rate-limited', () => {
   const db = freshDb()
   const task = insertTask(db)
   const from = '2026-01-01'
@@ -259,7 +259,7 @@ function seedBadHealth(db: DatabaseSync, task: string, version: string, days: nu
   return today
 }
 
-test('phase6 health: small noisy data does not trigger a fallback', () => {
+test('learning health: small noisy data does not trigger a fallback', () => {
   const db = freshDb()
   const task = insertTask(db)
   const candidate = reg(db, 'completion', 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
@@ -274,7 +274,7 @@ test('phase6 health: small noisy data does not trigger a fallback', () => {
   db.close()
 })
 
-test('phase6 health: a deliberately degraded model falls back to the baseline', () => {
+test('learning health: a deliberately degraded model falls back to the baseline', () => {
   const db = freshDb()
   const task = insertTask(db)
   const candidate = reg(db, 'completion', 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
@@ -290,7 +290,7 @@ test('phase6 health: a deliberately degraded model falls back to the baseline', 
   db.close()
 })
 
-test('phase6 health: a retrain clears the fallback and a fresh model is judged on its own predictions', () => {
+test('learning health: a retrain clears the fallback and a fresh model is judged on its own predictions', () => {
   const db = freshDb()
   const task = insertTask(db)
   // A champion registered directly, so the retrain gate sees no prior training.
@@ -332,7 +332,7 @@ test('phase6 health: a retrain clears the fallback and a fresh model is judged o
 // Drift
 // ---------------------------------------------------------------------------
 
-test('phase6 drift: a recent drop is reported as an association, not a cause', () => {
+test('learning drift: a recent drop is reported as an association, not a cause', () => {
   const db = freshDb()
   const task = insertTask(db)
   const from = '2026-06-01'
@@ -349,7 +349,7 @@ test('phase6 drift: a recent drop is reported as an association, not a cause', (
   db.close()
 })
 
-test('phase6 drift: a changed daily target is dated and described, and is not a change in the person', () => {
+test('learning drift: a changed daily target is dated and described, and is not a change in the person', () => {
   const db = freshDb()
   const task = insertTask(db, { duration: 30 })
   setDailyStatus(db, USER, task, '2026-06-01', 'completed', null)
@@ -375,7 +375,7 @@ function answers(values: Partial<Record<CheckinAnswerKey, number>>): Record<Chec
   return out
 }
 
-test('phase6 privacy: deleting check-in history clears the linkage state but keeps activity', () => {
+test('learning privacy: deleting check-in history clears the linkage state but keeps activity', () => {
   const db = freshDb()
   const task = insertTask(db)
   const date = '2026-06-01'

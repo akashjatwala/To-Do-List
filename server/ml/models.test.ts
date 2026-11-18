@@ -33,7 +33,7 @@ import { epochAtMinute, type PredictContext } from './predictors'
 import { gatherTaskDays, userCompletionPrior } from './statistics'
 
 /**
- * Phase 5 tests.
+ * Model training and serving tests.
  *
  * These run the real training, evaluation, registry, shadow and serving code on
  * small databases built in memory. They test the *machinery*: that features only
@@ -190,7 +190,7 @@ function reg(db: DatabaseSync, kind: 'completion' | 'target' | 'duration', versi
 // Feature engineering: no leakage, missing is explicit, tags/priority/season
 // ---------------------------------------------------------------------------
 
-test('phase5 features: a day is built only from strictly earlier days', () => {
+test('model features: a day is built only from strictly earlier days', () => {
   const db = freshDb()
   const task = insertTask(db, { text: 'Read', duration: 60 })
   const from = '2026-01-01'
@@ -216,7 +216,7 @@ test('phase5 features: a day is built only from strictly earlier days', () => {
   db.close()
 })
 
-test('phase5 features: a missing check-in is explicit and neutral, never a normal answer', () => {
+test('model features: a missing check-in is explicit and neutral, never a normal answer', () => {
   const names = featureNamesFor(EMPTY_VOCABULARY)
   const missing = computeFeatures(snapshot(), EMPTY_VOCABULARY)
   for (const key of CHECKIN_ANSWER_KEYS) {
@@ -232,7 +232,7 @@ test('phase5 features: a missing check-in is explicit and neutral, never a norma
   assert.equal(worst[featureIndex(names, 'checkin_feeling')], -1)
 })
 
-test('phase5 features: priority is an ordinal for that day, with an explicit missing flag', () => {
+test('model features: priority is an ordinal for that day, with an explicit missing flag', () => {
   const names = featureNamesFor(EMPTY_VOCABULARY)
   assert.equal(computeFeatures(snapshot({ priority: 'high' }), EMPTY_VOCABULARY)[featureIndex(names, 'priority_level')], 0.75)
   assert.equal(computeFeatures(snapshot({ priority: 'urgent' }), EMPTY_VOCABULARY)[featureIndex(names, 'priority_level')], 1)
@@ -241,7 +241,7 @@ test('phase5 features: priority is an ordinal for that day, with an explicit mis
   assert.equal(none[featureIndex(names, 'priority_missing')], 1)
 })
 
-test('phase5 features: tags are multi-hot with other and missing buckets', () => {
+test('model features: tags are multi-hot with other and missing buckets', () => {
   const vocabulary = { tags: ['1', '2'], seasonal: false }
   const names = featureNamesFor(vocabulary)
   const known = computeFeatures(snapshot({ tagIds: [1] }), vocabulary)
@@ -257,7 +257,7 @@ test('phase5 features: tags are multi-hot with other and missing buckets', () =>
   assert.equal(noTags[featureIndex(names, 'tag_missing')], 1)
 })
 
-test('phase5 features: seasonal columns appear only with at least a year of data', () => {
+test('model features: seasonal columns appear only with at least a year of data', () => {
   const plain = featureNamesFor({ tags: [], seasonal: false })
   const seasonal = featureNamesFor({ tags: [], seasonal: true })
   assert.ok(!plain.includes('season_sin'))
@@ -266,7 +266,7 @@ test('phase5 features: seasonal columns appear only with at least a year of data
   assert.equal(computeFeatures(snapshot(), EMPTY_VOCABULARY).length, plain.length)
 })
 
-test('phase5 features: training and serving build the identical vector through one module', () => {
+test('model features: training and serving build the identical vector through one module', () => {
   const db = freshDb()
   const task = insertTask(db, { text: 'Read', duration: 60 })
   const from = '2026-01-01'
@@ -303,7 +303,7 @@ test('phase5 features: training and serving build the identical vector through o
 // Training thresholds and calibration gating
 // ---------------------------------------------------------------------------
 
-test('phase5 training: below the minimum rows the trainers return a baseline and claim nothing', () => {
+test('model training: below the minimum rows the trainers return a baseline and claim nothing', () => {
   const db = freshDb()
   const task = insertTask(db, { text: 'Read', duration: 60 })
   const from = '2026-01-01'
@@ -323,7 +323,7 @@ test('phase5 training: below the minimum rows the trainers return a baseline and
   db.close()
 })
 
-test('phase5 calibration: skipped below the data threshold, never fabricated', () => {
+test('model calibration: skipped below the data threshold, never fabricated', () => {
   assert.equal(fitCalibrator([]).kind, 'none')
   const few = Array.from({ length: 10 }, (_, i) => ({ p: (i + 1) / 11, y: i % 2 }))
   assert.equal(fitCalibrator(few).kind, 'none')
@@ -342,7 +342,7 @@ test('phase5 calibration: skipped below the data threshold, never fabricated', (
 // Registry: promotion, reliability gate, rollback
 // ---------------------------------------------------------------------------
 
-test('phase5 registry: promotion needs to beat the baseline and the champion, and pass calibration', () => {
+test('model registry: promotion needs to beat the baseline and the champion, and pass calibration', () => {
   const db = freshDb()
   const c1 = reg(db, 'completion', 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
   assert.equal(promoteCandidate(db, USER, c1.id).ok, true)
@@ -367,7 +367,7 @@ test('phase5 registry: promotion needs to beat the baseline and the champion, an
   db.close()
 })
 
-test('phase5 registry: rollback restores the previous version and keeps the newer one', () => {
+test('model registry: rollback restores the previous version and keeps the newer one', () => {
   const db = freshDb()
   const c1 = reg(db, 'completion', 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
   promoteCandidate(db, USER, c1.id)
@@ -398,7 +398,7 @@ test('phase5 registry: rollback restores the previous version and keeps the newe
 // Shadow mode
 // ---------------------------------------------------------------------------
 
-test('phase5 shadow: a candidate that loses in shadow is not promoted, and labels are never overwritten', () => {
+test('model shadow: a candidate that loses in shadow is not promoted, and labels are never overwritten', () => {
   const db = freshDb()
   const candidate = reg(db, 'completion', 'shadow-loser', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
   for (let i = 0; i < 5; i += 1) {
@@ -426,7 +426,7 @@ test('phase5 shadow: a candidate that loses in shadow is not promoted, and label
   db.close()
 })
 
-test('phase5 shadow: a candidate that beats the champion and baseline in shadow is eligible', () => {
+test('model shadow: a candidate that beats the champion and baseline in shadow is eligible', () => {
   const db = freshDb()
   const candidate = reg(db, 'completion', 'shadow-winner', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
   for (let i = 0; i < 4; i += 1) {
@@ -454,7 +454,7 @@ test('phase5 shadow: a candidate that beats the champion and baseline in shadow 
 // Serving: champion used, baseline fallback
 // ---------------------------------------------------------------------------
 
-test('phase5 serving: the champion is served, and the baseline is used when it is missing or malformed', () => {
+test('model serving: the champion is served, and the baseline is used when it is missing or malformed', () => {
   const db = freshDb()
   const task = insertTask(db, { text: 'Read', duration: 60 })
   const from = '2026-01-01'

@@ -3,15 +3,15 @@ import { championFor, type StoredModelRow } from './registry'
 import { MAX_ECE, type ModelKind } from './training'
 import { brier, calibrationError, mae, type Labelled, type RegressionPoint } from './metrics'
 import { addDays } from './off-days'
-import { mlLog, safeRun } from './logging'
+import { safeRun } from './logging'
 
 /**
- * Live model health (Phase 6, §1/§2/§3).
+ * Live model health.
  *
  * A model that looked good on the historical validation window can still be
  * wrong on the user's own days. This module watches the model that is actually
  * being served, on the user's own logged predictions, and compares it against
- * the Phase 4 baseline over the same days:
+ * the baseline predictor over the same days:
  *
  * - Every served model prediction is stored in `ml_health_predictions` beside
  *   the baseline's for the same (kind, day, task). The label stays NULL until
@@ -20,7 +20,7 @@ import { mlLog, safeRun } from './logging'
  * - `evaluateModelHealth` scores the two over a rolling window. It refuses to
  *   judge on too little data (no fallback on small noisy data), and only falls
  *   back to the baseline when the live model is clearly worse than the baseline
- *   or its calibration has drifted past the Phase 5 gate.
+ *   or its calibration has drifted past the health gate.
  * - `clearFallback` resets the flag after a retrain, so the fresh model gets a
  *   fresh chance and has to prove itself in the window again.
  * - `modelHealthView` is a plain-words, informational summary. It reports; it
@@ -434,13 +434,6 @@ export function isFallbackActive(db: DatabaseSync, userId: number, kind: ModelKi
   return readHealth(db, userId, kind)?.fallback === 1
 }
 
-/** Every kind currently on the baseline, with the reason. */
-export function fallbackKinds(db: DatabaseSync, userId: number): Array<{ kind: ModelKind; reason: string }> {
-  return HEALTH_KINDS.filter((kind) => isFallbackActive(db, userId, kind)).map((kind) => ({
-    kind,
-    reason: readHealth(db, userId, kind)?.reason ?? 'The baseline is being used.',
-  }))
-}
 
 /**
  * Reset the fallback after a retrain, so the fresh model is judged again from
@@ -559,10 +552,3 @@ export function modelHealthView(db: DatabaseSync, userId: number, now = Date.now
   }
 }
 
-/** Log and swallow an evaluation failure so health can never break serving. */
-export function evaluateModelHealthSafe(db: DatabaseSync, userId: number, kind: ModelKind): void {
-  safeRun('health.evaluate', () => {
-    evaluateModelHealth(db, userId, kind)
-    mlLog('info', 'health.evaluate', `${kind} health re-evaluated`)
-  }, undefined)
-}

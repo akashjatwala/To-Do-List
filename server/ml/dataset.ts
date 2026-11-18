@@ -26,7 +26,7 @@ import {
 } from './features'
 
 /**
- * Training-set assembly (Phase 5, §1/§3).
+ * Training-set assembly.
  *
  * Turns the user's recorded days into supervised rows for the candidate models.
  * The rules this module exists to enforce, in code:

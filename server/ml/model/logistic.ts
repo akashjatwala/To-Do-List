@@ -1,7 +1,7 @@
 import { type Example, dot, fitStandardizer, sigmoid, standardize, type Standardizer } from './math'
 
 /**
- * Regularised logistic regression (Phase 5, §2).
+ * Regularised logistic regression.
  *
  * The first model that is allowed to be more than the smoothed baseline. It is
  * trained by weighted gradient descent with L2 regularisation, on standardised
@@ -71,7 +71,3 @@ export function predictLogistic(model: LogisticModel, x: number[]): number {
   return sigmoid(dot(model.weights, standardize(x, model.standardizer)) + model.bias)
 }
 
-/** The linear predictor (log-odds) before the sigmoid, for explanation. */
-export function logisticScore(model: LogisticModel, x: number[]): number {
-  return dot(model.weights, standardize(x, model.standardizer)) + model.bias
-}

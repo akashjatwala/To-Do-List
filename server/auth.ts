@@ -1,9 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { db, type PasswordResetRow, type SessionRow, type UserRow } from './db'
+import { db, type AuthTokenRow, type UserRow } from './db'
 
 // ---- Token handling ----
 // Only SHA-256 hashes of tokens are stored; the raw token exists solely on
 // the client, so a leaked database cannot be replayed as valid sessions.
+// Sessions and reset codes share one table, distinguished by `kind`.
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex')
 
@@ -15,9 +16,7 @@ const RESET_TTL_MS = 1000 * 60 * 60 // Password reset code: 1 hour, single use
 
 /** Delete expired sessions and reset codes. Called on auth operations. */
 export function sweepExpired(): void {
-  const now = Date.now()
-  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(now)
-  db.prepare('DELETE FROM password_resets WHERE expires_at < ?').run(now)
+  db.prepare('DELETE FROM auth_tokens WHERE expires_at < ?').run(Date.now())
 }
 
 // ---- Sessions (persisted in SQLite — they survive server restarts) ----
@@ -26,36 +25,35 @@ export function createSession(userId: number, remember: boolean): string {
   const token = randomBytes(32).toString('hex')
   const ttl = remember ? REMEMBER_TTL_MS : SHORT_TTL_MS
   db.prepare(
-    'INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)',
+    "INSERT INTO auth_tokens (token_hash, user_id, kind, created_at, expires_at) VALUES (?, ?, 'session', ?, ?)",
   ).run(sha256(token), userId, Date.now(), Date.now() + ttl)
   return token
 }
 
 export function destroySession(token: string): void {
-  db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token))
+  db.prepare("DELETE FROM auth_tokens WHERE token_hash = ? AND kind = 'session'").run(sha256(token))
 }
 
 /** Invalidate every session for a user, e.g. after a password reset. */
 export function destroyAllSessions(userId: number): void {
-  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId)
+  db.prepare("DELETE FROM auth_tokens WHERE user_id = ? AND kind = 'session'").run(userId)
 }
 
 /** Invalidate every session for a user except the one making the request. */
 export function destroyOtherSessions(userId: number, keepToken: string): void {
-  db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').run(
-    userId,
-    sha256(keepToken),
-  )
+  db.prepare(
+    "DELETE FROM auth_tokens WHERE user_id = ? AND kind = 'session' AND token_hash != ?",
+  ).run(userId, sha256(keepToken))
 }
 
 export function userIdForToken(token: string | undefined): number | null {
   if (!token) return null
   const row = db
-    .prepare('SELECT * FROM sessions WHERE token_hash = ?')
-    .get(sha256(token)) as unknown as SessionRow | undefined
+    .prepare("SELECT * FROM auth_tokens WHERE token_hash = ? AND kind = 'session'")
+    .get(sha256(token)) as unknown as AuthTokenRow | undefined
   if (!row) return null
   if (row.expires_at < Date.now()) {
-    db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(row.token_hash)
+    db.prepare("DELETE FROM auth_tokens WHERE token_hash = ? AND kind = 'session'").run(row.token_hash)
     return null
   }
   return row.user_id
@@ -66,7 +64,7 @@ export function userIdForToken(token: string | undefined): number | null {
 export function createPasswordReset(userId: number): string {
   const token = randomBytes(24).toString('hex')
   db.prepare(
-    'INSERT INTO password_resets (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)',
+    "INSERT INTO auth_tokens (token_hash, user_id, kind, created_at, expires_at) VALUES (?, ?, 'reset', ?, ?)",
   ).run(sha256(token), userId, Date.now(), Date.now() + RESET_TTL_MS)
   return token
 }
@@ -74,10 +72,10 @@ export function createPasswordReset(userId: number): string {
 /** Validate a reset code (single use): returns the user id, or null if invalid/expired. */
 export function consumePasswordReset(token: string): number | null {
   const row = db
-    .prepare('SELECT * FROM password_resets WHERE token_hash = ?')
-    .get(sha256(token)) as unknown as PasswordResetRow | undefined
+    .prepare("SELECT * FROM auth_tokens WHERE token_hash = ? AND kind = 'reset'")
+    .get(sha256(token)) as unknown as AuthTokenRow | undefined
   if (!row) return null
-  db.prepare('DELETE FROM password_resets WHERE token_hash = ?').run(row.token_hash)
+  db.prepare("DELETE FROM auth_tokens WHERE token_hash = ? AND kind = 'reset'").run(row.token_hash)
   if (row.expires_at < Date.now()) return null
   return row.user_id
 }
@@ -110,9 +108,3 @@ export function validatePassword(password: unknown): string | null {
   return null
 }
 
-export function validateCredentials(email: unknown, password: unknown): string | null {
-  if (!validEmail(email)) {
-    return 'Please enter a valid email address.'
-  }
-  return validatePassword(password)
-}

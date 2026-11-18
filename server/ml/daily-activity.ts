@@ -37,7 +37,7 @@ export interface DailyActivity {
   reason: string | null
   /** The configuration version that applied that day, or null. */
   configVersionId: number | null
-  /** That day's check-in id from Phase 1, or null when there was none. */
+  /** That day's check-in id, or null when there was none. */
   checkinId: number | null
   /** The day was marked off. It is flagged, never rewritten as a failure. */
   offDay: boolean
@@ -203,14 +203,3 @@ export function dailyActivity(
   })
 }
 
-/** A run of daily records, oldest first — the shape the model will consume. */
-export function dailyActivityRange(
-  db: DatabaseSync,
-  userId: number,
-  taskId: string,
-  dates: string[],
-  today: string,
-  options: DailyActivityOptions = {},
-): DailyActivity[] {
-  return dates.map((date) => dailyActivity(db, userId, taskId, date, today, options))
-}

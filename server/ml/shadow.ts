@@ -4,7 +4,7 @@ import { promoteCandidate, type PromotionDecision } from './registry'
 import type { ModelKind } from './training'
 
 /**
- * Shadow mode (Phase 5, §5).
+ * Shadow mode.
  *
  * A candidate that looks good on the historical validation window is not served
  * straight away. It runs **silently beside the champion** on live data: its

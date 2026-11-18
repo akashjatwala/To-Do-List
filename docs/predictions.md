@@ -4,11 +4,12 @@
 
 **Where in the code**
 
-- `server/ml/predictors.ts` — the Phase 4 baseline prediction, the time window, the plan and its ranking
+- `server/ml/predictors.ts` — the baseline prediction, the time window, the plan and its ranking
 - `server/ml/serving.ts` — the champion model on top of the baseline
+- `server/ml/live-predictor.ts` — the entry point the routes call (champion, or baseline fallback)
 - `server/ml/cold-start.ts` — the two stages and confidence
 - `server/ml/off-days.ts` — off days and the reduced-confidence window
-- `server/ml/estimates.ts` — the Phase 2a display estimates and their validation
+- `server/ml/estimates.ts` — the display estimates and their validation
 - `server/ml/predictions.ts` — the prediction log and feedback
 - `server/ml/prediction-routes.ts` — the `/api/predictions` routes
 - `src/components/PredictionPanel.tsx` — the on-screen card
@@ -60,9 +61,11 @@ and in the reduced-confidence window after an off day.
 
 ## Baseline vs model
 
-- The **baseline** (`predictors.ts`) always works and always has an answer. Its version string is `phase4-1.0.0`.
+- The **baseline** (`predictors.ts`) always works and always has an answer. Its version string is `baseline-1.0.0`.
 - A **champion model** (`serving.ts`) replaces the completion, target and duration numbers when one is registered, loadable and healthy. The recommended window and the explanation still come from the baseline, so timing is unchanged.
 - If there is no champion, the payload cannot be read, the feature vector does not match, the score is invalid, or the live health check has fallen back, the baseline is served and the reason is stated.
+- One entry point, `server/ml/live-predictor.ts`, is used by **both** `/api/predictions/plan` and `/api/predictions/task`, so the plan and the single-task view cannot disagree. With no champion in the database both show the baseline, exactly as before.
+- `ML_DISABLE_MODEL_SERVING=1` keeps baseline-only behaviour on both routes without changing any model data (read at startup).
 
 See [ml.md](ml.md) for how a champion is trained, promoted and watched.
 

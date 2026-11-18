@@ -6,7 +6,7 @@
 
 - `server/checkins-store.ts` — the questions, validation, storage and edit trail
 - `server/checkins.ts` — the `/api/checkins` routes
-- `server/ml/readiness.ts` — the readiness score and sub-scores (Phase 2a)
+- `server/ml/readiness.ts` — the readiness score and sub-scores
 - `server/ml/recent-context.ts`, `server/ml/similar-days.ts` — recent-change and similar-day context
 - `src/lib/checkin.ts` — the question labels and options (shared with the API)
 - `src/lib/energy.ts` — the display-only energy card helpers
@@ -37,7 +37,7 @@ first option shown and 5 the last. For every question 1 is the "best" end and 5 
 The four states a day can be in are derived, not stored: `not_asked` (no row),
 `completed` (all nine answered), `partial` (some answered) and `skipped`.
 
-## Readiness score (Phase 2a)
+## Readiness score
 
 `server/ml/readiness.ts` turns the answers into a 0–100 score.
 

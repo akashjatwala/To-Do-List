@@ -5,7 +5,7 @@
  * Answers are stored as ordinals **1–5** in the order the options are listed
  * here: the first option is 1 and the last is 5. This direction is fixed and
  * shared with the API (`server/checkins-store.ts`), so it never drifts. For
- * every question 1 is the "best" end of the scale and 5 the "worst"; Phase 2a
+ * every question 1 is the "best" end of the scale and 5 the "worst"; the readiness scorer
  * flips them so that higher always means better.
  *
  * Emoji and accent colours are **decorative only** — they are never stored, and

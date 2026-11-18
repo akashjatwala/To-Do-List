@@ -1,7 +1,7 @@
 import { type Labelled } from './metrics'
 
 /**
- * Probability calibration (Phase 5, §3).
+ * Probability calibration.
  *
  * A model's raw score is only used as a probability once it has been shown to be
  * one. Calibration is applied **only when there is enough data to fit it

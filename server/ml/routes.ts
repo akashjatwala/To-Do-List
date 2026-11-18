@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { db } from '../db'
 import { parseLocalDate } from '../checkins-store'
-import { badRequest, forbidden, notFound, param, text, type AuthedRequest } from '../http'
+import { badRequest, forbidden, localDateString, notFound, param, text, type AuthedRequest } from '../http'
 import { listTags, mergeTags, renameTag, resolveTagChain } from './tags'
 import { configTagIds, listTaskConfigs, type TaskConfigRow } from './task-config'
 import {
@@ -36,14 +36,6 @@ const PROMPT_MAX = 200
 const KEY_MAX = 40
 const EXPLICIT_STATUSES: ExplicitStatus[] = ['completed', 'partial', 'skipped', 'postponed']
 const QUESTION_KINDS: QuestionKind[] = ['text', 'number', 'scale', 'boolean']
-
-/** The user's local date on the server, used only when the client omits it. */
-function serverToday(): string {
-  const now = new Date()
-  const month = `${now.getMonth() + 1}`.padStart(2, '0')
-  const day = `${now.getDate()}`.padStart(2, '0')
-  return `${now.getFullYear()}-${month}-${day}`
-}
 
 interface TaskAccess {
   id: string
@@ -131,7 +123,7 @@ activityRoutes.post('/sessions', (req: AuthedRequest, res) => {
 
   const row = createSession(db, userId, result.value)
   // Immediate learning: store the check-in/outcome link for the day that changed.
-  recordActivityOutcomeSafe(db, userId, result.value.taskId, result.value.localDate, serverToday())
+  recordActivityOutcomeSafe(db, userId, result.value.taskId, result.value.localDate, localDateString())
   res.status(201).json({ session: sessionDTO(row) })
 })
 
@@ -141,7 +133,7 @@ activityRoutes.delete('/sessions/:id', (req: AuthedRequest, res) => {
   const existing = getSession(db, userId, id)
   const deleted = deleteSession(db, userId, id)
   if (!deleted) return notFound(res, 'Session not found.')
-  if (existing) recordActivityOutcomeSafe(db, userId, existing.task_id, existing.local_date, serverToday())
+  if (existing) recordActivityOutcomeSafe(db, userId, existing.task_id, existing.local_date, localDateString())
   res.json({ ok: true })
 })
 
@@ -151,7 +143,7 @@ activityRoutes.get('/day', (req: AuthedRequest, res) => {
   if (!accessibleTask(taskId, userId)) return notFound(res, 'Task not found.')
   const date = parseLocalDate(req.query.date)
   if (!date) return badRequest(res, 'Provide a valid local date as YYYY-MM-DD.')
-  const today = parseLocalDate(req.query.today) ?? serverToday()
+  const today = parseLocalDate(req.query.today) ?? localDateString()
   res.json({ day: dailyActivity(db, userId, taskId, date, today) })
 })
 
@@ -163,7 +155,7 @@ activityRoutes.get('/range', (req: AuthedRequest, res) => {
   const to = parseLocalDate(req.query.to)
   if (!from || !to) return badRequest(res, 'Provide a valid from and to date as YYYY-MM-DD.')
   if (from > to) return badRequest(res, 'The from date must not be after the to date.')
-  const today = parseLocalDate(req.query.today) ?? serverToday()
+  const today = parseLocalDate(req.query.today) ?? localDateString()
 
   const days: DailyActivity[] = []
   const cursor = new Date(`${from}T00:00:00`)
@@ -197,7 +189,7 @@ activityRoutes.put('/day', (req: AuthedRequest, res) => {
     reason = parsed
   }
   setDailyStatus(db, userId, taskId, date, status as ExplicitStatus, reason)
-  const today = parseLocalDate(req.body?.today) ?? serverToday()
+  const today = parseLocalDate(req.body?.today) ?? localDateString()
   recordActivityOutcomeSafe(db, userId, taskId, date, today)
   res.json({ day: dailyActivity(db, userId, taskId, date, today) })
 })
@@ -209,7 +201,7 @@ activityRoutes.delete('/day', (req: AuthedRequest, res) => {
   const date = parseLocalDate(req.query.date)
   if (!date) return badRequest(res, 'Provide a valid local date as YYYY-MM-DD.')
   clearDailyStatus(db, userId, taskId, date)
-  const today = parseLocalDate(req.query.today) ?? serverToday()
+  const today = parseLocalDate(req.query.today) ?? localDateString()
   recordActivityOutcomeSafe(db, userId, taskId, date, today)
   res.json({ day: dailyActivity(db, userId, taskId, date, today) })
 })

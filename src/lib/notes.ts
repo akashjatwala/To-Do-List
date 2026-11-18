@@ -1,5 +1,5 @@
 /**
- * Small, stable presentation helpers for sticky notes (Phase 1b).
+ * Small, stable presentation helpers for sticky notes.
  *
  * Both the tilt and the pin colour are derived from a note's id with a simple
  * hash, so a note keeps the same look across reloads and re-renders, and adding

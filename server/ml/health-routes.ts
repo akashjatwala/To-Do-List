@@ -1,14 +1,14 @@
 import { Router } from 'express'
 import { db } from '../db'
 import { parseLocalDate } from '../checkins-store'
-import { badRequest, type AuthedRequest } from '../http'
+import { badRequest, localDateString, type AuthedRequest } from '../http'
 import { modelHealthView } from './health'
 import { refreshHealth, retrainStatus, maybeRetrain, lastRetrainAt } from './learning'
 import { driftSummary } from './drift'
 import { deleteCheckinHistory, privacySummary } from './privacy'
 
 /**
- * Learning health, drift and privacy routes (Phase 6, §2/§3/§4).
+ * Learning health, drift and privacy routes.
  *
  * These are read-mostly, informational endpoints. `GET /health` re-evaluates the
  * live model health and returns a plain-words view — it never nags and never
@@ -18,12 +18,6 @@ import { deleteCheckinHistory, privacySummary } from './privacy'
  * prediction as an outcome.
  */
 const router = Router()
-
-function localDateString(date = new Date()): string {
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
-}
 
 /** Which model is active, when it last trained and whether the baseline is used. */
 router.get('/health', (req: AuthedRequest, res) => {

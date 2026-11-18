@@ -3,7 +3,7 @@ import { activityStatistics, userCompletionPrior, userTaskIds } from './statisti
 import { configTagIds, listTaskConfigs, type TaskConfigRow } from './task-config'
 
 /**
- * Drift handling (Phase 6, §2).
+ * Drift handling.
  *
  * A person's routine and circumstances change. A model trained on last spring
  * should not quietly keep predicting last spring. This module does **not** try to
@@ -245,14 +245,3 @@ export function driftSummary(
   return { userId, today, generatedAt: options.now ?? Date.now(), tasks, notes }
 }
 
-/** Just the plain-language drift notes for one activity, for an explanation. */
-export function driftNotesForTask(
-  db: DatabaseSync,
-  userId: number,
-  taskId: string,
-  today: string,
-  priorRate: number,
-  options: { recentDays?: number; minLabelled?: number; sinceDate?: string } = {},
-): string[] {
-  return driftForTask(db, userId, taskId, today, priorRate, options).notes
-}

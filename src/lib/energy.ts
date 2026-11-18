@@ -6,27 +6,27 @@ import {
 } from './checkin'
 
 /**
- * Display-only helpers for the "Energy Level" card (Phase 1b).
+ * Display-only helpers for the "Energy Level" card.
  *
  * These are presentation helpers only. They do **not** change the score the
  * server computes, the stored answers, or any API. The overall score and its
- * three internal groups still come from Phase 2a (`server/ml/readiness.ts`);
+ * three internal groups still come from `server/ml/readiness.ts`;
  * this module just re-groups the same answered fields into the four sub-scores
  * the card shows, and describes an answer next to the person's own usual in
  * neutral words.
  *
  * Every answer is stored as an ordinal 1–5 where **1 is the best end**. To keep
  * the wording neutral and the comparisons meaningful, the helpers here flip the
- * ordinal into "goodness" (5 is best) exactly as Phase 2a does. Missing answers
+ * ordinal into "goodness" (5 is best) exactly as the readiness scorer does. Missing answers
  * stay missing: a skipped field is never counted, defaulted or filled in.
  */
 
-/** Flip a stored 1–5 answer so 5 is always the best. Mirrors Phase 2a. */
+/** Flip a stored 1–5 answer so 5 is always the best. Mirrors the readiness scorer. */
 export function goodness(value: number): number {
   return 6 - value
 }
 
-/** Map a 1–5 goodness value onto 0–100. Mirrors Phase 2a's score mapping. */
+/** Map a 1–5 goodness value onto 0–100. Mirrors the readiness score mapping. */
 export function goodnessToScore(goodnessValue: number): number {
   const clamped = Math.min(5, Math.max(1, goodnessValue))
   return Math.round(((clamped - 1) / 4) * 100)
@@ -71,7 +71,7 @@ export interface EnergySubScoreGroup {
 
 /**
  * The four sub-scores the card shows. For **display only** this replaces the
- * three internal groups Phase 2a uses for the overall score. The overall score
+ * three internal groups the readiness scorer uses for the overall score. The overall score
  * itself is unchanged; the internal grouping stays in the server config.
  */
 export const ENERGY_SUB_SCORES: readonly EnergySubScoreGroup[] = [

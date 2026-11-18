@@ -4,7 +4,7 @@ import type { OffDay, OffDayKind, ToastTone } from '@/types'
 import { CalendarIcon, PencilIcon, TrashIcon } from './Icons'
 
 /**
- * Off days (Phase 4, §0) — presentation only.
+ * Off days.
  *
  * One tap marks the selected day off, with an optional reason and an optional
  * end date for a whole period. A record can be added after the fact, edited and

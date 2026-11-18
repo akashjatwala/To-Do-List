@@ -6,21 +6,21 @@ import { epochAtMinute, predictTask, type PredictContext, type TaskPrediction, t
 import { isFallbackActive, logHealthPredictionSafe } from './health'
 
 /**
- * Serving (Phase 5, §4; extended in Phase 6, §1/§3).
+ * Serving the champion with a safe fallback.
  *
  * The served number is always produced the same way the training features were:
  * through the shared feature module, with the champion's own vocabulary, at the
  * fixed prediction time. If anything is wrong — no champion, an unreadable
  * payload, a feature-vector length mismatch, a non-finite or out-of-range score —
- * the code **falls back to the Phase 4 baseline** and says why. The user is never
+ * the code **falls back to the baseline predictor** and says why. The user is never
  * shown a broken number, and a champion is never trusted blindly.
  *
- * Phase 6 adds a second reason to fall back: the live **model health** check
+ * A second reason to fall back is the live **model health** check
  * (`health.ts`). When a served model has been scoring worse than the baseline on
  * the user's own recent days, the baseline is used for that kind until the next
  * retrain, and the model's output is still logged (never served) so it can be
  * re-judged. The champion supplies the probabilities and the duration; the
- * recommended time window and the explanation still come from the Phase 4
+ * recommended time window and the explanation still come from the baseline
  * predictor, so timing is unchanged here.
  */
 
@@ -44,7 +44,7 @@ function validProbability(value: number): boolean {
 
 /**
  * Serve one task: the champion when it is available, sane and healthy, otherwise
- * the Phase 4 baseline. Returns null only when the baseline itself cannot predict
+ * the baseline predictor. Returns null only when the baseline itself cannot predict
  * (missing task or an off day).
  */
 export function serveTask(
@@ -61,7 +61,7 @@ export function serveTask(
   const target = loadChampionArtifact(db, userId, 'target')
   const duration = loadChampionArtifact(db, userId, 'duration')
   if (!completion && !target && !duration) {
-    return { prediction: baseline, usedModel: false, reason: 'No champion model is registered; the Phase 4 baseline is served.' }
+    return { prediction: baseline, usedModel: false, reason: 'No champion model is registered; the baseline predictor is served.' }
   }
 
   try {

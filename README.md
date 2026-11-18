@@ -43,6 +43,7 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - Off days (sick / travel / holiday / other) that reduce confidence rather than inventing data
 - Versioned tags, priority, target duration and preferred time, with full history
 - Local model training, versioning, promotion, rollback and a plain-words model health view
+- Trained champions are served for completion, target and duration when healthy; with no model yet, the starting estimates are shown instead
 - Continuous learning: recording activity updates statistics immediately and retraining is gated and rate-limited
 - Drift notes and dated configuration changes, shown as associations, never as causes
 - Privacy controls: everything stays local, and you can delete your check-in history
@@ -73,10 +74,10 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 
 ## How it works
 
-- `server/` — Express 5 API. `db.ts` defines a SQLite schema (users, sessions, password resets, teams, members, invites, tasks, subtasks, comments); `auth.ts` handles hashed session/reset tokens; route files expose `/api/auth`, `/api/teams`, `/api/invites`, `/api/tasks` and `/api/checkins`.
+- `server/` — Express 5 API. `db.ts` defines a SQLite schema (users, auth tokens, teams, members, invites, tasks, subtasks, comments); `auth.ts` handles hashed session/reset tokens in one `auth_tokens` table; route files expose `/api/auth`, `/api/teams`, `/api/invites`, `/api/tasks` and `/api/checkins`.
 - `server/ml/` — the learning system: data collection, validation, feature engineering, training, evaluation, prediction, continuous learning, model versioning, drift and privacy. See [docs/architecture.md](docs/architecture.md).
 - `src/` — React 19 + Tailwind CSS 4 frontend. `App.tsx` loads a single `/api/bootstrap` payload and handles mutations; components live in `src/components/`.
-- Data is stored in `server/data/todo.db` (created automatically, git-ignored).
+- Data is stored in `server/data/todo.db` (created automatically, git-ignored). The current schema has 32 tables; on 2026-11-18 an unused planning/target/weekly scaffold was removed and two pairs of identical tables were merged into `auth_tokens` and `user_settings` (see [docs/data-model.md](docs/data-model.md)).
 
 ## Documentation
 
@@ -107,4 +108,4 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 - Session cookies are `httpOnly`; only SHA-256 hashes of session tokens are stored.
 - Deleting a task requires being its creator or the team host. Comments can be deleted by their author or the host.
 - The learning system runs locally only. File logging is opt-in with `ML_LOG_FILE`; nothing is uploaded. See [docs/privacy-and-limits.md](docs/privacy-and-limits.md).
-- The retraining scheduler can be turned off with `ML_DISABLE_SCHEDULER=1`, and its interval changed with `ML_RETRAIN_EVERY_MS`. See [docs/operations.md](docs/operations.md).
+- The retraining scheduler can be turned off with `ML_DISABLE_SCHEDULER=1`, and its interval changed with `ML_RETRAIN_EVERY_MS`. Model serving can be reverted to baseline-only with `ML_DISABLE_MODEL_SERVING=1`. Both are read at startup. See [docs/operations.md](docs/operations.md).

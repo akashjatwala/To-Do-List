@@ -17,6 +17,8 @@
 | Missing stays missing | A blank answer, an absent priority and a skipped day are real facts, and are stored as such, never defaulted |
 | `not_asked` is different from `skipped` | "I did not open the app" and "I chose to skip" are different, and conflating them would corrupt the labels |
 | A prediction is never an outcome | Predictions and outcomes live in separate tables; the label columns are filled only from observed activity |
+| Remove unreferenced scaffold tables | Nine planning/target/weekly tables held no rows and had no references in `server/` or `src/`; keeping them made the data model look more complex than the app actually is |
+| Merge identical table shapes | Login sessions and reset codes are both hashed tokens with an owner and expiry, so they share `auth_tokens(kind)`. Display prefs and prediction thresholds are both one row per user, so they share `user_settings`. Fewer tables, no behaviour change |
 
 ## Modelling
 
@@ -37,6 +39,8 @@
 | Decision | Why |
 | --- | --- |
 | Baseline fallback whenever a champion cannot be trusted | The user is never shown a broken or out-of-range number |
+| One live prediction entry point for both routes | The plan and the single-task view use the same champion/baseline decision, so they cannot disagree; `buildPlan` takes an injectable predictor and stays free of a dependency on serving |
+| Reversible model serving via `ML_DISABLE_MODEL_SERVING=1` | Wiring trained models in is a behaviour change; a startup flag restores baseline-only predictions for comparison or an emergency without touching model data |
 | Sticky health fallback | A model is not flipped back on one good window; it is retried only after a rate-limited retrain |
 | Retraining is gated and rate-limited | Retraining on every write would churn; the gate waits for enough new labels or staleness |
 | Lightweight, unref'd scheduler that can be disabled | Periodic learning should never keep the process alive or run without consent |

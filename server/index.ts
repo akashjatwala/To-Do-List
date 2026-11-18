@@ -134,8 +134,8 @@ app.listen(PORT, () => {
   console.log(`\n  To-Do API ready at http://localhost:${PORT}\n`)
 })
 
-// ---- Periodic retraining (Phase 6, §1) ----
-// A lightweight, unref'd timer that asks the Phase 5 gate whether a retrain is
+// ---- Periodic retraining ----
+// A lightweight, unref'd timer that asks the retrain gate whether a retrain is
 // due and rate-limits the work inside `maybeRetrain`. Set ML_RETRAIN_EVERY_MS to
 // change the interval, or ML_DISABLE_SCHEDULER=1 to turn it off.
 if (process.env.ML_DISABLE_SCHEDULER !== '1') {

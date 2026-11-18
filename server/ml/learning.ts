@@ -10,7 +10,7 @@ import { mlLog, safeRun } from './logging'
 import { clearFallback, evaluateModelHealth, labelHealthForDay } from './health'
 
 /**
- * Continuous learning (Phase 6, §1).
+ * Continuous learning.
  *
  * Recording activity is the moment the system learns something real. This module
  * is the bridge between the recording path and the learning path, and it keeps
@@ -24,7 +24,7 @@ import { clearFallback, evaluateModelHealth, labelHealthForDay } from './health'
  * - **Statistics follow immediately.** `tagLevelStatistics` reads those links and
  *   returns completion by tag straight away, without waiting for a retrain.
  * - **Retraining is gated and rate-limited.** `maybeRetrain` retrains only when
- *   the Phase 5 gate says enough new labelled data has accumulated (or the model
+ *   the retrain gate says enough new labelled data has accumulated (or the model
  *   is stale), never more often than the configured interval, and it still runs
  *   the ordinary promotion gate. It never fabricates rows and never marks a
  *   prediction as an outcome.
@@ -247,7 +247,7 @@ export function lastRetrainAt(db: DatabaseSync, userId: number): number | null {
 }
 
 /**
- * Ask the Phase 5 gate, per kind, whether a retrain is due. This reads the
+ * Ask the retrain gate, per kind, whether a retrain is due. This reads the
  * training set once (the same set training would use) so the counts are real.
  */
 export function retrainStatus(db: DatabaseSync, userId: number, options: RetrainOptions = {}): RetrainDecisionRow[] {
@@ -297,7 +297,7 @@ export function maybeRetrain(db: DatabaseSync, userId: number, options: RetrainO
   }
 
   const today = options.today ?? latestRecordedDate(db, userId) ?? new Date(now).toISOString().slice(0, 10)
-  const version = `phase6-${today}`
+  const version = `retrain-${today}`
   const result = safeRun(
     'learning.retrain',
     () => trainUserModels(db, userId, { register: true, today, version, from: '1970-01-01', to: today }),

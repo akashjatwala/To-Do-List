@@ -1,5 +1,5 @@
 /**
- * Local logging and graceful degradation (Phase 6, §3).
+ * Local logging and graceful degradation.
  *
  * Every learning step in this system can fail for an ordinary reason — a missing
  * check-in, a half-recorded day, a model whose payload cannot be read. None of
@@ -64,10 +64,6 @@ export function mlLog(level: MlLogLevel, event: string, detail = ''): MlLogEntry
   return entry
 }
 
-/** The most recent log lines, newest last. Used by the plain-words health view. */
-export function recentLog(limit = 20): MlLogEntry[] {
-  return ring.slice(Math.max(0, ring.length - limit))
-}
 
 /**
  * Run `work`, returning `fallback` and logging the failure when it throws.

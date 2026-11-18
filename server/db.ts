@@ -19,17 +19,12 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
 
-  CREATE TABLE IF NOT EXISTS sessions (
+  -- Login sessions and password-reset codes share one shape: a hashed token,
+  -- an owner and an expiry. The kind column keeps their behaviour separate.
+  CREATE TABLE IF NOT EXISTS auth_tokens (
     token_hash TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
-    created_at INTEGER NOT NULL,
-    expires_at INTEGER NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS password_resets (
-    token_hash TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('session', 'reset')),
     created_at INTEGER NOT NULL,
     expires_at INTEGER NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -78,6 +73,7 @@ db.exec(`
     recurrence TEXT NOT NULL DEFAULT 'none',
     duration INTEGER,
     recurrence_config TEXT,
+    preferred_time TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
   );
@@ -101,7 +97,7 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
-  CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_team ON tasks(team_id);
   CREATE INDEX IF NOT EXISTS idx_subtasks_task ON subtasks(task_id);
@@ -113,20 +109,21 @@ db.exec(`
 // Daily mood/context check-ins and their append-only edit trail.
 createCheckinSchema(db)
 
-// Phase 2 foundation: tags, versioned task configs, sessions and daily records.
+// Foundation: tags, versioned task configs, activity sessions and daily records.
 createFoundationSchema(db)
 
-// Phase 2a: the read-only state layer's own tables (evening review, prefs).
+// Daily state: the read-only layer's own tables (evening review, prefs).
 createStateSchema(db)
 
-// Phase 4: off days, the prediction log and the feedback trail. These are the
+// Predictions: off days, the prediction log and the feedback trail. These are the
 // learning system's own tables and never hold observed outcomes.
 createPredictionSchema(db)
 
-// Phase 5: the model registry, the shadow-mode log and the retrain bookkeeping.
+// Machine learning: the model registry, the shadow-mode log and the retrain bookkeeping.
 createMlSchema(db)
 
 // Lightweight migrations for databases created by older versions of the app.
+// Fresh databases already have every column above; these only fill gaps in old files.
 const taskColumns = db.prepare('PRAGMA table_info(tasks)').all() as unknown as Array<{
   name: string
 }>
@@ -162,16 +159,10 @@ export interface UserRow {
   created_at: number
 }
 
-export interface SessionRow {
+export interface AuthTokenRow {
   token_hash: string
   user_id: number
-  created_at: number
-  expires_at: number
-}
-
-export interface PasswordResetRow {
-  token_hash: string
-  user_id: number
+  kind: 'session' | 'reset'
   created_at: number
   expires_at: number
 }

@@ -1,7 +1,7 @@
 import { type Example, dot, fitStandardizer, standardize, type Standardizer } from './math'
 
 /**
- * Linear quantile regression (Phase 5, §2).
+ * Linear quantile regression.
  *
  * The duration candidate after the median baseline. A quantile regression is
  * trained by minimising the pinball (quantile) loss with fixed, deterministic

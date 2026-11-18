@@ -107,30 +107,4 @@ export function questionsForTask(db: DatabaseSync, userId: number, taskId: strin
   return out
 }
 
-export interface SessionContextRow {
-  id: number
-  session_id: string
-  question_id: string
-  value: string
-  created_at: number
-}
 
-export function setSessionContext(
-  db: DatabaseSync,
-  sessionId: string,
-  questionId: string,
-  value: string,
-  now = Date.now(),
-): void {
-  db.prepare(
-    `INSERT INTO session_context (session_id, question_id, value, created_at)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT(session_id, question_id) DO UPDATE SET value = excluded.value`,
-  ).run(sessionId, questionId, value, now)
-}
-
-export function listSessionContext(db: DatabaseSync, sessionId: string): SessionContextRow[] {
-  return db
-    .prepare('SELECT * FROM session_context WHERE session_id = ? ORDER BY question_id')
-    .all(sessionId) as unknown as SessionContextRow[]
-}

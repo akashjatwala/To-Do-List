@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { db } from '../db'
 import { parseLocalDate } from '../checkins-store'
-import { badRequest, notFound, param, type AuthedRequest } from '../http'
+import { badRequest, localDateString, notFound, param, type AuthedRequest } from '../http'
 import {
   createOffDay,
   deleteOffDay,
@@ -17,21 +17,14 @@ import {
 } from './off-days'
 
 /**
- * Off-day and prediction-settings routes (Phase 4, §0).
+ * Off-day and prediction-settings routes.
  *
  * Marking a day off is one tap and the reason is optional. These routes only
- * ever write to `off_days` and `prediction_settings` — never to sessions, the
+ * ever write to `off_days` and the prediction fields of `user_settings` — never to sessions, the
  * per-day statuses or the check-ins — so marking or clearing an off day cannot
  * change what the user actually recorded.
  */
 const router = Router()
-
-/** The server's local calendar date, `YYYY-MM-DD`. */
-function localDateString(date = new Date()): string {
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
-}
 
 function offDayDTO(row: OffDayRow) {
   return {

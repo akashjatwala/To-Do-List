@@ -9,6 +9,7 @@
 - `server/ml/learning.ts` — the retrain gate, rate limit and scheduler
 - `server/ml/registry.ts` — promotion and rollback
 - `server/ml/health-routes.ts` — the `/api/ml` endpoints
+- `server/ml/live-predictor.ts` — the single prediction entry point used by the routes
 - `server/ml/logging.ts` — local logging
 - `.env.test` — the test runner's TypeScript config
 
@@ -22,6 +23,7 @@
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `PORT` | `3001` | The API port |
+| `ML_DISABLE_MODEL_SERVING` | unset | `1` serves only the baseline predictor, ignoring trained models (read at startup; needs a restart) |
 | `ML_DISABLE_SCHEDULER` | unset | `1` turns off the periodic retraining scheduler |
 | `ML_RETRAIN_EVERY_MS` | `21600000` (6 h) | How often the scheduler asks the retrain gate |
 | `ML_LOG_FILE` | unset | When set, learning log lines are also appended to this file (local only) |
@@ -51,6 +53,16 @@ command directly, for example:
 node --env-file=.env.test --import tsx --test "server/**/*.test.ts" "src/**/*.test.ts" "src/**/*.test.tsx"
 ```
 
+## Database backup
+
+Two pre-change snapshots are kept (git-ignored):
+
+- `server/data/todo.db.bak-20261118144155` — before the scaffold-table removal
+- `server/data/todo.db.bak-20261118144721` — before the `auth_tokens` / `user_settings` merges
+
+To restore one, stop the server, copy it over `server/data/todo.db`, then restart. The live file
+was compacted with `VACUUM` after each change.
+
 ## Training instructions
 
 Training runs on your own recorded data, through the retrain gate:
@@ -61,6 +73,19 @@ Training runs on your own recorded data, through the retrain gate:
 
 There is no command that fabricates rows to train on: with too little data each trainer
 returns the baseline and says so.
+
+## Model serving
+
+Both prediction routes (`GET /api/predictions/plan` and `GET /api/predictions/task`) now go
+through one entry point, `server/ml/live-predictor.ts`. For each task it serves the champion
+completion, target and duration numbers when a model is registered, loadable and healthy;
+otherwise it falls back to the baseline predictor. The recommended time window and the
+plain-language explanation still come from the baseline, so timing is unchanged. With no
+trained model in the database, behaviour is identical to the baseline-only app.
+
+To compare the two or disable model serving in an emergency, start the server with
+`ML_DISABLE_MODEL_SERVING=1`. This keeps all baseline-only behaviour without changing or
+deleting any model data. It is read once at startup, so a restart is needed to toggle it.
 
 ## Reading the model health view
 
@@ -90,12 +115,13 @@ the previous version as champion and keeps the newer one as `retired`.
 
 Two automatic safety nets already cover the common case, so a manual rollback is rarely needed:
 
-- **Serving fallback** — if a champion cannot be loaded or returns an invalid score, the Phase 4 baseline is served immediately.
+- **Serving fallback** — if a champion cannot be loaded or returns an invalid score, the baseline predictor is served immediately.
 - **Health fallback** — if the served model is worse than the baseline over the recent window, the baseline is used for that kind until a retrain clears the flag.
+- **Model-serving kill switch** — `ML_DISABLE_MODEL_SERVING=1` restores baseline-only predictions everywhere at once, without touching any model data.
 
 To roll back manually, call the function against the app database (the same `db` singleton in
 `server/db.ts`), then reload the health view. The behaviour is covered by
-`server/ml/phase5.test.ts`.
+`server/ml/models.test.ts`.
 
 ## Logging
 

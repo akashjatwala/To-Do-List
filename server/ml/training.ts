@@ -19,7 +19,7 @@ import type { FeatureVocabulary } from './features'
 import type { TrainingRow, TrainingSet } from './dataset'
 
 /**
- * Candidate training, chronological validation and calibration (Phase 5, §2/§3).
+ * Candidate training, chronological validation and calibration.
  *
  * The order of preference is fixed and simple:
  * - **Completion / target achievement**: smoothed baseline → regularised

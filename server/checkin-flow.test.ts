@@ -11,7 +11,7 @@ import {
 } from '../src/lib/checkin'
 
 /**
- * Phase 1a is presentation only, but the flow decisions (where to resume, how
+ * The check-in UI is presentation only, but the flow decisions (where to resume, how
  * many are answered, how a step is clamped) live in pure helpers so they can be
  * tested without a DOM. These run under the repo's existing `node --test` setup.
  */

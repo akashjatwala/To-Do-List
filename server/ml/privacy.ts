@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { CHECKIN_ANSWER_KEYS, deleteCheckins, type CheckinAnswerKey } from '../checkins-store'
 
 /**
- * Privacy and retention (Phase 6, §4).
+ * Privacy and retention.
  *
  * The learning system runs entirely on the user's own machine. There is no
  * external ML service, no telemetry and no upload path anywhere in this module

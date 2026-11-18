@@ -21,7 +21,7 @@ import { configForDate } from './task-config'
 import type { FeatureVocabulary } from './features'
 
 /**
- * Training orchestration (Phase 5, §2/§3/§4).
+ * Training orchestration.
  *
  * One function ties the separate modules together for a single user: it builds
  * the chronological training set, trains each candidate, evaluates the timing
@@ -98,7 +98,7 @@ export function trainUserModels(db: DatabaseSync, userId: number, options: Train
   const from = options.from ?? span.lo ?? options.today ?? '1970-01-01'
   const to = options.to ?? span.hi ?? from
   const today = options.today ?? to
-  const version = options.version ?? `phase5-${to}`
+  const version = options.version ?? `model-${to}`
   const register = options.register ?? true
   const notes: string[] = []
 

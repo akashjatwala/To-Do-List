@@ -22,7 +22,7 @@ import {
 import { dailyActivity } from './daily-activity'
 
 /**
- * The daily-state layer (Phase 2a) — the single read-only view that ties the
+ * The daily-state layer — the single read-only view that ties the
  * pieces together for one day.
  *
  * It never writes to the check-in tables. Everything here is derived on demand
@@ -42,7 +42,7 @@ export interface StatePrefs {
 
 export function getStatePrefs(db: DatabaseSync, userId: number): StatePrefs {
   const row = db
-    .prepare('SELECT show_summary, show_estimates FROM state_prefs WHERE user_id = ?')
+    .prepare('SELECT show_summary, show_estimates FROM user_settings WHERE user_id = ?')
     .get(userId) as unknown as { show_summary: number; show_estimates: number } | undefined
   if (!row) return { showSummary: true, showEstimates: true }
   return { showSummary: row.show_summary === 1, showEstimates: row.show_estimates === 1 }
@@ -60,7 +60,7 @@ export function saveStatePrefs(
     showEstimates: input.showEstimates ?? current.showEstimates,
   }
   db.prepare(
-    `INSERT INTO state_prefs (user_id, show_summary, show_estimates, updated_at)
+    `INSERT INTO user_settings (user_id, show_summary, show_estimates, updated_at)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET
        show_summary = excluded.show_summary,

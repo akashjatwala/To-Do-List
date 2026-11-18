@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 
 /**
- * Phase 2 data foundation: the tables the rest of the learning system depends
+ * Data foundation: the tables the rest of the learning system depends
  * on. Everything here is additive — no existing table is modified — and every
  * statement is idempotent, so it is safe to run on every boot.
  *
@@ -18,6 +18,8 @@ import type { DatabaseSync } from 'node:sqlite'
  *   because `sessions` is already taken by login sessions.
  * - Missing data is not zero. An explicit per-day status row is what
  *   distinguishes "I skipped it" from "I did not record anything".
+ * - `user_settings` is the one user-keyed row for display preferences and
+ *   prediction thresholds. Both writers touch only their own columns.
  */
 export function createFoundationSchema(db: DatabaseSync): void {
   db.exec(`
@@ -152,6 +154,19 @@ export function createFoundationSchema(db: DatabaseSync): void {
       FOREIGN KEY (question_id) REFERENCES context_questions(id) ON DELETE CASCADE
     );
 
+    -- One row per user for display preferences and prediction thresholds.
+    -- Both halves write only their own columns; missing means defaults.
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id INTEGER PRIMARY KEY,
+      show_summary INTEGER NOT NULL DEFAULT 1,
+      show_estimates INTEGER NOT NULL DEFAULT 1,
+      reduced_confidence_days INTEGER NOT NULL DEFAULT 3,
+      exploration_share REAL NOT NULL DEFAULT 0.1,
+      stage2_min_days INTEGER NOT NULL DEFAULT 10,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_tags_user ON tags(user_id, normalized);
     CREATE INDEX IF NOT EXISTS idx_tag_history_tag ON tag_history(tag_id, recorded_at);
     CREATE INDEX IF NOT EXISTS idx_task_tags_tag ON task_tags(tag_id);
@@ -164,7 +179,7 @@ export function createFoundationSchema(db: DatabaseSync): void {
 }
 
 /**
- * Phase 2a: the read-only daily-state layer's own tables.
+ * Daily state: the read-only layer's own tables.
  *
  * These are deliberately separate from the check-in tables. The morning
  * check-in is the user's report and is never touched by this layer; the
@@ -173,8 +188,8 @@ export function createFoundationSchema(db: DatabaseSync): void {
  * - `day_reviews` stores the single optional evening tap. It is keyed by user
  *   and date, so there is at most one review per day, and it never overwrites
  *   or back-fills the morning check-in. Missing stays missing (no row).
- * - `state_prefs` lets the user hide the summary and the estimates. Absent row
- *   means the defaults (both shown).
+ * - `user_settings` holds display preferences and prediction thresholds in one
+ *   user-keyed row. An absent row means all defaults.
  */
 export function createStateSchema(db: DatabaseSync): void {
   db.exec(`
@@ -187,15 +202,6 @@ export function createStateSchema(db: DatabaseSync): void {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       UNIQUE (user_id, local_date),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    -- Display preferences for the state summary and estimates.
-    CREATE TABLE IF NOT EXISTS state_prefs (
-      user_id INTEGER PRIMARY KEY,
-      show_summary INTEGER NOT NULL DEFAULT 1,
-      show_estimates INTEGER NOT NULL DEFAULT 1,
-      updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
@@ -219,7 +225,7 @@ export function createStateSchema(db: DatabaseSync): void {
 }
 
 /**
- * Phase 4: off days, the prediction log and the feedback trail.
+ * Predictions: off days, the prediction log and the feedback trail.
  *
  * These are the learning system's own tables. They are deliberately separate
  * from the outcome tables: a prediction is **never** written back as an
@@ -228,9 +234,8 @@ export function createStateSchema(db: DatabaseSync): void {
  *
  * - `off_days` is one record per off period (type, start, end, optional note).
  *   `kind` is optional, because "off" with no reason has to work.
- * - `prediction_settings` holds the configurable thresholds: how many days of
- *   reduced confidence follow an off period, the exploration share, and the
- *   labelled-day count that moves an activity from stage 1 to stage 2.
+ * - Prediction thresholds (reduced-confidence days, exploration share and the
+ *   stage-2 minimum) live in `user_settings`, created with the foundation schema.
  * - `predictions` logs what the system predicted, separately from outcomes, so
  *   calibration and timing can be checked later.
  * - `prediction_feedback` records whether a recommendation was shown, whether
@@ -249,16 +254,6 @@ export function createPredictionSchema(db: DatabaseSync): void {
       note TEXT,
       source TEXT NOT NULL DEFAULT 'user',
       created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    -- Configurable thresholds for the prediction layer (one row per user).
-    CREATE TABLE IF NOT EXISTS prediction_settings (
-      user_id INTEGER PRIMARY KEY,
-      reduced_confidence_days INTEGER NOT NULL DEFAULT 3,
-      exploration_share REAL NOT NULL DEFAULT 0.1,
-      stage2_min_days INTEGER NOT NULL DEFAULT 10,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -315,7 +310,7 @@ export function createPredictionSchema(db: DatabaseSync): void {
 }
 
 /**
- * Phase 5: the model registry, the shadow-mode log and the retrain bookkeeping.
+ * Machine learning: the model registry, the shadow-mode log and the retrain bookkeeping.
  *
  * These tables hold **models**, never observations. A trained model is stored as
  * a versioned row with its full metadata (data range, counts, feature list,
@@ -332,7 +327,7 @@ export function createPredictionSchema(db: DatabaseSync): void {
  * - `ml_retrain_state`: how many labelled observations existed at the last
  *   training, so retraining happens only once enough new ones have accumulated.
  *
- * Phase 6 adds three tables to the same module, all still about the system's own
+ * Three more tables live in the same module, all about the system's own
  * bookkeeping and never about observations:
  * - `activity_outcome_links`: the check-in state beside the observed outcome of
  *   a (task, day), recomputed when activity is recorded.
@@ -398,7 +393,7 @@ export function createMlSchema(db: DatabaseSync): void {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
-    -- Phase 6: the linkage between a day's check-in and what actually happened.
+    -- Outcome linkage between a day's check-in and what actually happened.
     -- One row per (user, task, day), recomputed whenever activity is recorded or
     -- removed. It stores the observed outcome (performed / target met / minutes)
     -- beside the check-in state that preceded it, so learning can attach
@@ -421,7 +416,7 @@ export function createMlSchema(db: DatabaseSync): void {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
-    -- Phase 6: the live model health log. Each time a model is served, its
+    -- Live model health log. Each time a model is served, its
     -- probability/duration is stored beside the baseline's for the same
     -- (kind, day, task). The label is the observed outcome and stays NULL until
     -- the day is labelled — a prediction is never written back as an outcome.
@@ -444,7 +439,7 @@ export function createMlSchema(db: DatabaseSync): void {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
-    -- Phase 6: the rolling health verdict per (user, kind). The fallback flag is 1
+    -- Rolling health verdict per (user, kind). The fallback flag is 1
     -- when the live model is worse than the baseline over the recent window or its
     -- calibration has drifted past the gate; the reason is kept in plain words.
     CREATE TABLE IF NOT EXISTS ml_health (
@@ -466,7 +461,7 @@ export function createMlSchema(db: DatabaseSync): void {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
-    -- Phase 6: an append-only trail of retrain attempts, used for rate limiting
+    -- Append-only trail of retrain attempts, used for rate limiting
     -- and for the plain-words health view.
     CREATE TABLE IF NOT EXISTS ml_retrain_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

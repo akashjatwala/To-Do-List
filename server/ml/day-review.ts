@@ -3,7 +3,7 @@ import { listCheckins } from '../checkins-store'
 import { readinessFromCheckin } from './readiness'
 
 /**
- * End-of-day check (Phase 2a).
+ * End-of-day check.
  *
  * One optional tap in the evening: how did today go compared with this morning?
  * It is stored in its own table, keyed by user and date. It **never** overwrites

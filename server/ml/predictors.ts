@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { getCheckin, type CheckinAnswerKey, type CheckinState } from '../checkins-store'
+import { answeredValues, getCheckin, type CheckinAnswerKey, type CheckinState } from '../checkins-store'
 import { averageGoodness, readinessFromCheckin } from './readiness'
 import { configForDate } from './task-config'
 import { dailyActivity } from './daily-activity'
@@ -22,7 +22,7 @@ import {
 import { assessStage, confidenceFor, downgrade, isSkipped, stageNote, type Confidence, type Stage } from './cold-start'
 
 /**
- * Predictors (Phase 4, §2).
+ * Baseline predictors.
  *
  * Every number here is an estimate from the user's **own** data plus today's
  * check-in. The design rules, in code:
@@ -45,7 +45,7 @@ import { assessStage, confidenceFor, downgrade, isSkipped, stageNote, type Confi
  * Nothing here writes to the database; `predictions.ts` logs the results.
  */
 
-export const PHASE4_MODEL_VERSION = 'phase4-1.0.0'
+export const BASELINE_MODEL_VERSION = 'baseline-1.0.0'
 
 export const CHECKIN_SENSITIVITY = 0.06
 export const TAG_SHRINK = 0.5
@@ -326,6 +326,15 @@ export interface PredictOptions {
   explore?: boolean
 }
 
+/** The shape shared by the baseline and the model-backed predictor. */
+export type TaskPredictor = (
+  db: DatabaseSync,
+  userId: number,
+  taskId: string,
+  context: PredictContext,
+  options?: PredictOptions,
+) => TaskPrediction | null
+
 export function predictTask(
   db: DatabaseSync,
   userId: number,
@@ -424,7 +433,7 @@ export function predictTask(
     taskId,
     date: context.date,
     source: stageInfo.stage === 2 ? 'model' : 'baseline',
-    modelVersion: PHASE4_MODEL_VERSION,
+    modelVersion: BASELINE_MODEL_VERSION,
     stage: stageInfo.stage,
     confidence,
     dataSufficiencyDays: stats.labelledDays,
@@ -530,14 +539,14 @@ export function buildPlan(
   today: string,
   nowMinutes: number,
   checkinState: CheckinState,
-  options: { random?: () => number } = {},
+  options: { random?: () => number; predict?: TaskPredictor } = {},
 ): PlanResult {
   const settings = getPredictionSettings(db, userId)
   const offContext = offDayContext(db, userId, date, settings)
 
   const checkinRow = getCheckin(db, userId, date)
   const readiness = readinessFromCheckin(checkinRow)
-  const answers = checkinRow && checkinRow.skipped === 0 ? answersOf(checkinRow) : null
+  const answers = checkinRow && checkinRow.skipped === 0 ? answeredValues(checkinRow) : null
 
   if (offContext.onOffDay) {
     return {
@@ -575,10 +584,11 @@ export function buildPlan(
     random: options.random,
   }
 
+  const predict = options.predict ?? predictTask
   const entries: PlanEntry[] = []
   const suggestions: Suggestion[] = []
   for (const { id } of openTasks) {
-    const prediction = predictTask(db, userId, id, context)
+    const prediction = predict(db, userId, id, context)
     if (!prediction) continue
     const task = taskContext(db, id, date)
     if (!task || !task.active) continue
@@ -622,25 +632,6 @@ export function buildPlan(
     suggestions,
     note,
   }
-}
-
-function answersOf(row: NonNullable<ReturnType<typeof getCheckin>>): Partial<Record<CheckinAnswerKey, number>> {
-  const out: Partial<Record<CheckinAnswerKey, number>> = {}
-  for (const key of [
-    'feeling',
-    'energy',
-    'motivation',
-    'sleep',
-    'stress',
-    'free_time',
-    'focus',
-    'body',
-    'workload',
-  ] as const) {
-    const value = row[key]
-    if (value !== null) out[key] = value
-  }
-  return out
 }
 
 /** Readiness plus probability plus priority plus remaining target. */

@@ -5,7 +5,7 @@ import { dailyActivity, type DailyStatus } from './daily-activity'
 import { configForDate, configTagIds } from './task-config'
 
 /**
- * "Days like today" (Phase 2a).
+ * "Days like today".
  *
  * Finds the user's most similar past days using **only the fields they
  * answered**, then reports what actually happened on those days, per task and

@@ -4,7 +4,7 @@ import type { PredictionPlan, TaskPrediction, ToastTone } from '@/types'
 import { CheckIcon, ListChecksIcon, XIcon } from './Icons'
 
 /**
- * Today's plan and predictions (Phase 4, §2–§4) — presentation only.
+ * Today's plan and predictions.
  *
  * The server produces and logs every prediction; this card only displays them
  * and records what the user did with them. The rules it keeps on screen:
@@ -21,7 +21,7 @@ interface PredictionPanelProps {
   /** The user's current local date. */
   today: string
   notify: (message: string, tone?: ToastTone) => void
-  /** Open the Phase 1 check-in when the plan is gated. */
+  /** Open the check-in when the plan is gated. */
   onOpenCheckin?: () => void
   /** Changes when the check-in or a task changed, so the plan reloads. */
   refreshKey?: unknown

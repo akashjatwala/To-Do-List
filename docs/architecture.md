@@ -23,7 +23,7 @@ flowchart TD
 
 - The **frontend** renders and sends mutations. It never computes a prediction and never writes an outcome.
 - The **API** authenticates the session, validates input, and calls the learning modules.
-- The **database** is a single local SQLite file. The learning system writes only its own tables plus the tables it owns in `server/ml/schema.ts`.
+- The **database** is a single local SQLite file, currently 32 tables after the 2026-11-18 cleanup and table merges described in [data-model.md](data-model.md). The learning system writes only its own tables plus the tables it owns in `server/ml/schema.ts`.
 
 ## The learning pipeline, as separate modules
 
@@ -54,7 +54,7 @@ flowchart LR
 ```
 
 The Stage 1 → Stage 2 threshold is per user (`stage2_min_days`, default 10 labelled days) and
-is configurable in the prediction settings. Confidence is a separate axis and also drops when
+is configurable in `user_settings`. Confidence is a separate axis and also drops when
 the check-in was skipped or in the reduced-confidence window after an off day.
 
 ## Two request flows
@@ -106,7 +106,7 @@ Every learning step can fail for an ordinary reason (a missing check-in, an unre
 model payload). None of those may stop you recording what you did:
 
 - `ml/logging.ts` (`safeRun`) runs a step and returns a documented fallback if it throws, logging the error instead of propagating it.
-- `ml/serving.ts` falls back to the Phase 4 baseline when there is no champion, a payload cannot be read, a feature vector does not match, or the score is not a valid probability.
+- `ml/serving.ts` falls back to the baseline predictor when there is no champion, a payload cannot be read, a feature vector does not match, or the score is not a valid probability.
 - `ml/health.ts` falls back to the baseline when the served model is worse than the baseline over the recent window.
 
 ## Related docs

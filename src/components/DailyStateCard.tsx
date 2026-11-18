@@ -23,9 +23,9 @@ import EnergyDetailSheet from './EnergyDetailSheet'
 import { SparklesIcon } from './Icons'
 
 /**
- * The Energy Level card (Phase 1b) — presentation only.
+ * The Energy Level card.
  *
- * It shows the Phase 2a readiness score as a large number with a band emoji and
+ * It shows the readiness score as a large number with a band emoji and
  * four display sub-scores, always visible (there is no show/hide control and no
  * stored preference for it). The overall score, the grouping behind it and the
  * API are unchanged: the four sub-scores are a display re-grouping of the same
@@ -35,7 +35,7 @@ import { SparklesIcon } from './Icons'
  * days-like-today section are intentionally not shown here, but their code is
  * left in place below (behind `SHOW_HIDDEN_SECTIONS`) so nothing is lost.
  *
- * The Update button opens the Phase 1a check-in prefilled; the evening review
+ * The Update button opens the check-in prefilled; the evening review
  * and low-capacity suggestions continue to work exactly as before.
  */
 interface DailyStateCardProps {
@@ -48,13 +48,13 @@ interface DailyStateCardProps {
   celebrate?: boolean
   /** Called after the celebration has played so it is not repeated. */
   onCelebrated?: () => void
-  /** Opens the Phase 1a check-in wizard (prefilled with the current answers). */
+  /** Opens the check-in wizard (prefilled with the current answers). */
   onEditCheckin: () => void
   notify: (message: string, tone?: ToastTone) => void
   onState: (next: DailyState) => void
 }
 
-/** These Phase 2a sections stay in the code but are not shown on this card. */
+/** These sections stay in the code but are not shown on this card. */
 const SHOW_HIDDEN_SECTIONS = false
 
 const CELEBRATED_PREFIX = 'todo.energy.celebrated.'

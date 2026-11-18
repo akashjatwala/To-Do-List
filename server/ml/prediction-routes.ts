@@ -1,9 +1,10 @@
 import { Router } from 'express'
 import type { DatabaseSync } from 'node:sqlite'
 import { db } from '../db'
-import { checkinState, getCheckin, parseLocalDate } from '../checkins-store'
-import { badRequest, notFound, type AuthedRequest } from '../http'
-import { buildPlan, predictTask, taskContext } from './predictors'
+import { answeredValues, checkinState, getCheckin, parseLocalDate } from '../checkins-store'
+import { badRequest, localDateString, notFound, resolveDate, type AuthedRequest } from '../http'
+import { buildPlan, taskContext } from './predictors'
+import { livePredictor } from './live-predictor'
 import { getPredictionSettings, offDayContext } from './off-days'
 import {
   listFeedback,
@@ -17,27 +18,15 @@ import { activityStatistics, userCompletionPrior, userTaskIds } from './statisti
 import { driftForTask } from './drift'
 
 /**
- * Prediction interface routes (Phase 4, §4).
+ * Prediction interface routes.
  *
  * Predictions are produced and logged **by the server**, never by the client,
  * and never written back as an outcome. The plan endpoint is gated on today's
  * check-in: until it is completed or skipped the client is told to show the
- * Phase 1 check-in first. An off day returns an explicit "off day" answer with
+ * the check-in first. An off day returns an explicit "off day" answer with
  * no predictions.
  */
 const router = Router()
-
-function localDateString(date = new Date()): string {
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
-}
-
-function resolveDate(req: AuthedRequest, field = 'date'): string | null {
-  const value = req.method === 'GET' ? req.query[field] : (req.body as Record<string, unknown>)?.[field]
-  if (value === undefined || value === null || value === '') return null
-  return parseLocalDate(value)
-}
 
 /** Local minute-of-day, or 0 for a past date. */
 function nowMinutesFor(date: string, today: string): number {
@@ -59,7 +48,9 @@ router.get('/plan', (req: AuthedRequest, res) => {
     return
   }
 
-  const plan = buildPlan(db, userId, date, today, nowMinutesFor(date, today), state)
+  const plan = buildPlan(db, userId, date, today, nowMinutesFor(date, today), state, {
+    predict: livePredictor,
+  })
   if (!plan.offDay) logPlanPredictions(db, userId, plan)
   const driftNotes = plan.offDay ? [] : driftNotesForPlan(db, userId, plan, date, today)
   res.json({
@@ -118,7 +109,7 @@ router.get('/task', (req: AuthedRequest, res) => {
 
   const taskIds = userTaskIds(db, userId)
   const priorRate = userCompletionPrior(db, userId, taskIds, today)
-  const prediction = predictTask(
+  const prediction = livePredictor(
     db,
     userId,
     taskId,
@@ -127,7 +118,7 @@ router.get('/task', (req: AuthedRequest, res) => {
       today,
       nowMinutes: nowMinutesFor(date, today),
       checkinState: state,
-      answers: row && row.skipped === 0 ? answersOf(row) : null,
+      answers: row && row.skipped === 0 ? answeredValues(row) : null,
       settings,
       priorRate,
     },
@@ -164,24 +155,5 @@ router.get('/statistics', (req: AuthedRequest, res) => {
     drift: driftForTask(db, userId, taskId, today, priorRate),
   })
 })
-
-function answersOf(row: NonNullable<ReturnType<typeof getCheckin>>) {
-  const out: Record<string, number> = {}
-  for (const key of [
-    'feeling',
-    'energy',
-    'motivation',
-    'sleep',
-    'stress',
-    'free_time',
-    'focus',
-    'body',
-    'workload',
-  ] as const) {
-    const value = row[key]
-    if (value !== null) out[key] = value
-  }
-  return out
-}
 
 export default router

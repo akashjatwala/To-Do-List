@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { parseLocalDate } from '../checkins-store'
 
 /**
- * Off days (Phase 4, §0).
+ * Off days and reduced-confidence windows.
  *
  * An off day is a day the user was not available to do anything — sick,
  * travelling, on holiday, or off for a reason they would rather not name. It is
@@ -18,7 +18,7 @@ import { parseLocalDate } from '../checkins-store'
  *   zero duration or any negative label. Off days are excluded from statistics
  *   by default and merely flagged wherever a day is read (see `daily-activity`).
  * - The first few days after an off period carry reduced prediction confidence;
- *   that window is configurable (`prediction_settings.reduced_confidence_days`).
+ *   that window is configurable (`user_settings.reduced_confidence_days`).
  */
 
 export const OFF_DAY_KINDS = ['sick', 'travel', 'holiday', 'other'] as const
@@ -255,8 +255,10 @@ export function offDayContext(
 // Prediction settings
 // ---------------------------------------------------------------------------
 
-interface PredictionSettingsRow {
+interface UserSettingsRow {
   user_id: number
+  show_summary: number
+  show_estimates: number
   reduced_confidence_days: number
   exploration_share: number
   stage2_min_days: number
@@ -266,8 +268,8 @@ interface PredictionSettingsRow {
 /** The user's thresholds, falling back to the defaults when none are stored. */
 export function getPredictionSettings(db: DatabaseSync, userId: number): PredictionSettings {
   const row = db
-    .prepare('SELECT * FROM prediction_settings WHERE user_id = ?')
-    .get(userId) as unknown as PredictionSettingsRow | undefined
+    .prepare('SELECT * FROM user_settings WHERE user_id = ?')
+    .get(userId) as unknown as UserSettingsRow | undefined
   if (!row) return { ...DEFAULT_PREDICTION_SETTINGS }
   return {
     reducedConfidenceDays: row.reduced_confidence_days,
@@ -285,7 +287,7 @@ export function savePredictionSettings(
 ): PredictionSettings {
   const next: PredictionSettings = { ...getPredictionSettings(db, userId), ...input }
   db.prepare(
-    `INSERT INTO prediction_settings
+    `INSERT INTO user_settings
        (user_id, reduced_confidence_days, exploration_share, stage2_min_days, updated_at)
      VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET

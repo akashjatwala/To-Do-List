@@ -1,7 +1,7 @@
 import { type Example, sigmoid } from './math'
 
 /**
- * A small gradient-boosted tree ensemble for binary classification (Phase 5, §2).
+ * A small gradient-boosted tree ensemble for binary classification.
  *
  * This exists to be the *second* candidate for completion and target
  * achievement: the brief says gradient boosting is only used if it beats logistic

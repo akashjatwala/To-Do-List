@@ -1,11 +1,11 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
   CHECKIN_ANSWER_KEYS,
+  answeredValues,
   checkinState,
   getCheckin,
   type CheckinAnswerKey,
   type CheckinState,
-  type CheckinRow,
 } from '../checkins-store'
 import { configForDate, configTagIds } from './task-config'
 import { dailyActivity } from './daily-activity'
@@ -22,7 +22,7 @@ import {
 } from './statistics'
 
 /**
- * Feature engineering (Phase 5, §1).
+ * Feature engineering.
  *
  * One module builds the feature vector for **both** training and serving, so a
  * model can never be fed something at serve time that it did not see while
@@ -52,7 +52,7 @@ import {
  * returns the plain snapshot the pure function consumes.
  */
 
-export const FEATURE_VERSION = 'phase5-1.0.0'
+export const FEATURE_VERSION = 'features-1.0.0'
 /** A tag needs at least this many labelled observations to earn its own column. */
 export const MIN_TAG_OBSERVATIONS = 8
 /** Seasonal features appear only once this many months of data exist. */
@@ -257,15 +257,6 @@ function tableExists(db: DatabaseSync, name: string): boolean {
   )
 }
 
-function answersOf(row: CheckinRow): Partial<Record<CheckinAnswerKey, number>> {
-  const out: Partial<Record<CheckinAnswerKey, number>> = {}
-  for (const key of CHECKIN_ANSWER_KEYS) {
-    const value = row[key]
-    if (value !== null) out[key] = value
-  }
-  return out
-}
-
 /**
  * Recommendation exposure over a window of **earlier** days, read from the real
  * feedback trail.
@@ -380,7 +371,7 @@ export function gatherFeatureSnapshot(db: DatabaseSync, options: GatherFeatureOp
   )
 
   const checkinRow = getCheckin(db, userId, date)
-  const answers = checkinRow && checkinRow.skipped === 0 ? answersOf(checkinRow) : null
+  const answers = checkinRow && checkinRow.skipped === 0 ? answeredValues(checkinRow) : null
   const state: CheckinState = checkinRow ? checkinState(checkinRow) : 'not_asked'
 
   const day = dailyActivity(db, userId, taskId, date, today, { asOf: options.asOfEpoch })

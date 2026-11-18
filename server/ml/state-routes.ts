@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { db } from '../db'
 import { parseLocalDate } from '../checkins-store'
-import { badRequest, text, type AuthedRequest } from '../http'
+import { badRequest, localDateString, resolveDate, text, type AuthedRequest } from '../http'
 import {
   dailyState,
   getStatePrefs,
@@ -15,26 +15,13 @@ import {
 } from './day-review'
 
 /**
- * Read-only daily-state routes (Phase 2a).
+ * Read-only daily-state routes.
  *
  * The GET endpoints only read. The PUT endpoints only ever write to the
- * state layer's own tables (`state_prefs`, `day_reviews`,
+ * state layer's own tables (`user_settings`, `day_reviews`,
  * `state_suggestion_choices`) — never to the check-in records.
  */
 const router = Router()
-
-/** The server's local calendar date, `YYYY-MM-DD`. */
-function localDateString(date = new Date()): string {
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
-}
-
-function resolveDate(req: AuthedRequest, field = 'date'): string | null {
-  const value = req.method === 'GET' ? req.query[field] : (req.body as Record<string, unknown>)?.[field]
-  if (value === undefined || value === null || value === '') return null
-  return parseLocalDate(value)
-}
 
 router.get('/', (req: AuthedRequest, res) => {
   const date = resolveDate(req) ?? localDateString()

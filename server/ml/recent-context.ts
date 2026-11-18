@@ -7,7 +7,7 @@ import {
 } from './readiness'
 
 /**
- * Recent-days context (Phase 2a).
+ * Recent-days context.
  *
  * Looks at the last couple of weeks and says, in plain words, what has been
  * changing per sub-score, and whether a single field has been stuck at one end

@@ -170,17 +170,6 @@ export function tagIdsForTask(db: DatabaseSync, taskId: string): number[] {
   ).map((row) => row.tag_id)
 }
 
-/** Resolved tag names for a task (merged tags fold into their survivor). */
-export function tagsForTask(db: DatabaseSync, taskId: string): string[] {
-  const ids = tagIdsForTask(db, taskId)
-  const names: string[] = []
-  for (const id of ids) {
-    const tag = resolveTagChain(db, id)
-    if (tag && !names.includes(tag.name)) names.push(tag.name)
-  }
-  return names
-}
-
 /**
  * Make the current task<->tag links match `names` exactly, creating tags as
  * needed. Returns the resolved tag ids.

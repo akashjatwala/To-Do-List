@@ -114,7 +114,7 @@ export interface CheckinStatus {
   checkin: Checkin | null
 }
 
-// ---- Phase 2: activity sessions and daily records ----
+// ---- Activity sessions and daily records ----
 
 /** One stretch of real activity for a task. Several per day are normal. */
 export interface ActivitySession {
@@ -259,7 +259,7 @@ export interface TagSummary {
   taskCount: number
 }
 
-// ---- Phase 2a: daily state summary and display-only estimates ----
+// ---- Daily state summary and display-only estimates ----
 
 export type SubScoreName = 'physical' | 'mental' | 'capacity'
 

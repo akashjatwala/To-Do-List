@@ -1,5 +1,5 @@
 /**
- * Evaluation metrics (Phase 5, §3).
+ * Evaluation metrics.
  *
  * These are plain, well-defined numbers with no interpretation attached. Every
  * metric returns `null` when it cannot be computed honestly — for example ROC-AUC

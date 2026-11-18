@@ -69,7 +69,7 @@ import {
 } from './predictions'
 
 /**
- * Phase 4 tests: personal statistics, cold-start stages, predictors, the
+ * Baseline prediction tests: personal statistics, cold-start stages, predictors, the
  * prediction log and the feedback trail.
  *
  * These assert the safety properties the phase is built around: probabilities

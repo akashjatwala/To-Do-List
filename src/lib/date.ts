@@ -1,35 +1,4 @@
-import { endOfDay, isSameDay, startOfDay } from '@/api'
-
-const DAY = 24 * 60 * 60 * 1000
-
-/** Short label for a task due date, e.g. "Today", "Tomorrow", "Mon", "Jul 4". */
-export function formatDue(timestamp: number, now = new Date()): string {
-  const date = new Date(timestamp)
-  const today = startOfDay(now)
-  const dueDay = startOfDay(date)
-  const diff = Math.round((dueDay - today) / DAY)
-
-  if (diff === 0) return 'Today'
-  if (diff === 1) return 'Tomorrow'
-  if (diff === -1) return 'Yesterday'
-  if (diff > 1 && diff < 7) {
-    return date.toLocaleDateString(undefined, { weekday: 'short' })
-  }
-  if (date.getFullYear() === now.getFullYear()) {
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-  }
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-export type DueState = 'overdue' | 'today' | 'soon' | 'later'
-
-export function dueState(timestamp: number, now = new Date()): DueState {
-  const date = new Date(timestamp)
-  if (endOfDay(date) < startOfDay(now)) return 'overdue'
-  if (isSameDay(date, now)) return 'today'
-  if (startOfDay(date) - startOfDay(now) <= 2 * DAY) return 'soon'
-  return 'later'
-}
+import { endOfDay, isSameDay } from '@/api'
 
 /** Value for <input type="date"> in the user's local timezone. */
 export function dateInputValue(timestamp: number | null): string {

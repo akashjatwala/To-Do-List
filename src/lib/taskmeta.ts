@@ -196,13 +196,3 @@ export function tagTint(tag: string): string {
   return TAG_TINTS[hash % TAG_TINTS.length]
 }
 
-/** Parse a comma-separated tag string into a clean, deduped list. */
-export function parseTagInput(value: string): string[] {
-  const out: string[] = []
-  for (const piece of value.split(',')) {
-    const tag = piece.trim().replace(/\s+/g, ' ')
-    if (!tag) continue
-    if (!out.includes(tag)) out.push(tag)
-  }
-  return out
-}

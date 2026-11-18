@@ -8,7 +8,7 @@ import {
 import { answeredValues } from './readiness'
 
 /**
- * Estimates for fields the user did not answer (Phase 2a).
+ * Estimates for fields the user did not answer.
  *
  * These are **display-only**. They are computed on demand, never written into a
  * check-in record, and never fed into the prediction stages as if the user had

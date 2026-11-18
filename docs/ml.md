@@ -14,9 +14,17 @@
 - `server/ml/registry.ts` — versions, promotion, rollback, loading
 - `server/ml/shadow.ts` — shadow mode
 - `server/ml/serving.ts` — serving the champion with a safe fallback
+- `server/ml/live-predictor.ts` — the entry point the HTTP routes actually call
 - `server/ml/learning.ts` — the retrain gate, rate limit and scheduler
 - `server/ml/health.ts` — live model health and automatic fallback
 - `server/ml/drift.ts` — recent-vs-long-term drift and dated config changes
+
+> **Schema note (2026-11-18).** The cleanup that removed unused planning/target/weekly scaffold
+> tables did not touch any ML table or model module. `ml_models`, `ml_shadow`,
+> `ml_health_predictions`, `ml_health`, `ml_retrain_state`, `ml_retrain_log` and
+> `activity_outcome_links` are unchanged. `prediction_settings` was merged into `user_settings`;
+> `getPredictionSettings` and `savePredictionSettings` now read and write that table, with the
+> same defaults and column names for the prediction fields.
 
 ## Modules
 
@@ -93,8 +101,17 @@ Recording activity is the moment the system learns something real.
 
 - `recordActivityOutcome` writes one row per (task, day) in `activity_outcome_links`: the check-in state that preceded the day, the observed outcome, the tags and priority that applied. It is idempotent and reads the day through the same derivation the app shows, so it can never disagree.
 - Per-tag statistics follow **immediately** from those links, without waiting for a retrain.
-- Retraining is **gated**: it happens only when enough new labelled observations have accumulated (default 20) or a model is stale (default 30 days), and never more often than the rate limit (6 hours). The gate uses the Phase 5 promotion rules.
+- Retraining is **gated**: it happens only when enough new labelled observations have accumulated (default 20) or a model is stale (default 30 days), and never more often than the rate limit (6 hours). The gate uses the promotion rules.
 - A lightweight, unref'd scheduler asks the gate periodically (`ML_RETRAIN_EVERY_MS`, default 6 hours). It can be turned off with `ML_DISABLE_SCHEDULER=1`.
+
+## What the user is actually served
+
+Both prediction routes call `server/ml/live-predictor.ts`, which wraps `serving.ts`. That is
+the link between all the training above and the numbers shown in the app: the champion is
+served for completion, target and duration when present and healthy, otherwise the baseline
+is served. With no trained model yet, this is the baseline-only behaviour as before.
+`ML_DISABLE_MODEL_SERVING=1` keeps that baseline-only path for comparison or emergencies
+(read at startup). The wiring is covered by `server/ml/live-predictor.test.ts`.
 
 ## Live model health
 
