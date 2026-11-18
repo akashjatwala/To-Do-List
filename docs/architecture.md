@@ -10,7 +10,6 @@
 - `server/ml/*.ts` — the learning modules (collection, validation, features, training, evaluation, prediction, learning, health, drift, privacy, logging)
 - `server/ml/routes.ts`, `prediction-routes.ts`, `state-routes.ts`, `off-day-routes.ts`, `health-routes.ts` — HTTP endpoints
 - `src/App.tsx`, `src/api.ts`, `src/components/` — the React frontend
-- `server/ml/synthetic/` — the isolated evaluation dataset and harness
 
 ## The three layers
 
@@ -20,13 +19,11 @@ flowchart TD
   API --> DB[("SQLite: server/data/todo.db")]
   API --> ML["Learning modules (server/ml/)"]
   ML --> DB
-  ML --> SYN["Synthetic sandbox DB (synthetic-data/synthetic.db)"]
 ```
 
 - The **frontend** renders and sends mutations. It never computes a prediction and never writes an outcome.
 - The **API** authenticates the session, validates input, and calls the learning modules.
 - The **database** is a single local SQLite file. The learning system writes only its own tables plus the tables it owns in `server/ml/schema.ts`.
-- The **synthetic sandbox** is a separate database file. It shares the code but never touches the app's data.
 
 ## The learning pipeline, as separate modules
 
@@ -38,7 +35,7 @@ Each job lives in its own file, so it can be tested and reasoned about alone.
 | Validation | `ml/sessions.ts` (`validateSession`), `checkins-store.ts` (`parseAnswer`, `parseContext`, `parseLocalDate`), `ml/task-config.ts`, `ml/tags.ts` | Rejects invalid or overlapping input; never invents a value |
 | Feature engineering | `ml/features.ts`, `ml/dataset.ts` | Builds the one feature vector used by both training and serving |
 | Training | `ml/training.ts`, `ml/model/` (`logistic.ts`, `gbm.ts`, `quantile.ts`, `math.ts`), `ml/calibration.ts`, `ml/pipeline.ts` | Trains the candidate models and chooses one |
-| Evaluation | `ml/metrics.ts`, `ml/synthetic/checks.ts`, `ml/synthetic/phase5-checks.ts`, `ml/synthetic/phase6-checks.ts` | Brier score, calibration, duration error, harness checks |
+| Evaluation | `ml/metrics.ts` | Brier score, calibration, duration error |
 | Prediction (serving) | `ml/predictors.ts` (baseline), `ml/serving.ts` (champion), `ml/estimates.ts`, `ml/cold-start.ts` | Produces the numbers and the time window shown to the user |
 | Continuous learning | `ml/learning.ts`, `ml/shadow.ts` | Links recorded activity to outcomes, gates and rate-limits retraining |
 | Model versioning | `ml/registry.ts` | Append-only model rows, promotion, rollback, loading |

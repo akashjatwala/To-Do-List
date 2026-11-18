@@ -330,11 +330,6 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
               <span className="font-semibold text-slate-600 dark:text-slate-300">
                 {durationLabel(session.durationMinutes)}
               </span>
-              {session.source === 'sample' && (
-                <span className="rounded bg-slate-100 px-1 py-0.5 text-[9px] font-semibold tracking-wide text-slate-400 uppercase dark:bg-slate-800">
-                  sample
-                </span>
-              )}
               <button
                 type="button"
                 disabled={busy}

@@ -22,7 +22,6 @@ import { fitCalibrator } from './calibration'
 import {
   championFor,
   getStoredModel,
-  isSyntheticDatabase,
   promoteCandidate,
   registerModel,
   rollbackChampion,
@@ -47,7 +46,7 @@ import { gatherTaskDays, userCompletionPrior } from './statistics'
 const USER = 1
 const CONFIG_FROM = Date.parse('2025-01-01T00:00:00')
 
-function freshDb(withSyntheticMarker = false): DatabaseSync {
+function freshDb(): DatabaseSync {
   const db = new DatabaseSync(':memory:')
   db.exec('PRAGMA foreign_keys = ON')
   db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT)')
@@ -75,9 +74,6 @@ function freshDb(withSyntheticMarker = false): DatabaseSync {
   createFoundationSchema(db)
   createPredictionSchema(db)
   createMlSchema(db)
-  if (withSyntheticMarker) {
-    db.exec('CREATE TABLE IF NOT EXISTS synthetic_persons (id INTEGER PRIMARY KEY AUTOINCREMENT, person_id TEXT)')
-  }
   return db
 }
 
@@ -343,11 +339,11 @@ test('phase5 calibration: skipped below the data threshold, never fabricated', (
 })
 
 // ---------------------------------------------------------------------------
-// Registry: promotion, reliability gate, rollback, synthetic guard
+// Registry: promotion, reliability gate, rollback
 // ---------------------------------------------------------------------------
 
 test('phase5 registry: promotion needs to beat the baseline and the champion, and pass calibration', () => {
-  const db = freshDb(true)
+  const db = freshDb()
   const c1 = reg(db, 'completion', 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
   assert.equal(promoteCandidate(db, USER, c1.id).ok, true)
   assert.equal(championFor(db, USER, 'completion')?.id, c1.id)
@@ -372,7 +368,7 @@ test('phase5 registry: promotion needs to beat the baseline and the champion, an
 })
 
 test('phase5 registry: rollback restores the previous version and keeps the newer one', () => {
-  const db = freshDb(true)
+  const db = freshDb()
   const c1 = reg(db, 'completion', 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
   promoteCandidate(db, USER, c1.id)
   const c2 = reg(db, 'completion', 'v2', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
@@ -389,7 +385,7 @@ test('phase5 registry: rollback restores the previous version and keeps the newe
   assert.equal(explicit.ok, true)
   assert.equal(championFor(db, USER, 'completion')?.version, 'v1')
 
-  const lonely = freshDb(true)
+  const lonely = freshDb()
   const only = reg(lonely, 'completion', 'only', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
   promoteCandidate(lonely, USER, only.id)
   assert.equal(rollbackChampion(lonely, USER, 'completion').ok, false)
@@ -398,51 +394,12 @@ test('phase5 registry: rollback restores the previous version and keeps the newe
   lonely.close()
 })
 
-test('phase5 registry: a synthetic model is refused in a real database but allowed in the sandbox', () => {
-  const real = freshDb(false)
-  assert.equal(isSyntheticDatabase(real), false)
-  const syntheticRow = registerModel(real, USER, {
-    kind: 'completion',
-    version: 'syn',
-    trainFrom: '2026-01-01',
-    trainTo: '2026-02-01',
-    dataCount: 100,
-    labelledCount: 100,
-    featureNames: ['f'],
-    synthetic: true,
-    metrics: { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 },
-    payload: {},
-  })
-  const refused = promoteCandidate(real, USER, syntheticRow.id)
-  assert.equal(refused.ok, false)
-  assert.match(refused.reason, /synthetic/i)
-
-  const sandbox = freshDb(true)
-  assert.equal(isSyntheticDatabase(sandbox), true)
-  const sandboxRow = registerModel(sandbox, USER, {
-    kind: 'completion',
-    version: 'syn',
-    trainFrom: '2026-01-01',
-    trainTo: '2026-02-01',
-    dataCount: 100,
-    labelledCount: 100,
-    featureNames: ['f'],
-    synthetic: true,
-    metrics: { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 },
-    payload: {},
-  })
-  assert.equal(promoteCandidate(sandbox, USER, sandboxRow.id).ok, true)
-
-  real.close()
-  sandbox.close()
-})
-
 // ---------------------------------------------------------------------------
 // Shadow mode
 // ---------------------------------------------------------------------------
 
 test('phase5 shadow: a candidate that loses in shadow is not promoted, and labels are never overwritten', () => {
-  const db = freshDb(true)
+  const db = freshDb()
   const candidate = reg(db, 'completion', 'shadow-loser', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
   for (let i = 0; i < 5; i += 1) {
     const date = addDays('2026-02-01', i)
@@ -470,7 +427,7 @@ test('phase5 shadow: a candidate that loses in shadow is not promoted, and label
 })
 
 test('phase5 shadow: a candidate that beats the champion and baseline in shadow is eligible', () => {
-  const db = freshDb(true)
+  const db = freshDb()
   const candidate = reg(db, 'completion', 'shadow-winner', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
   for (let i = 0; i < 4; i += 1) {
     const date = addDays('2026-03-01', i)
@@ -498,7 +455,7 @@ test('phase5 shadow: a candidate that beats the champion and baseline in shadow 
 // ---------------------------------------------------------------------------
 
 test('phase5 serving: the champion is served, and the baseline is used when it is missing or malformed', () => {
-  const db = freshDb(true)
+  const db = freshDb()
   const task = insertTask(db, { text: 'Read', duration: 60 })
   const from = '2026-01-01'
   const dates = Array.from({ length: 12 }, (_, i) => addDays(from, i))

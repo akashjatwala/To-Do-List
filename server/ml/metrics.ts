@@ -6,9 +6,8 @@
  * needs both classes to be present, and an interval coverage needs at least one
  * scored point. Nothing here fabricates a value to fill a gap.
  *
- * A metric is only ever reported next to the baseline it is compared against and
- * labelled with where its data came from (real or synthetic). The metric itself
- * makes no accuracy claim.
+ * A metric is only ever reported next to the baseline it is compared against.
+ * The metric itself makes no accuracy claim.
  */
 
 export interface Labelled {

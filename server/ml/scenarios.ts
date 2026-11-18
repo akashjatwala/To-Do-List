@@ -34,8 +34,8 @@ import { modelHealthView } from './health'
  * as an association, a model is only trained on enough real data), not about how
  * good a model is.
  *
- * `runScenarioSuite` is used by the tests and can be run from the synthetic
- * harness too. It never touches the app's real database.
+ * `runScenarioSuite` is used by the tests. It never touches the app's real
+ * database.
  */
 
 const USER = 1

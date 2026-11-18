@@ -70,7 +70,7 @@ twice changes nothing.
 
 | Table | Holds |
 | --- | --- |
-| `ml_models` | One append-only row per trained version: kind, version, status (`candidate` / `champion` / `retired` / `rejected`), data range, counts, feature names, hyperparameters, seed, metrics, git commit, serialised payload, `synthetic` flag |
+| `ml_models` | One append-only row per trained version: kind, version, status (`candidate` / `champion` / `retired` / `rejected`), data range, counts, feature names, hyperparameters, seed, metrics, git commit, serialised payload |
 | `ml_shadow` | A candidate's silent predictions beside the champion's on live days; `label` stays `NULL` until the day is labelled |
 | `ml_retrain_state` | Labelled-observation count at the last training, per kind |
 | `activity_outcome_links` | One row per (user, task, day): the check-in state that preceded the day, the observed outcome (`performed`, `target_achieved`, `total_minutes`), the tags and priority that applied, and the config version. Recomputed when activity is recorded |
@@ -104,7 +104,6 @@ erDiagram
 - **`not_asked` vs skipped.** There is no row at all for a day you never touched; an explicit skip writes a row with `skipped = 1`. The two are different facts.
 - **History is kept.** Tags and task configuration are versioned and append-only. Renaming or merging a tag never breaks a past record.
 - **A prediction is never an outcome.** Predictions live in `predictions`, `ml_shadow`, `ml_health_predictions`. Outcomes live in `activity_sessions`, `daily_activity_status`, `activity_outcome_links`. The label columns in the ML tables are filled only from observed activity.
-- **Synthetic models are flagged.** `ml_models.synthetic = 1` marks a model trained on generated data, and the promotion gate refuses to serve it in the real app.
 
 ## Related docs
 

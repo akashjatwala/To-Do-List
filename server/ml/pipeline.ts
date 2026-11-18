@@ -41,7 +41,6 @@ export interface TrainModelsOptions {
   today?: string
   version?: string
   register?: boolean
-  synthetic?: boolean
   gitCommit?: string | null
   seed?: number
   folds?: number
@@ -101,7 +100,6 @@ export function trainUserModels(db: DatabaseSync, userId: number, options: Train
   const today = options.today ?? to
   const version = options.version ?? `phase5-${to}`
   const register = options.register ?? true
-  const synthetic = options.synthetic ?? false
   const notes: string[] = []
 
   const set = buildTrainingSet(db, userId, taskIds, from, to, today, {
@@ -145,7 +143,6 @@ export function trainUserModels(db: DatabaseSync, userId: number, options: Train
         gitCommit: options.gitCommit ?? null,
         payload: artifact,
         notes: artifact.reason,
-        synthetic,
       })
       id = row.id
     }

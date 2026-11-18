@@ -763,6 +763,23 @@ export default function App() {
               </div>
             )}
 
+            {composerOpen && !(view.kind === 'collab' && !currentTeam) && (
+              <div className="animate-in mb-4">
+                <TaskComposer
+                  contextLabel={currentTeam ? currentTeam.name : 'My task'}
+                  teams={data.teams}
+                  showTeamSelect={false}
+                  defaultTeamId={currentTeam?.id ?? null}
+                  defaultDue={selectedDate}
+                  onAdd={async (input) => {
+                    const ok = await addTask(input)
+                    if (ok) setComposerOpen(false)
+                    return ok
+                  }}
+                />
+              </div>
+            )}
+
             {!isCollab && (
               <div className="mb-4">
                 <OffDayCard date={selectedDate} notify={notify} onChanged={refresh} />
@@ -818,23 +835,6 @@ export default function App() {
               </div>
             ) : (
               <>
-                {composerOpen && (
-                  <div className="animate-in mt-4">
-                    <TaskComposer
-                      contextLabel={currentTeam ? currentTeam.name : 'My task'}
-                      teams={data.teams}
-                      showTeamSelect={false}
-                      defaultTeamId={currentTeam?.id ?? null}
-                      defaultDue={selectedDate}
-                      onAdd={async (input) => {
-                        const ok = await addTask(input)
-                        if (ok) setComposerOpen(false)
-                        return ok
-                      }}
-                    />
-                  </div>
-                )}
-
                 <div className="mt-4 grid grid-cols-[minmax(0,1fr)_15rem] items-start gap-5 sm:grid-cols-[minmax(0,1fr)_18rem]">
                   <StickyBoard
                     tasks={openTasks}

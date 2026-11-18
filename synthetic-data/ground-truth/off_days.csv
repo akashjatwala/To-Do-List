@@ -1,6 +1,0 @@
-person_id,kind,start_date,end_date,reason,added_later,synthetic
-person-001,sick,2025-12-17,2025-12-19,Unwell,0,1
-person-001,travel,2026-04-20,2026-04-26,Away from home,0,1
-person-001,holiday,2026-07-20,2026-07-20,Public holiday,0,1
-person-001,personal,2026-08-29,2026-08-29,,0,1
-person-001,personal,2026-06-06,2026-06-06,,1,1

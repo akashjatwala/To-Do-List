@@ -17,9 +17,6 @@ import { MAX_ECE } from './training'
  * - A candidate is promoted only when it beats both the baseline and the current
  *   champion on chronological validation **and** passes the reliability gate
  *   (calibration). Otherwise it is kept, or rejected, with the reason recorded.
- * - A model trained on synthetic data can be promoted only inside the synthetic
- *   sandbox database. In the real database the guard refuses it outright, so a
- *   synthetic model can never reach real serving.
  * - Retraining happens only once enough new labelled observations have
  *   accumulated, tracked in `ml_retrain_state`.
  *
@@ -48,7 +45,6 @@ export interface StoredModelRow {
   git_commit: string | null
   payload: string | null
   notes: string | null
-  synthetic: number
   created_at: number
   updated_at: number
 }
@@ -80,7 +76,6 @@ export interface RegisterModelInput {
   gitCommit?: string | null
   payload?: unknown
   notes?: string | null
-  synthetic?: boolean
 }
 
 /** Extract the small, comparable metric set the promotion gate reads. */
@@ -113,14 +108,6 @@ function parseMetrics(row: StoredModelRow): RegistryMetrics | null {
   }
 }
 
-/** True when this database carries the synthetic marker table. */
-export function isSyntheticDatabase(db: DatabaseSync): boolean {
-  const row = db
-    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'synthetic_persons'")
-    .get()
-  return row !== undefined
-}
-
 function rowOf(db: DatabaseSync, id: number): StoredModelRow | undefined {
   return db.prepare('SELECT * FROM ml_models WHERE id = ?').get(id) as unknown as StoredModelRow | undefined
 }
@@ -146,12 +133,11 @@ export function championFor(db: DatabaseSync, userId: number, kind: ModelKind): 
 
 /** Register a trained model as a candidate. Append-only; never overwrites. */
 export function registerModel(db: DatabaseSync, userId: number, input: RegisterModelInput, now = Date.now()): StoredModelRow {
-  const synthetic = input.synthetic ? 1 : 0
   db.prepare(
     `INSERT INTO ml_models
        (user_id, kind, version, status, train_from, train_to, data_count, labelled_count,
-        feature_names, hyperparams, seed, metrics, git_commit, payload, notes, synthetic, created_at, updated_at)
-     VALUES (?, ?, ?, 'candidate', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        feature_names, hyperparams, seed, metrics, git_commit, payload, notes, created_at, updated_at)
+     VALUES (?, ?, ?, 'candidate', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, kind, version) DO UPDATE SET
        train_from = excluded.train_from,
        train_to = excluded.train_to,
@@ -164,7 +150,6 @@ export function registerModel(db: DatabaseSync, userId: number, input: RegisterM
        git_commit = excluded.git_commit,
        payload = excluded.payload,
        notes = excluded.notes,
-       synthetic = excluded.synthetic,
        updated_at = excluded.updated_at`,
   ).run(
     userId,
@@ -181,7 +166,6 @@ export function registerModel(db: DatabaseSync, userId: number, input: RegisterM
     input.gitCommit ?? null,
     input.payload === undefined ? null : JSON.stringify(input.payload),
     input.notes ?? null,
-    synthetic,
     now,
     now,
   )
@@ -246,9 +230,6 @@ export function promoteCandidate(db: DatabaseSync, userId: number, candidateId: 
   if (!candidate) return { ok: false, reason: 'No such candidate.' }
   if (candidate.user_id !== userId) return { ok: false, reason: 'That model belongs to a different user.' }
   if (candidate.status === 'champion') return { ok: false, reason: 'This model is already the champion.' }
-  if (candidate.synthetic === 1 && !isSyntheticDatabase(db)) {
-    return { ok: false, reason: 'This model was trained on synthetic data and can never be promoted into the real registry.' }
-  }
 
   const metrics = parseMetrics(candidate)
   if (!metrics) return { ok: false, reason: 'The candidate has no recorded metrics, so it cannot be gated.' }
@@ -328,9 +309,6 @@ export function rollbackChampion(
         .get(userId, kind, current.id, current.id) as unknown as StoredModelRow | undefined)
 
   if (!target) return { ok: false, reason: 'No previous version is available to roll back to.' }
-  if (target.synthetic === 1 && !isSyntheticDatabase(db)) {
-    return { ok: false, reason: 'The previous version was trained on synthetic data and cannot be served here.' }
-  }
 
   const now = Date.now()
   db.prepare("UPDATE ml_models SET status = 'retired', updated_at = ? WHERE id = ?").run(now, current.id)

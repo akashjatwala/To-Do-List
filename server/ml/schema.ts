@@ -325,8 +325,7 @@ export function createPredictionSchema(db: DatabaseSync): void {
  *
  * - `ml_models`: one row per trained version. `status` moves
  *   candidate → champion → retired (or rejected). Only one champion per kind is
- *   ever used for serving; a `synthetic` model is flagged and can never be
- *   promoted into real serving.
+ *   ever used for serving.
  * - `ml_shadow`: a candidate's silent predictions next to the champion's on live
  *   data. `label` stays NULL until the day is actually labelled, so a shadow
  *   prediction is never mistaken for an outcome and is never shown to the user.
@@ -363,7 +362,6 @@ export function createMlSchema(db: DatabaseSync): void {
       git_commit TEXT,
       payload TEXT,
       notes TEXT,
-      synthetic INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       UNIQUE (user_id, kind, version),

@@ -79,7 +79,6 @@ calibrated model is served.
 - Only one **champion** per (user, kind) is ever served. Promoting a candidate retires the old champion; it does not delete it.
 - A candidate is promoted only when it beats **both** the baseline and the current champion on chronological validation **and** passes the reliability (calibration) gate. Otherwise it is kept, or rejected, with the reason recorded.
 - `rollbackChampion` restores the previous version and keeps the newer one as `retired`.
-- A model trained on synthetic data is flagged `synthetic = 1` and can **never** be promoted into the real app.
 
 ## Shadow mode
 
@@ -128,7 +127,6 @@ change a number.
 
 - Every model row is versioned and append-only; any version can be reloaded or restored.
 - Rollback is one call (`rollbackChampion`) and keeps the newer version as retired.
-- The harness and the `train` CLI register candidates as `synthetic = 1` in the sandbox so the promotion gate refuses them in the real app.
 
 See [operations.md](operations.md) for the commands.
 
@@ -136,31 +134,11 @@ See [operations.md](operations.md) for the commands.
 
 There is **no** accuracy figure for your own data. The dataset is fresh, so there is not enough
 history to train or validate a personal model yet. No accuracy number is invented, and none is
-claimed. As you record activity, the harness and the health view will report real numbers, per
-task and per tag, never as one blended score.
-
-## Evaluation on synthetic data (SYNTHETIC — not an accuracy claim)
-
-The pipeline is exercised on a generated one-year dataset (see
-[synthetic-data.md](synthetic-data.md)). Every number below is **synthetic** and checks the
-machinery, never your habits.
-
-| Check | Result (synthetic) |
-| --- | --- |
-| Completion on a chronological holdout | model Brier 0.189 vs baseline 0.201; ROC-AUC 0.704; ECE 0.081 |
-| Target achievement | chose GBM; Brier 0.180 vs baseline 0.242; ROC-AUC 0.749 |
-| Duration | chose quantile; MAE 7.6 min, RMSE 11.9 min, interval coverage 0.716 at width 19.4 min |
-| Learning curve | Brier 0.187 (1 week) → 0.176 (12 weeks) as history grows |
-| Rolling retraining (continuous-learning simulation) | 4 expanding-window blocks, model Brier 0.174 vs baseline 0.192 over 1448 held-out days; matched or beat the baseline in 4 of 4 blocks |
-| Hidden regime change (2026-08-11) | model trained on pre-change days: Brier 0.204 vs baseline 0.208 on 425 post-change days; the change is detected and reported |
-| Promotion / rollback | candidate Brier 0.168 vs baseline 0.196 → promoted; rollback restored the previous version |
-| Live health fallback | 8 labelled days → no fallback; 16 labelled days with a degraded model → fallback; cleared after a retrain |
-
-All three seeds passed with 0 failures.
+claimed. As you record activity, the health view will report real numbers, per task and per tag,
+never as one blended score.
 
 ## Related docs
 
 - [predictions.md](predictions.md) — what is served and shown
-- [synthetic-data.md](synthetic-data.md) — the dataset behind the synthetic numbers
 - [operations.md](operations.md) — training, retraining and rollback commands
 - [decisions.md](decisions.md) — why these algorithms and gates

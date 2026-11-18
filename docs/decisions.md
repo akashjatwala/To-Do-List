@@ -5,7 +5,6 @@
 **Where in the code**
 
 - `server/ml/` — every module named below
-- `server/ml/synthetic/` — the dataset and harness behind the validation choices
 - `README.md` — the app overview
 
 ## Data and honesty
@@ -14,7 +13,7 @@
 | --- | --- |
 | Fresh dataset only; no imported history | The user starts clean, so the system never pretends to know habits it has not seen |
 | Never fabricate a training row | A made-up row would make the system look better than it is |
-| Never claim accuracy without real evidence | Real accuracy is not claimed yet; synthetic numbers are always labelled synthetic |
+| Never claim accuracy without real evidence | The dataset is fresh, so no accuracy figure is claimed until there is real history to measure |
 | Missing stays missing | A blank answer, an absent priority and a skipped day are real facts, and are stored as such, never defaulted |
 | `not_asked` is different from `skipped` | "I did not open the app" and "I chose to skip" are different, and conflating them would corrupt the labels |
 | A prediction is never an outcome | Predictions and outcomes live in separate tables; the label columns are filled only from observed activity |
@@ -43,7 +42,6 @@
 | Lightweight, unref'd scheduler that can be disabled | Periodic learning should never keep the process alive or run without consent |
 | Shadow mode before promotion | A candidate that wins on validation can still lose on live days; shadow mode catches that |
 | Append-only model versions with rollback | Any version can be restored; nothing is overwritten |
-| Synthetic models can never be promoted | Generated data must never influence the real user's predictions |
 
 ## Product and privacy
 
@@ -63,4 +61,3 @@
 - [architecture.md](architecture.md) — how the modules fit together
 - [ml.md](ml.md) — the algorithms and gates in detail
 - [privacy-and-limits.md](privacy-and-limits.md) — the privacy rules and known limits
-- [synthetic-data.md](synthetic-data.md) — why synthetic validation was used first

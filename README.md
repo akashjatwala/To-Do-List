@@ -26,6 +26,7 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - An optional ideal duration per task, shown on the note and in task details
 - Completed tasks move to a normal list on the right, scoped to the same day
 - Create personal tasks in **My task**, or open a team in **Collaborate** — new tasks are filed into the list you are viewing
+- **Add task** opens a composer just above the Off days card, so it sits before the day's Off days, Energy Level and Today's plan cards
 - Recurring tasks (daily, weekly, monthly, or custom weekly weekdays / nth-weekday monthly); completing one automatically creates the next occurrence
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking
@@ -76,7 +77,6 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 - `server/ml/` — the learning system: data collection, validation, feature engineering, training, evaluation, prediction, continuous learning, model versioning, drift and privacy. See [docs/architecture.md](docs/architecture.md).
 - `src/` — React 19 + Tailwind CSS 4 frontend. `App.tsx` loads a single `/api/bootstrap` payload and handles mutations; components live in `src/components/`.
 - Data is stored in `server/data/todo.db` (created automatically, git-ignored).
-- `server/ml/synthetic/` — a generated one-year dataset and evaluation harness used to test the pipeline before any real data exists. It is isolated from the app database and is never an accuracy claim. See [docs/synthetic-data.md](docs/synthetic-data.md).
 
 ## Documentation
 
@@ -87,7 +87,6 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 | [docs/checkin-and-energy.md](docs/checkin-and-energy.md) | The daily check-in, its questions, and the energy/readiness display |
 | [docs/predictions.md](docs/predictions.md) | What is predicted, from what inputs, and how it is shown |
 | [docs/ml.md](docs/ml.md) | Features, algorithms and why they were chosen, training, versioning, health and drift |
-| [docs/synthetic-data.md](docs/synthetic-data.md) | The generated dataset and the evaluation harness |
 | [docs/operations.md](docs/operations.md) | Running, training, retraining, health checks and rollback |
 | [docs/privacy-and-limits.md](docs/privacy-and-limits.md) | What is stored, what stays local, and the honest limits |
 | [docs/decisions.md](docs/decisions.md) | The main design choices and their reasons |
@@ -101,14 +100,6 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 | `npm start` | Serve the built app and API on port 3001 |
 | `npm run preview` | Preview the Vite build |
 | `npm test` | Run the whole test suite (server + frontend) |
-| `npm run seed:sample` | Load a small sample dataset for local testing |
-| `npm run seed:purge` | Remove the sample dataset |
-| `npm run synthetic:generate` | Generate the synthetic one-year dataset |
-| `npm run synthetic:reload` | Load the synthetic dataset into its isolated database |
-| `npm run synthetic:report` | Run the evaluation harness over the synthetic data |
-| `npm run synthetic:train` | Train models on the synthetic data (sandbox only) |
-| `npm run synthetic:asof` | Rebuild the synthetic data as it stood on a cutoff date |
-| `npm run synthetic:purge` | Delete the synthetic dataset |
 
 ## Development notes
 

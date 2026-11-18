@@ -10,7 +10,6 @@
 - `server/ml/registry.ts` — promotion and rollback
 - `server/ml/health-routes.ts` — the `/api/ml` endpoints
 - `server/ml/logging.ts` — local logging
-- `server/ml/synthetic/cli.ts` — the synthetic training commands
 - `.env.test` — the test runner's TypeScript config
 
 ## Requirements
@@ -38,14 +37,6 @@
 | `npm run build` | Type-check (`tsc -b`) and build the frontend |
 | `npm start` | Serve the built app and API on port 3001 |
 | `npm test` | Run the whole test suite (server + frontend) |
-| `npm run seed:sample` | Load a small sample dataset for local testing |
-| `npm run seed:purge` | Remove the sample dataset |
-| `npm run synthetic:generate` | Generate the synthetic dataset |
-| `npm run synthetic:reload` | Load the synthetic dataset into its sandbox |
-| `npm run synthetic:report` | Run the evaluation harness |
-| `npm run synthetic:train` | Train models in the sandbox |
-| `npm run synthetic:asof` | Rebuild the synthetic data as of a cutoff |
-| `npm run synthetic:purge` | Delete the synthetic dataset |
 
 Server-only type-check (useful when a full build is not wanted):
 
@@ -62,33 +53,14 @@ node --env-file=.env.test --import tsx --test "server/**/*.test.ts" "src/**/*.te
 
 ## Training instructions
 
-There are two training paths, and they share the same code.
-
-**1. Real data (your own records).** There is no separate CLI. Training runs through the
-retrain gate:
+Training runs on your own recorded data, through the retrain gate:
 
 - Automatically, when the scheduler is on (`npm run dev` / `npm start`).
 - On demand: `POST /api/ml/retrain` (rate-limited), or `POST /api/ml/retrain` with `{"force": true}` to bypass the rate limit.
 - The gate trains only when at least 20 new labelled observations have accumulated (configurable) or a model is stale (30 days), and never more than once every 6 hours.
 
-To try the app locally with a small sample dataset first:
-
-```bash
-npm run seed:sample
-```
-
-**2. Synthetic data (sandbox only).** Use the CLI:
-
-```bash
-node --import tsx server/ml/synthetic/cli.ts generate
-node --import tsx server/ml/synthetic/cli.ts reload
-node --import tsx server/ml/synthetic/cli.ts train --fresh --promote
-```
-
-`train` flags: `--promote` runs the promotion gate, `--fresh` clears the sandbox registry
-first, `--seed N` sets the seed, `--folds N` sets the validation folds, `--commit SHA` records
-a git commit. Candidates registered in the sandbox are marked `synthetic = 1`, so the
-promotion gate refuses to serve them in the real app.
+There is no command that fabricates rows to train on: with too little data each trainer
+returns the baseline and says so.
 
 ## Reading the model health view
 
@@ -123,7 +95,7 @@ Two automatic safety nets already cover the common case, so a manual rollback is
 
 To roll back manually, call the function against the app database (the same `db` singleton in
 `server/db.ts`), then reload the health view. The behaviour is covered by
-`server/ml/phase5.test.ts` and the synthetic harness.
+`server/ml/phase5.test.ts`.
 
 ## Logging
 
@@ -134,5 +106,4 @@ file. Nothing is sent anywhere else. A logging failure never becomes a work fail
 ## Related docs
 
 - [ml.md](ml.md) — what the models do
-- [synthetic-data.md](synthetic-data.md) — the sandbox commands in context
 - [privacy-and-limits.md](privacy-and-limits.md) — retention and deletion

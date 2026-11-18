@@ -10,15 +10,7 @@
     "build": "tsc -b && vite build",
     "start": "tsx server/index.ts",
     "preview": "vite preview",
-    "test": "node --env-file=.env.test --import tsx --test \"server/**/*.test.ts\" \"src/**/*.test.ts\" \"src/**/*.test.tsx\"",
-    "seed:sample": "node --import tsx server/ml/seed-sample.ts",
-    "seed:purge": "node --import tsx server/ml/seed-sample.ts --purge",
-    "synthetic:generate": "node --import tsx server/ml/synthetic/cli.ts generate",
-    "synthetic:purge": "node --import tsx server/ml/synthetic/cli.ts purge",
-    "synthetic:asof": "node --import tsx server/ml/synthetic/cli.ts asof",
-    "synthetic:reload": "node --import tsx server/ml/synthetic/cli.ts reload",
-    "synthetic:report": "node --import tsx server/ml/synthetic/cli.ts report",
-    "synthetic:train": "node --import tsx server/ml/synthetic/cli.ts train"
+    "test": "node --env-file=.env.test --import tsx --test \"server/**/*.test.ts\" \"src/**/*.test.ts\" \"src/**/*.test.tsx\""
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

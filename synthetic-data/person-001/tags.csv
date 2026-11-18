@@ -1,9 +1,0 @@
-person_id,id,user_id,name,normalized,merged_into_id,created_at,synthetic
-person-001,1,1,Chores,chores,4,2025-11-17T18:30:00.000Z,1
-person-001,2,1,Exercise,exercise,,2025-11-17T18:30:00.000Z,1
-person-001,3,1,Health,health,,2025-11-17T18:30:00.000Z,1
-person-001,4,1,Household,household,,2025-11-17T18:30:00.000Z,1
-person-001,5,1,Reading,reading,,2025-11-17T18:30:00.000Z,1
-person-001,6,1,Relationship,relationship,,2025-11-17T18:30:00.000Z,1
-person-001,7,1,Languages,languages,,2025-11-17T18:30:00.000Z,1
-person-001,8,1,Work,work,,2025-11-17T18:30:00.000Z,1

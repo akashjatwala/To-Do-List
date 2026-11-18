@@ -62,17 +62,15 @@ flexible time categories, and a preferred time is never treated as a deadline.
 
 ## Known limits
 
-- **No real accuracy figure yet.** The dataset is fresh. There is not enough history to train or validate a personal model, so no accuracy number is claimed. Numbers in [ml.md](ml.md) are synthetic and check the machinery, not your habits.
+- **No real accuracy figure yet.** The dataset is fresh. There is not enough history to train or validate a personal model, so no accuracy number is claimed.
 - **Fresh dataset only.** No historical data was imported, and no training rows are fabricated.
 - **Timing has no registered model.** The recommended window comes from a timing profile, not a trained model, so it is not versioned or gated like completion/target/duration.
-- **The synthetic reload loads only the core observed CSVs.** Synthetic-only layers (recommendations, regime change, live replay) and ground truth stay file-only.
 - **The learning system needs data to personalise.** Stage 1 predictions are starting estimates; personalisation begins only once the stage-2 threshold is met.
-- **A model can only approach the hidden ground truth, never beat it on average.** The synthetic harness shows this explicitly.
 - **Sensitive questions are optional**, so a prediction may run on less context than it could — this widens uncertainty rather than inventing a value.
 
 ## Related docs
 
 - [data-model.md](data-model.md) — where each kind of data lives
 - [checkin-and-energy.md](checkin-and-energy.md) — the optional check-in fields
-- [ml.md](ml.md) — the synthetic results and why real accuracy is not claimed
+- [ml.md](ml.md) — the models and why real accuracy is not claimed
 - [operations.md](operations.md) — the privacy endpoints and logging controls

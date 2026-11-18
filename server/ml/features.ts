@@ -267,8 +267,8 @@ function answersOf(row: CheckinRow): Partial<Record<CheckinAnswerKey, number>> {
 }
 
 /**
- * Recommendation exposure over a window of **earlier** days. Reads both the
- * real feedback trail and, in the synthetic database, the recommendation layer.
+ * Recommendation exposure over a window of **earlier** days, read from the real
+ * feedback trail.
  */
 export function gatherExposure(
   db: DatabaseSync,
@@ -294,21 +294,6 @@ export function gatherExposure(
       if (row.exploratory) exploratory += 1
       if (row.followed === 1) followed += 1
       if (row.followed === 0) ignored += 1
-    }
-  }
-
-  if (tableExists(db, 'synthetic_recommendations')) {
-    const rows = db
-      .prepare(
-        `SELECT exploratory, response FROM synthetic_recommendations
-         WHERE user_id = ? AND task_id = ? AND local_date >= ? AND local_date <= ?`,
-      )
-      .all(userId, taskId, from, to) as unknown as Array<{ exploratory: number; response: string }>
-    for (const row of rows) {
-      if (row.response === 'followed' || row.response === 'ignored' || row.response === 'nudged' || row.response === 'shown') shown += 1
-      if (row.exploratory) exploratory += 1
-      if (row.response === 'followed') followed += 1
-      if (row.response === 'ignored') ignored += 1
     }
   }
 
