@@ -153,18 +153,18 @@ export function StickyBoard({
 
   if (ordered.length === 0) {
     return (
-      <div className="animate-in relative flex flex-col items-center justify-center rounded-[28px] border-2 border-dashed border-amber-300/80 bg-[#fff7d6]/60 px-6 py-16 text-center dark:border-amber-300/20 dark:bg-amber-500/5">
+      <div className="animate-in relative flex flex-col items-center justify-center rounded-[28px] border-2 border-dashed border-amber-300/80 bg-[#fff7d6]/60 px-6 py-16 text-center">
         <div className="relative h-16 w-16 -rotate-3">
-          <div className="absolute inset-0 translate-x-2 translate-y-2 rotate-6 rounded-2xl border-2 border-rose-300/70 bg-[#ffc9c0] dark:border-rose-300/20 dark:bg-rose-500/20" />
-          <div className="absolute inset-0 translate-x-1 translate-y-1 -rotate-3 rounded-2xl border-2 border-amber-300/80 bg-[#ffe98f] dark:border-amber-300/20 dark:bg-amber-500/20" />
-          <div className="absolute inset-0 flex items-center justify-center rounded-2xl border-2 border-emerald-400/60 bg-[#b8f2c8] text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-500/20 dark:text-emerald-200">
+          <div className="absolute inset-0 translate-x-2 translate-y-2 rotate-6 rounded-2xl border-2 border-rose-300/70 bg-[#ffc9c0]" />
+          <div className="absolute inset-0 translate-x-1 translate-y-1 -rotate-3 rounded-2xl border-2 border-amber-300/80 bg-[#ffe98f]" />
+          <div className="absolute inset-0 flex items-center justify-center rounded-2xl border-2 border-emerald-400/60 bg-[#b8f2c8] text-emerald-700">
             <ListChecksIcon className="h-7 w-7" strokeWidth={2.5} />
           </div>
         </div>
-        <h3 className="mt-5 text-base font-bold text-amber-900 dark:text-amber-100">
+        <h3 className="mt-5 text-base font-bold text-amber-900">
           {emptyTitle}
         </h3>
-        <p className="mt-1 max-w-xs text-sm font-medium text-amber-800/70 dark:text-amber-100/60">
+        <p className="mt-1 max-w-xs text-sm font-medium text-amber-800/70">
           {emptyText}
         </p>
       </div>
@@ -331,21 +331,21 @@ export function CompletedColumn({
 }: BoardProps) {
   return (
     <aside className="lg:sticky lg:top-5">
-      <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-3 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
+      <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-3 shadow-sm backdrop-blur">
         <div className="mb-2 flex items-center gap-2 px-1">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
             <CheckIcon className="h-3 w-3" strokeWidth={3} />
           </span>
-          <h2 className="text-[11px] font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400">
+          <h2 className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
             Completed
           </h2>
-          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
             {tasks.length}
           </span>
         </div>
 
         {tasks.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-[11px] leading-relaxed text-slate-400 dark:border-slate-700 dark:text-slate-500">
+          <p className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-[11px] leading-relaxed text-slate-400">
             Finished tasks for this day will collect here.
           </p>
         ) : (
@@ -355,7 +355,7 @@ export function CompletedColumn({
               return (
                 <li
                   key={task.id}
-                  className="group flex items-start gap-2 rounded-xl px-1.5 py-2 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                  className="group flex items-start gap-2 rounded-xl px-1.5 py-2 transition hover:bg-slate-50"
                 >
                   <button
                     type="button"
@@ -373,10 +373,10 @@ export function CompletedColumn({
                     onClick={() => onOpen(task)}
                     className="min-w-0 flex-1 text-left"
                   >
-                    <p className="text-[13px] leading-snug font-medium break-words text-slate-400 line-through decoration-slate-300 dark:text-slate-500 dark:decoration-slate-600">
+                    <p className="text-[13px] leading-snug font-medium break-words text-slate-400 line-through decoration-slate-300">
                       {task.text}
                     </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-medium text-slate-400">
                       {task.duration !== null && (
                         <span className="inline-flex items-center gap-0.5">
                           <ClockIcon className="h-3 w-3" />
@@ -409,7 +409,7 @@ export function CompletedColumn({
                       onClick={() => {
                         if (window.confirm(`Delete “${task.text}”?`)) onDelete(task)
                       }}
-                      className="mt-0.5 rounded p-1 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 focus:opacity-100 dark:text-slate-600 dark:hover:text-rose-400"
+                      className="mt-0.5 rounded p-1 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 focus:opacity-100"
                       aria-label="Delete task"
                       title="Delete task"
                     >

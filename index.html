@@ -11,15 +11,6 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <script>
-      // Apply saved theme before React loads to avoid a flash of the wrong colors.
-      try {
-        var t = localStorage.getItem('todo.theme')
-        if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark')
-        }
-      } catch (e) {}
-    </script>
   </head>
   <body>
     <div id="root"></div>

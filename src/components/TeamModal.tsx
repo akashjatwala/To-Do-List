@@ -66,7 +66,7 @@ function CreateTeam({
     >
       <form onSubmit={submit} className="space-y-4">
         {error && (
-          <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-300">
+          <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700">
             {error}
           </p>
         )}
@@ -228,7 +228,7 @@ function ManageTeam({
     >
       <div className="space-y-6">
         {error && (
-          <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-300">
+          <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700">
             {error}
           </p>
         )}
@@ -260,7 +260,7 @@ function ManageTeam({
                 </button>
               </form>
             ) : (
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 px-3.5 py-2.5 dark:border-slate-700">
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 px-3.5 py-2.5">
                 <span className="text-sm font-medium">{team.name}</span>
                 <button
                   type="button"
@@ -281,13 +281,13 @@ function ManageTeam({
             {team.members.map((member) => (
               <div
                 key={member.id}
-                className="group flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800"
+                className="group flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2"
               >
                 <Avatar email={member.email} size="sm" />
-                <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
+                <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
                   {member.email}
                   {member.role === 'host' && (
-                    <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                    <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
                       HOST
                     </span>
                   )}
@@ -296,7 +296,7 @@ function ManageTeam({
                   <button
                     type="button"
                     onClick={() => removeMember(member.id, member.email)}
-                    className="rounded-lg p-1.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500 dark:text-slate-600 dark:hover:bg-rose-500/10"
+                    className="rounded-lg p-1.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500"
                     aria-label={`Remove ${member.email}`}
                     title="Remove from team"
                   >
@@ -332,27 +332,27 @@ function ManageTeam({
               </button>
             </form>
             {inviteError && (
-              <p className="mt-2 text-xs font-medium text-rose-600 dark:text-rose-400">{inviteError}</p>
+              <p className="mt-2 text-xs font-medium text-rose-600">{inviteError}</p>
             )}
-            <p className="mt-2 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
               Invitations show up the moment that person signs in (or creates an account with that
               email).
             </p>
 
             {team.invites && team.invites.length > 0 && (
               <div className="mt-4">
-                <p className="mb-2 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+                <p className="mb-2 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                   Pending invitations
                 </p>
                 <div className="space-y-1.5">
                   {team.invites.map((pending) => (
                     <div
                       key={pending.email}
-                      className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-800/50 dark:text-slate-300"
+                      className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600"
                     >
                       <MailIcon className="h-3.5 w-3.5 text-slate-400" />
                       <span className="min-w-0 flex-1 truncate">{pending.email}</span>
-                      <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                      <span className="text-[10px] font-semibold text-amber-600">
                         PENDING
                       </span>
                       <button
@@ -371,11 +371,11 @@ function ManageTeam({
           </section>
         )}
 
-        <section className="rounded-xl border border-rose-100 bg-rose-50/50 p-3.5 dark:border-rose-500/20 dark:bg-rose-500/5">
-          <h3 className="text-xs font-bold text-rose-600 dark:text-rose-400">
+        <section className="rounded-xl border border-rose-100 bg-rose-50/50 p-3.5">
+          <h3 className="text-xs font-bold text-rose-600">
             {isHost ? 'Danger zone' : 'Leave team'}
           </h3>
-          <p className="mt-1 mb-2.5 text-[11px] leading-relaxed text-rose-500/80 dark:text-rose-300/70">
+          <p className="mt-1 mb-2.5 text-[11px] leading-relaxed text-rose-500/80">
             {isHost
               ? 'Deleting the team removes every shared task, subtask and comment for everyone.'
               : 'You will lose access to this team’s shared tasks.'}

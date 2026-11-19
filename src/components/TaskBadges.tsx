@@ -43,7 +43,7 @@ export function TagChips({ tags, max }: { tags: string[]; max?: number }) {
         </span>
       ))}
       {max && tags.length > max ? (
-        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+        <span className="text-[10px] font-medium text-slate-400">
           +{tags.length - max}
         </span>
       ) : null}

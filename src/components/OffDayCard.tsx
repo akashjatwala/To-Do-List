@@ -119,43 +119,50 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm text-slate-400 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-500">
-        Checking off days…
+      <div className="insight-card flex items-center gap-3 px-4 py-4">
+        <span className="insight-icon bg-slate-100 text-slate-400">
+          <CalendarIcon className="h-4 w-4" />
+        </span>
+        <div>
+          <p className="insight-eyebrow">Day settings</p>
+          <p className="insight-title">Checking off days…</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2.5">
-          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+    <section className="insight-card" aria-label="Off days">
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="insight-icon bg-indigo-50 text-indigo-500">
             <CalendarIcon className="h-4 w-4" />
           </span>
-          <div>
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-              {onOffDay ? `Off day · ${kindLabel(offDay?.kind ?? null)}` : 'Off days'}
+          <div className="min-w-0">
+            <p className="insight-eyebrow">Day settings</p>
+            <h2 className="insight-title">{onOffDay ? `Off day · ${kindLabel(offDay?.kind ?? null)}` : 'Off days'}</h2>
+            <p className="insight-subtitle">
+              {onOffDay
+                ? [summary, offDay?.note].filter(Boolean).join(' · ')
+                : 'Time away is never counted as missed. Your logged activity stays exactly as it is.'}
             </p>
-            {onOffDay ? (
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                {summary}
-                {offDay?.note ? ` · ${offDay.note}` : ''}
-              </p>
-            ) : (
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Off days are never counted as missed. Your recorded activity is left exactly as it is.
-              </p>
-            )}
           </div>
         </div>
 
         {!editing && (
-          <div className="flex shrink-0 gap-1.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {onOffDay && (
+              <span className="insight-pill bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Marked off
+              </span>
+            )}
             <button
               type="button"
               onClick={openForm}
-              className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="insight-quiet ring-1 ring-slate-200"
             >
+              <PencilIcon className="h-3 w-3" />
               {onOffDay ? 'Edit' : 'Mark off'}
             </button>
             {onOffDay && (
@@ -163,7 +170,7 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
                 type="button"
                 onClick={remove}
                 disabled={busy}
-                className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-50 dark:border-slate-700 dark:text-rose-400 dark:hover:bg-rose-500/10"
+                className="insight-quiet text-rose-600 ring-1 ring-rose-100 hover:bg-rose-50"
                 aria-label="Remove off-day record"
               >
                 <TrashIcon className="h-3.5 w-3.5" />
@@ -174,21 +181,21 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
       </div>
 
       {reducedConfidence && !onOffDay && (
-        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+        <p className="mx-4 mb-4 rounded-xl border-l-2 border-amber-400 bg-amber-50/80 px-3 py-2.5 text-xs leading-relaxed text-amber-800">
           Just back from an off period — predictions carry reduced confidence for a few days.
         </p>
       )}
 
       {editing && (
-        <div className="mt-4 space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-          <div className="flex flex-wrap gap-1.5">
+        <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setKind(null)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+              className={`insight-pill px-3 py-1.5 text-xs transition ${
                 kind === null
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
               }`}
             >
               Just off
@@ -198,10 +205,10 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
                 key={option}
                 type="button"
                 onClick={() => setKind(option)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                className={`insight-pill px-3 py-1.5 text-xs transition ${
                   kind === option
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
                 }`}
               >
                 {KIND_LABELS[option]}
@@ -209,8 +216,8 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-            <label className="flex items-center gap-1.5">
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
               From
               <input
                 type="date"
@@ -219,19 +226,20 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
                   setStartDate(event.target.value)
                   if (endDate < event.target.value) setEndDate(event.target.value)
                 }}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
+                className="field w-auto! px-2.5! py-1.5! text-xs! font-normal normal-case tracking-normal!"
               />
             </label>
-            <label className="flex items-center gap-1.5">
+            <label className="flex flex-col gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
               To
               <input
                 type="date"
                 value={endDate}
                 min={startDate}
                 onChange={(event) => setEndDate(event.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900"
+                className="field w-auto! px-2.5! py-1.5! text-xs! font-normal normal-case tracking-normal!"
               />
             </label>
+            <span className="insight-hint pb-1.5">Leave the same date for a single day.</span>
           </div>
 
           <input
@@ -240,35 +248,26 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
             maxLength={500}
             onChange={(event) => setNote(event.target.value)}
             placeholder="Optional note (only you can see this)"
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+            className="field mt-3"
           />
 
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:text-slate-700 dark:text-slate-400"
-            >
+          <div className="mt-3 flex justify-end gap-2">
+            <button type="button" onClick={() => setEditing(false)} className="insight-quiet">
               Cancel
             </button>
-            <button
-              type="button"
-              onClick={save}
-              disabled={busy}
-              className="rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
-            >
-              {busy ? 'Saving…' : 'Save'}
+            <button type="button" onClick={save} disabled={busy} className="insight-primary">
+              {busy ? 'Saving…' : 'Save off day'}
             </button>
           </div>
         </div>
       )}
 
       {!editing && !onOffDay && (
-        <p className="mt-2 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+        <p className="insight-hint flex items-center gap-1.5 border-t border-slate-100 px-4 py-2.5">
           <PencilIcon className="h-3 w-3" />
-          You can also mark a past day or a range.
+          You can also mark a past day or a whole range.
         </p>
       )}
-    </div>
+    </section>
   )
 }

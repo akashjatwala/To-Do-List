@@ -139,17 +139,17 @@ export default function TaskComposer({
   }
 
   const selectClass =
-    'cursor-pointer rounded-lg border-0 bg-transparent py-1.5 pr-6 pl-7 text-xs font-medium text-slate-600 outline-none transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+    'cursor-pointer rounded-lg border-0 bg-transparent py-1.5 pr-6 pl-7 text-xs font-medium text-slate-600 outline-none transition hover:bg-slate-100'
 
   const customTags = tags.filter((tag) => !COMMON_TAGS.includes(tag))
 
   return (
     <form
       onSubmit={submit}
-      className="card p-2 transition focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:focus-within:border-indigo-500/60"
+      className="card p-2 transition focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-500/10"
     >
       <div className="flex items-center gap-2 px-2 pt-1">
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400 dark:border-slate-600">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400">
           <PlusIcon className="h-3 w-3" />
         </span>
         <input
@@ -158,19 +158,19 @@ export default function TaskComposer({
           onChange={(event) => setText(event.target.value)}
           placeholder={`Add a task to ${contextLabel}…`}
           maxLength={500}
-          className="w-full border-0 bg-transparent py-2 text-[15px] text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+          className="w-full border-0 bg-transparent py-2 text-[15px] text-slate-900 outline-none placeholder:text-slate-400"
           aria-label="New task"
         />
       </div>
 
-      <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-2 border-t border-slate-100 px-2 pt-2 dark:border-slate-800">
-        <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+      <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-2 border-t border-slate-100 px-2 pt-2">
+        <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
           <CalendarIcon className="h-4 w-4" />
           <input
             type="date"
             value={due}
             onChange={(event) => setDue(event.target.value)}
-            className="max-w-[7.5rem] cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-slate-600 outline-none dark:text-slate-300"
+            className="max-w-[7.5rem] cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-slate-600 outline-none"
             aria-label="Due date"
           />
         </label>
@@ -196,7 +196,7 @@ export default function TaskComposer({
         <label className="relative flex items-center">
           <RepeatIcon
             className={`pointer-events-none absolute left-2 h-4 w-4 ${
-              recurrence === 'none' ? 'text-slate-400' : 'text-indigo-500 dark:text-indigo-400'
+              recurrence === 'none' ? 'text-slate-400' : 'text-indigo-500'
             }`}
           />
           <select
@@ -217,7 +217,7 @@ export default function TaskComposer({
           </select>
         </label>
 
-        <label className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+        <label className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
           <ClockIcon className="h-4 w-4" />
           <input
             type="text"
@@ -225,15 +225,15 @@ export default function TaskComposer({
             value={duration}
             onChange={(event) => setDuration(event.target.value.replace(/\D/g, '').slice(0, 5))}
             placeholder="Duration"
-            className="w-[4.5rem] border-0 bg-transparent p-0 text-xs font-medium text-slate-600 outline-none placeholder:text-slate-400 dark:text-slate-300 dark:placeholder:text-slate-500"
+            className="w-[4.5rem] border-0 bg-transparent p-0 text-xs font-medium text-slate-600 outline-none placeholder:text-slate-400"
             aria-label="Ideal duration in minutes"
             title="Ideal duration of the task, in minutes"
           />
-          <span className="text-[11px] text-slate-400 dark:text-slate-500">min</span>
+          <span className="text-[11px] text-slate-400">min</span>
         </label>
 
         <label
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
           title="Optional preferred time of day — a hint, never a deadline"
         >
           <ClockIcon className="h-4 w-4" />
@@ -241,7 +241,7 @@ export default function TaskComposer({
             type="time"
             value={preferredTime}
             onChange={(event) => setPreferredTime(event.target.value)}
-            className="w-[5.5rem] cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-slate-600 outline-none dark:text-slate-300"
+            className="w-[5.5rem] cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-slate-600 outline-none"
             aria-label="Preferred time of day"
           />
         </label>
@@ -250,7 +250,7 @@ export default function TaskComposer({
           <label className="relative flex items-center">
             <UsersIcon
               className={`pointer-events-none absolute left-2 h-4 w-4 ${
-                teamId === null ? 'text-slate-400' : 'text-indigo-500 dark:text-indigo-400'
+                teamId === null ? 'text-slate-400' : 'text-indigo-500'
               }`}
             />
             <select
@@ -273,7 +273,7 @@ export default function TaskComposer({
         <div className="ml-auto flex items-center gap-3">
           <span className="hidden text-[11px] text-slate-400 lg:inline">
             Press{' '}
-            <kbd className="rounded border border-slate-200 px-1 py-0.5 font-sans text-[10px] dark:border-slate-700">
+            <kbd className="rounded border border-slate-200 px-1 py-0.5 font-sans text-[10px]">
               Enter
             </kbd>
           </span>
@@ -289,8 +289,8 @@ export default function TaskComposer({
       </div>
 
       {recurrence === 'custom' && (
-        <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-slate-100 px-2 pt-2 dark:border-slate-800">
-          <span className="flex items-center gap-1 pr-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+        <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-slate-100 px-2 pt-2">
+          <span className="flex items-center gap-1 pr-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
             <RepeatIcon className="h-3.5 w-3.5" />
             Custom repeat
           </span>
@@ -300,8 +300,8 @@ export default function TaskComposer({
         </div>
       )}
 
-      <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-slate-100 px-2 pt-2 dark:border-slate-800">
-        <span className="flex items-center gap-1 pr-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-slate-100 px-2 pt-2">
+        <span className="flex items-center gap-1 pr-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
           <TagIcon className="h-3.5 w-3.5" />
           Tags
         </span>
@@ -316,7 +316,7 @@ export default function TaskComposer({
               className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition ${
                 active
                   ? tagTint(tag)
-                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
               }`}
             >
               {tag}
@@ -346,7 +346,7 @@ export default function TaskComposer({
           onBlur={commitDraft}
           placeholder="Custom tag…"
           maxLength={24}
-          className="w-28 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[11px] font-medium text-slate-600 outline-none placeholder:text-slate-400 hover:bg-slate-100 focus:bg-slate-100 dark:text-slate-300 dark:placeholder:text-slate-500 dark:hover:bg-slate-800 dark:focus:bg-slate-800"
+          className="w-28 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[11px] font-medium text-slate-600 outline-none placeholder:text-slate-400 hover:bg-slate-100 focus:bg-slate-100"
           aria-label="Custom tag"
         />
       </div>

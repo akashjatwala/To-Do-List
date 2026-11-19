@@ -30,10 +30,10 @@ export function pinColor(id: string): PinColor {
 
 /** The Tailwind text colour class for a pin head, keyed by colour name. */
 export const PIN_CLASS: Record<PinColor, string> = {
-  rose: 'text-rose-500 dark:text-rose-400',
-  blue: 'text-sky-500 dark:text-sky-400',
-  amber: 'text-amber-500 dark:text-amber-400',
-  emerald: 'text-emerald-500 dark:text-emerald-400',
+  rose: 'text-rose-500',
+  blue: 'text-sky-500',
+  amber: 'text-amber-500',
+  emerald: 'text-emerald-500',
 }
 
 /** The pin colour class for a note id. */

@@ -40,9 +40,9 @@ export default function RecurrenceEditor({
   }
 
   return (
-    <div className="rounded-xl border border-dashed border-slate-300/80 bg-white/60 p-2.5 dark:border-slate-600/60 dark:bg-slate-900/40">
+    <div className="rounded-xl border border-dashed border-slate-300/80 bg-white/60 p-2.5">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg bg-slate-200/70 p-0.5 dark:bg-slate-700/60">
+        <div className="inline-flex rounded-lg bg-slate-200/70 p-0.5">
           {(['weekly', 'monthly'] as const).map((mode) => (
             <button
               key={mode}
@@ -51,8 +51,8 @@ export default function RecurrenceEditor({
               aria-pressed={config.mode === mode}
               className={`rounded-md px-2.5 py-1 text-[11px] font-semibold capitalize transition ${
                 config.mode === mode
-                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
-                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               {mode}
@@ -75,7 +75,7 @@ export default function RecurrenceEditor({
                   className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold transition ${
                     active
                       ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
-                      : 'bg-white text-slate-500 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                      : 'bg-white text-slate-500 hover:bg-slate-100'
                   }`}
                 >
                   {letter}
@@ -91,7 +91,7 @@ export default function RecurrenceEditor({
                 onChange({ ...config, nth: Number(event.target.value) })
               }
               aria-label="Which weekday occurrence"
-              className="cursor-pointer rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+              className="cursor-pointer rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 outline-none"
             >
               {NTH_LABELS.map((label, index) => (
                 <option key={label} value={index + 1}>
@@ -105,7 +105,7 @@ export default function RecurrenceEditor({
                 onChange({ ...config, weekday: Number(event.target.value) })
               }
               aria-label="Weekday"
-              className="cursor-pointer rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+              className="cursor-pointer rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 outline-none"
             >
               {WEEKDAY_SHORT.map((label, index) => (
                 <option key={label} value={index}>
@@ -117,7 +117,7 @@ export default function RecurrenceEditor({
         )}
       </div>
 
-      <p className="mt-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+      <p className="mt-2 text-[11px] font-medium text-slate-500">
         Repeats {describeRecurrence('custom', config).toLowerCase()}.
       </p>
     </div>

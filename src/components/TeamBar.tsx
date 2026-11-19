@@ -34,8 +34,8 @@ export default function TeamBar({
 }) {
   if (teams.length === 0) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2 dark:border-slate-700">
-        <p className="min-w-0 flex-1 truncate text-xs text-slate-400 dark:text-slate-500">
+      <div className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2">
+        <p className="min-w-0 flex-1 truncate text-xs text-slate-400">
           No teams yet — create one to share tasks with other people.
         </p>
         <button
@@ -62,8 +62,8 @@ export default function TeamBar({
               aria-pressed={active}
               className={`flex items-center gap-2 rounded-xl border py-1.5 pr-2 pl-2 text-xs font-semibold transition ${
                 active
-                  ? 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/15 dark:text-indigo-200'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                  ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
               }`}
             >
               <span
@@ -75,8 +75,8 @@ export default function TeamBar({
               <span
                 className={`rounded px-1 text-[10px] ${
                   active
-                    ? 'bg-white/70 text-indigo-600 dark:bg-indigo-400/20 dark:text-indigo-200'
-                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                    ? 'bg-white/70 text-indigo-600'
+                    : 'bg-slate-100 text-slate-500'
                 }`}
               >
                 {counts[team.id] ?? 0}
@@ -85,7 +85,7 @@ export default function TeamBar({
             <button
               type="button"
               onClick={() => onManage(team.id)}
-              className="ml-0.5 rounded-lg p-1.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+              className="ml-0.5 rounded-lg p-1.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-600"
               aria-label={`Manage ${team.name}`}
               title="Manage team"
             >

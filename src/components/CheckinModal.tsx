@@ -257,16 +257,16 @@ export default function CheckinModal({
         role="dialog"
         aria-modal="true"
         aria-label={mode === 'prompt' ? 'Daily check-in' : 'Update your check-in'}
-        className="animate-in relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl dark:border-slate-800 dark:bg-slate-900"
+        className="animate-in relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl"
       >
         {/* Header: greeting, progress and the always-available skip controls */}
         <div className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-2 sm:px-5">
           <div className="min-w-0">
-            <p className="truncate text-[11px] font-semibold tracking-wide text-slate-400 uppercase dark:text-slate-500">
+            <p className="truncate text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
               {greeting}
               {name ? `, ${name}` : ''}
             </p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500" aria-hidden="true">
+            <p className="text-[11px] text-slate-400" aria-hidden="true">
               {isFinal ? 'All done' : `Question ${step + 1} of ${total}`}
             </p>
           </div>
@@ -290,10 +290,10 @@ export default function CheckinModal({
                 key={item.key}
                 className={`h-1.5 flex-1 rounded-full transition-colors ${
                   current
-                    ? 'bg-slate-800 dark:bg-slate-200'
+                    ? 'bg-slate-800'
                     : done
-                      ? 'bg-indigo-400 dark:bg-indigo-500'
-                      : 'bg-slate-200 dark:bg-slate-700'
+                      ? 'bg-indigo-400'
+                      : 'bg-slate-200'
                 }`}
               />
             )
@@ -311,7 +311,7 @@ export default function CheckinModal({
             style={{ '--accent': question.accent } as CSSProperties}
           >
             {firstQuestion && mode === 'prompt' && (
-              <p className="mb-3 text-center text-xs text-slate-500 dark:text-slate-400">
+              <p className="mb-3 text-center text-xs text-slate-500">
                 Nine quick taps to set the scene for today. Skip anything you would rather not answer.
               </p>
             )}
@@ -320,7 +320,7 @@ export default function CheckinModal({
               <div className="checkin-choice-emoji text-5xl leading-none sm:text-6xl" aria-hidden="true">
                 {question.emoji}
               </div>
-              <h2 className="mx-auto mt-3 max-w-sm text-balance text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100">
+              <h2 className="mx-auto mt-3 max-w-sm text-balance text-lg font-bold tracking-tight text-slate-800">
                 {question.prompt}
               </h2>
             </div>
@@ -344,8 +344,8 @@ export default function CheckinModal({
                     onClick={() => pick(question.key, value)}
                     className={`checkin-choice flex min-h-[3.25rem] items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-left transition sm:flex-col sm:justify-center sm:gap-1.5 sm:px-2 sm:py-3 sm:text-center ${
                       selected
-                        ? 'border-indigo-400 text-slate-900 dark:text-white'
-                        : 'border-slate-200 bg-white/70 text-slate-600 hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:border-slate-600'
+                        ? 'border-indigo-400 text-slate-900'
+                        : 'border-slate-200 bg-white/70 text-slate-600 hover:border-slate-300 hover:bg-white'
                     } ${flash ? 'scale-[1.02]' : ''}`}
                   >
                     <span className="checkin-choice-emoji text-2xl leading-none sm:text-3xl" aria-hidden="true">
@@ -367,10 +367,10 @@ export default function CheckinModal({
             <div className="text-5xl" aria-hidden="true">
               🌤️
             </div>
-            <h2 className="mt-4 text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100">
+            <h2 className="mt-4 text-lg font-bold tracking-tight text-slate-800">
               That&apos;s everything for today
             </h2>
-            <p className="mt-1.5 max-w-xs text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-1.5 max-w-xs text-sm text-slate-500">
               Thanks for checking in. You can change any answer later from the smiley in the header.
             </p>
             <label className="mt-5 block w-full max-w-xs text-left">
@@ -388,7 +388,7 @@ export default function CheckinModal({
         )}
 
         {/* Footer: Back on the left, skip controls on the right */}
-        <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-4 py-3 sm:px-5 dark:border-slate-800">
+        <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-4 py-3 sm:px-5">
           <button
             type="button"
             onClick={goBack}
@@ -405,7 +405,7 @@ export default function CheckinModal({
                 type="button"
                 onClick={skipQuestion}
                 disabled={busy}
-                className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
               >
                 Skip question
               </button>
@@ -414,7 +414,7 @@ export default function CheckinModal({
               type="button"
               onClick={skipAll}
               disabled={busy}
-              className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+              className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
             >
               Skip check-in
             </button>
@@ -428,7 +428,7 @@ export default function CheckinModal({
         </div>
 
         {answered > 0 && !isFinal && (
-          <p className="pb-2 text-center text-[10px] text-slate-300 dark:text-slate-600">
+          <p className="pb-2 text-center text-[10px] text-slate-300">
             {answered}/{total} answered
           </p>
         )}

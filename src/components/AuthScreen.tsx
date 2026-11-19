@@ -10,17 +10,13 @@ import {
   EyeOffIcon,
   LockIcon,
   MailIcon,
-  MoonIcon,
   SparklesIcon,
-  SunIcon,
   UsersIcon,
 } from './Icons'
 
 type Mode = 'login' | 'signup' | 'forgot'
 
 interface AuthScreenProps {
-  dark: boolean
-  onToggleTheme: () => void
   onAuthed: () => Promise<void> | void
 }
 
@@ -44,13 +40,13 @@ const FEATURES = [
 
 function FieldIcon({ children }: { children: ReactNode }) {
   return (
-    <span className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+    <span className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-slate-400">
       {children}
     </span>
   )
 }
 
-export default function AuthScreen({ dark, onToggleTheme, onAuthed }: AuthScreenProps) {
+export default function AuthScreen({ onAuthed }: AuthScreenProps) {
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -160,7 +156,7 @@ export default function AuthScreen({ dark, onToggleTheme, onAuthed }: AuthScreen
           : 'Choose a new password for your account.'
 
   return (
-    <div className="flex min-h-full flex-col bg-white lg:flex-row dark:bg-slate-950">
+    <div className="flex min-h-full flex-col bg-canvas lg:flex-row">
       {/* Marketing panel */}
       <aside className="relative hidden w-[46%] flex-col justify-between overflow-hidden bg-slate-950 p-10 text-white lg:flex xl:p-14">
         <div className="bg-grid absolute inset-0 opacity-60" />
@@ -234,26 +230,18 @@ export default function AuthScreen({ dark, onToggleTheme, onAuthed }: AuthScreen
       </aside>
 
       {/* Form panel */}
-      <main className="flex flex-1 flex-col">
+      <main className="flex flex-1 flex-col bg-canvas">
         <header className="flex items-center justify-between px-6 py-5 sm:px-10">
           <Logo className="lg:invisible" />
-          <button
-            type="button"
-            onClick={onToggleTheme}
-            className="icon-btn"
-            aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-          >
-            {dark ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
-          </button>
         </header>
 
         <div className="flex flex-1 items-center justify-center px-6 pb-14 sm:px-10">
           <div className="animate-in w-full max-w-sm">
             <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
-            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
+            <p className="mt-1.5 text-sm text-slate-500">{subtitle}</p>
 
             {notice && (
-              <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300">
+              <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-700">
                 {notice}
               </div>
             )}
@@ -261,7 +249,7 @@ export default function AuthScreen({ dark, onToggleTheme, onAuthed }: AuthScreen
             {error && (
               <div
                 role="alert"
-                className="mt-5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-300"
+                className="mt-5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700"
               >
                 {error}
               </div>
@@ -270,10 +258,10 @@ export default function AuthScreen({ dark, onToggleTheme, onAuthed }: AuthScreen
             {mode === 'forgot' && resetStage === 'code' ? (
               <form onSubmit={submitReset} className="mt-6 space-y-4">
                 {devCode && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs leading-relaxed text-amber-800 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs leading-relaxed text-amber-800">
                     <span className="font-semibold">Development mode:</span> no email service is
                     configured, so your reset code is{' '}
-                    <code className="rounded bg-amber-200/60 px-1 py-0.5 font-mono dark:bg-amber-500/20">
+                    <code className="rounded bg-amber-200/60 px-1 py-0.5 font-mono">
                       {devCode}
                     </code>{' '}
                     (also printed in the server console).
@@ -412,12 +400,12 @@ export default function AuthScreen({ dark, onToggleTheme, onAuthed }: AuthScreen
                   )}
 
                   <div className="flex items-center justify-between text-sm">
-                    <label className="flex cursor-pointer items-center gap-2 text-slate-600 select-none dark:text-slate-300">
+                    <label className="flex cursor-pointer items-center gap-2 text-slate-600 select-none">
                       <input
                         type="checkbox"
                         checked={remember}
                         onChange={(event) => setRemember(event.target.checked)}
-                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 accent-indigo-600 dark:border-slate-600"
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 accent-indigo-600"
                       />
                       Remember me
                     </label>
@@ -425,7 +413,7 @@ export default function AuthScreen({ dark, onToggleTheme, onAuthed }: AuthScreen
                       <button
                         type="button"
                         onClick={() => switchMode('forgot')}
-                        className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+                        className="font-medium text-indigo-600 hover:text-indigo-500"
                       >
                         Forgot password?
                       </button>
@@ -450,12 +438,12 @@ export default function AuthScreen({ dark, onToggleTheme, onAuthed }: AuthScreen
                   </p>
                 )}
 
-                <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+                <p className="mt-6 text-center text-sm text-slate-500">
                   {mode === 'login' ? 'New here?' : 'Already have an account?'}{' '}
                   <button
                     type="button"
                     onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
-                    className="font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+                    className="font-semibold text-indigo-600 hover:text-indigo-500"
                   >
                     {mode === 'login' ? 'Create an account' : 'Sign in'}
                   </button>
@@ -510,7 +498,7 @@ function PasswordField({
         <button
           type="button"
           onClick={onToggleShow}
-          className="absolute top-1/2 right-2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200"
+          className="absolute top-1/2 right-2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition hover:text-slate-600"
           aria-label={show ? 'Hide password' : 'Show password'}
           tabIndex={-1}
         >

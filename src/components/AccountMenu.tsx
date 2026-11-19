@@ -1,17 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Avatar } from './ui'
-import { ChevronDownIcon, LogOutIcon, MoonIcon, SettingsIcon, SunIcon } from './Icons'
+import { ChevronDownIcon, LogOutIcon, SettingsIcon } from './Icons'
 
 export default function AccountMenu({
   email,
-  dark,
-  onToggleTheme,
   onOpenSettings,
   onLogout,
 }: {
   email: string
-  dark: boolean
-  onToggleTheme: () => void
   onOpenSettings: () => void
   onLogout: () => void
 }) {
@@ -43,24 +39,12 @@ export default function AccountMenu({
       {open && (
         <div
           role="menu"
-          className="animate-in absolute top-full right-0 z-50 mt-2 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+          className="animate-in absolute top-full right-0 z-50 mt-2 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
         >
-          <div className="mb-1 border-b border-slate-100 px-3 py-2 sm:hidden dark:border-slate-800">
-            <p className="truncate text-sm font-semibold text-slate-700 dark:text-slate-200">{name}</p>
-            <p className="truncate text-[11px] text-slate-400 dark:text-slate-500">{email}</p>
+          <div className="mb-1 border-b border-slate-100 px-3 py-2 sm:hidden">
+            <p className="truncate text-sm font-semibold text-slate-700">{name}</p>
+            <p className="truncate text-[11px] text-slate-400">{email}</p>
           </div>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false)
-              onToggleTheme()
-            }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 sm:hidden dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-          >
-            {dark ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
-            {dark ? 'Light mode' : 'Dark mode'}
-          </button>
           <button
             type="button"
             role="menuitem"
@@ -68,7 +52,7 @@ export default function AccountMenu({
               setOpen(false)
               onOpenSettings()
             }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
           >
             <SettingsIcon className="h-4 w-4" />
             Settings
@@ -80,7 +64,7 @@ export default function AccountMenu({
               setOpen(false)
               onLogout()
             }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10"
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
           >
             <LogOutIcon className="h-4 w-4" />
             Sign out
@@ -93,14 +77,14 @@ export default function AccountMenu({
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`flex max-w-[13rem] items-center gap-2.5 rounded-xl px-1.5 py-1.5 text-left transition hover:bg-slate-100 dark:hover:bg-slate-800 ${
-          open ? 'bg-slate-100 dark:bg-slate-800' : ''
+        className={`flex max-w-[13rem] items-center gap-2.5 rounded-xl px-1.5 py-1.5 text-left transition hover:bg-slate-100 ${
+          open ? 'bg-slate-100' : ''
         }`}
       >
         <Avatar email={email} size="sm" />
         <div className="hidden min-w-0 flex-1 sm:block">
-          <p className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">{name}</p>
-          <p className="truncate text-[11px] text-slate-400 dark:text-slate-500">{email}</p>
+          <p className="truncate text-xs font-semibold text-slate-700">{name}</p>
+          <p className="truncate text-[11px] text-slate-400">{email}</p>
         </div>
         <ChevronDownIcon
           className={`hidden h-4 w-4 shrink-0 text-slate-400 transition-transform sm:block ${

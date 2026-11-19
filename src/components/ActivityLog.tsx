@@ -38,13 +38,13 @@ const STATUS_META: Record<DailyStatus, { label: string; cell: string; dot: strin
   },
   pending: {
     label: 'Pending',
-    cell: 'bg-slate-300 dark:bg-slate-600',
-    dot: 'bg-slate-300 dark:bg-slate-600',
+    cell: 'bg-slate-300',
+    dot: 'bg-slate-300',
   },
   unknown: {
     label: 'No data',
-    cell: 'bg-slate-200 dark:bg-slate-700',
-    dot: 'bg-slate-200 dark:bg-slate-700',
+    cell: 'bg-slate-200',
+    dot: 'bg-slate-200',
   },
 }
 
@@ -184,9 +184,9 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
   const clearStatus = () => run(() => api.clearDayStatus(taskId, selectedDate, today))
 
   return (
-    <section className="mt-5 rounded-xl border border-slate-200 p-3.5 dark:border-slate-800">
+    <section className="mt-5 rounded-xl border border-slate-200 p-3.5">
       <div className="mb-3 flex items-center justify-between">
-        <p className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+        <p className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
           <ClockIcon className="h-3.5 w-3.5" />
           Activity log
         </p>
@@ -208,11 +208,11 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
               }`}
               aria-label={`${shortDate(day.date)}: ${meta.label}`}
               aria-pressed={isSelected}
-              className={`flex flex-1 flex-col items-center gap-1 rounded-lg px-0.5 py-1 transition hover:bg-slate-100 dark:hover:bg-slate-800 ${
-                isSelected ? 'bg-slate-100 ring-1 ring-indigo-300 dark:bg-slate-800' : ''
+              className={`flex flex-1 flex-col items-center gap-1 rounded-lg px-0.5 py-1 transition hover:bg-slate-100 ${
+                isSelected ? 'bg-slate-100 ring-1 ring-indigo-300' : ''
               }`}
             >
-              <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500">
+              <span className="text-[9px] font-semibold text-slate-400">
                 {weekdayLetter(day.date)}
               </span>
               <span className={`h-6 w-full max-w-4 rounded ${meta.cell}`} />
@@ -221,31 +221,31 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
         })}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
         <span>
-          Last {RANGE_DAYS} days: <span className="font-semibold text-slate-600 dark:text-slate-300">{activeDays}</span>{' '}
+          Last {RANGE_DAYS} days: <span className="font-semibold text-slate-600">{activeDays}</span>{' '}
           with activity
         </span>
         <span aria-hidden="true">·</span>
         <span>
-          <span className="font-semibold text-slate-600 dark:text-slate-300">{durationLabel(totalMinutes)}</span> total
+          <span className="font-semibold text-slate-600">{durationLabel(totalMinutes)}</span> total
         </span>
       </div>
 
       {/* Selected day */}
-      <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-slate-800/50">
+      <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+          <span className="text-xs font-semibold text-slate-600">
             {selectedDate === today ? 'Today' : shortDate(selectedDate)}
           </span>
           {selected && (
-            <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
               <span className={`h-2 w-2 rounded-full ${STATUS_META[selected.status].dot}`} />
               {STATUS_META[selected.status].label}
             </span>
           )}
         </div>
-        <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+        <p className="mt-0.5 text-[11px] text-slate-400">
           {selected
             ? `${selected.sessionCount} session${selected.sessionCount === 1 ? '' : 's'} · ${durationLabel(
                 selected.totalMinutes,
@@ -260,7 +260,7 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
               type="button"
               disabled={busy}
               onClick={() => void applyStatus(status)}
-              className="rounded-lg bg-white px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-100 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              className="rounded-lg bg-white px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
             >
               {STATUS_META[status].label}
             </button>
@@ -269,7 +269,7 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
             type="button"
             disabled={busy}
             onClick={() => void clearStatus()}
-            className="rounded-lg px-2 py-1 text-[11px] font-medium text-slate-400 transition hover:text-slate-600 disabled:opacity-50 dark:hover:text-slate-200"
+            className="rounded-lg px-2 py-1 text-[11px] font-medium text-slate-400 transition hover:text-slate-600 disabled:opacity-50"
           >
             Clear
           </button>
@@ -284,14 +284,14 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
           max={today}
           onChange={(event) => setSessionDate(event.target.value)}
           aria-label="Session date"
-          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-indigo-400"
         />
         <input
           type="time"
           value={startTime}
           onChange={(event) => setStartTime(event.target.value)}
           aria-label="Session start time"
-          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-indigo-400"
         />
         <input
           type="text"
@@ -300,7 +300,7 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
           onChange={(event) => setMinutes(event.target.value.replace(/\D/g, '').slice(0, 4))}
           placeholder="Minutes"
           aria-label="Session duration in minutes"
-          className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none placeholder:text-slate-400 focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+          className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none placeholder:text-slate-400 focus:border-indigo-400"
         />
         <button
           type="submit"
@@ -316,25 +316,25 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
 
       {/* Recent sessions */}
       {!loading && sessions.length > 0 && (
-        <div className="mt-3 space-y-1 border-t border-slate-100 pt-3 dark:border-slate-800">
+        <div className="mt-3 space-y-1 border-t border-slate-100 pt-3">
           {sessions.slice(0, 6).map((session) => (
             <div key={session.id} className="group flex items-center gap-2 text-xs">
-              <span className="w-14 shrink-0 tabular-nums text-slate-400 dark:text-slate-500">
+              <span className="w-14 shrink-0 tabular-nums text-slate-400">
                 {shortDate(session.date)}
               </span>
-              <span className="text-slate-500 dark:text-slate-400">
+              <span className="text-slate-500">
                 {session.endedAt
                   ? `${formatClock(session.startedAt)}–${formatClock(session.endedAt)}`
                   : formatClock(session.startedAt)}
               </span>
-              <span className="font-semibold text-slate-600 dark:text-slate-300">
+              <span className="font-semibold text-slate-600">
                 {durationLabel(session.durationMinutes)}
               </span>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void run(() => api.deleteSession(session.id))}
-                className="ml-auto rounded p-0.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 disabled:opacity-0 dark:text-slate-600"
+                className="ml-auto rounded p-0.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 disabled:opacity-0"
                 aria-label="Delete session"
               >
                 <TrashIcon className="h-3.5 w-3.5" />
@@ -346,14 +346,14 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
 
       {/* Config history: the target/priority/tags that applied, over time */}
       {configs.length > 1 && (
-        <details className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
-          <summary className="cursor-pointer text-[11px] font-semibold text-slate-400 transition hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
+        <details className="mt-3 border-t border-slate-100 pt-3">
+          <summary className="cursor-pointer text-[11px] font-semibold text-slate-400 transition hover:text-slate-600">
             {configs.length} configuration versions
           </summary>
           <ul className="mt-2 space-y-1">
             {configs.map((config) => (
-              <li key={config.id} className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-100 text-[9px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              <li key={config.id} className="flex items-center gap-2 text-[11px] text-slate-500">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-100 text-[9px] font-bold text-slate-500">
                   {config.version}
                 </span>
                 <span className="w-16 shrink-0">{shortDate(localDateString(new Date(config.effectiveFrom)))}</span>
@@ -365,14 +365,14 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
               </li>
             ))}
           </ul>
-          <p className="mt-1.5 text-[10px] text-slate-400 dark:text-slate-500">
+          <p className="mt-1.5 text-[10px] text-slate-400">
             Every change is kept, so past days stay interpretable.
           </p>
         </details>
       )}
 
       {loading && (
-        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
           <Spinner className="h-3 w-3" />
           Loading activity…
         </p>

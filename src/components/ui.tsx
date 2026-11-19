@@ -15,7 +15,7 @@ export function Avatar({
   return (
     <span
       title={email}
-      className={`inline-flex shrink-0 items-center justify-center rounded-full font-bold text-white ring-2 ring-white/60 dark:ring-slate-900 ${avatarColor(email)} ${sizes} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full font-bold text-white ring-2 ring-white/60 ${avatarColor(email)} ${sizes} ${className}`}
     >
       {initials(email)}
     </span>
@@ -63,13 +63,13 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`animate-in relative w-full ${width} max-h-[90vh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-6 shadow-2xl sm:rounded-2xl dark:border-slate-800 dark:bg-slate-900`}
+        className={`animate-in relative w-full ${width} max-h-[90vh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-6 shadow-2xl sm:rounded-2xl`}
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold tracking-tight">{title}</h2>
             {description && (
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>
+              <p className="mt-1 text-sm text-slate-500">{description}</p>
             )}
           </div>
           <button type="button" onClick={onClose} className="icon-btn -mr-1" aria-label="Close">

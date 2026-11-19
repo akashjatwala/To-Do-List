@@ -224,10 +224,10 @@ export default function TaskDetail({
         role="dialog"
         aria-modal="true"
         aria-label="Task details"
-        className="animate-drawer fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+        className="animate-drawer fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-slate-200 bg-white shadow-2xl"
       >
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-100 px-5 dark:border-slate-800">
-          <p className="text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-100 px-5">
+          <p className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
             Task details
           </p>
           <button type="button" onClick={onClose} className="icon-btn -mr-1.5" aria-label="Close">
@@ -247,7 +247,7 @@ export default function TaskDetail({
                 className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition active:scale-90 ${
                   task.done
                     ? 'border-emerald-500 bg-emerald-500 text-white'
-                    : 'border-slate-300 text-transparent hover:border-emerald-400 hover:text-emerald-300 dark:border-slate-600'
+                    : 'border-slate-300 text-transparent hover:border-emerald-400 hover:text-emerald-300'
                 }`}
               >
                 <CheckIcon className="h-3.5 w-3.5" strokeWidth={3} />
@@ -267,13 +267,13 @@ export default function TaskDetail({
                   }}
                   maxLength={500}
                   aria-label="Task title"
-                  className={`w-full rounded-lg border border-transparent bg-transparent px-1.5 py-0.5 text-lg leading-snug font-bold tracking-tight outline-none transition hover:border-slate-200 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 dark:hover:border-slate-700 dark:focus:border-indigo-500 dark:focus:bg-slate-950 ${
+                  className={`w-full rounded-lg border border-transparent bg-transparent px-1.5 py-0.5 text-lg leading-snug font-bold tracking-tight outline-none transition hover:border-slate-200 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 ${
                     task.done
-                      ? 'text-slate-400 line-through decoration-slate-300 dark:text-slate-500'
+                      ? 'text-slate-400 line-through decoration-slate-300'
                       : ''
                   }`}
                 />
-                <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5 text-xs text-slate-400 dark:text-slate-500">
+                <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5 text-xs text-slate-400">
                   {titleBusy && <Spinner className="h-3 w-3" />}
                   <span>Added by {task.userId === currentUserId ? 'you' : task.ownerEmail}</span>
                   <span aria-hidden="true">·</span>
@@ -281,7 +281,7 @@ export default function TaskDetail({
                   {task.teamName && (
                     <>
                       <span aria-hidden="true">·</span>
-                      <span className="font-medium text-indigo-500 dark:text-indigo-400">
+                      <span className="font-medium text-indigo-500">
                         {task.teamName}
                       </span>
                     </>
@@ -293,10 +293,10 @@ export default function TaskDetail({
               </div>
             </div>
 
-            <div className="mt-5 rounded-xl border border-slate-200 p-3.5 dark:border-slate-800">
+            <div className="mt-5 rounded-xl border border-slate-200 p-3.5">
               <label
                 htmlFor="task-due"
-                className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
+                className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase"
               >
                 <CalendarIcon className="h-3.5 w-3.5" />
                 Due date
@@ -307,21 +307,21 @@ export default function TaskDetail({
                   type="date"
                   value={dateInputValue(task.due)}
                   onChange={(event) => onUpdate({ due: dueFromDateInput(event.target.value) })}
-                  className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10"
                 />
                 {task.due !== null && (
                   <button
                     type="button"
                     onClick={() => onUpdate({ due: null })}
-                    className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                    className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
                   >
                     Clear
                   </button>
                 )}
               </div>
 
-              <label className="mt-3 block border-t border-slate-100 pt-3 dark:border-slate-800">
-                <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+              <label className="mt-3 block border-t border-slate-100 pt-3">
+                <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                   <ClockIcon className="h-3.5 w-3.5" />
                   Ideal duration
                 </span>
@@ -342,16 +342,16 @@ export default function TaskDetail({
                     }}
                     placeholder="No estimate"
                     aria-label="Ideal duration in minutes"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10"
                   />
-                  <span className="shrink-0 text-xs font-medium text-slate-400 dark:text-slate-500">
+                  <span className="shrink-0 text-xs font-medium text-slate-400">
                     min
                   </span>
                 </div>
               </label>
 
-              <label className="mt-3 block border-t border-slate-100 pt-3 dark:border-slate-800">
-                <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+              <label className="mt-3 block border-t border-slate-100 pt-3">
+                <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                   <ClockIcon className="h-3.5 w-3.5" />
                   Preferred time
                 </span>
@@ -364,7 +364,7 @@ export default function TaskDetail({
                       void onUpdate({ preferredTime: event.target.value || null })
                     }}
                     aria-label="Preferred time of day"
-                    className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10"
                   />
                   {preferredTime && (
                     <button
@@ -373,21 +373,21 @@ export default function TaskDetail({
                         setPreferredTime('')
                         void onUpdate({ preferredTime: null })
                       }}
-                      className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                      className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
                     >
                       Clear
                     </button>
                   )}
                 </div>
-                <span className="mt-1.5 block text-[11px] text-slate-400 dark:text-slate-500">
+                <span className="mt-1.5 block text-[11px] text-slate-400">
                   A hint for when you usually do this — never a deadline.
                 </span>
               </label>
             </div>
 
             {/* Priority & repeat */}
-            <section className="mt-5 rounded-xl border border-slate-200 p-3.5 dark:border-slate-800">
-              <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+            <section className="mt-5 rounded-xl border border-slate-200 p-3.5">
+              <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                 <FlagIcon className="h-3.5 w-3.5" />
                 Priority
               </p>
@@ -403,7 +403,7 @@ export default function TaskDetail({
                       className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold transition ${
                         active
                           ? meta.chip
-                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                       }`}
                     >
                       <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
@@ -414,7 +414,7 @@ export default function TaskDetail({
               </div>
 
               <label className="mt-4 block">
-                <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+                <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                   <RepeatIcon className="h-3.5 w-3.5" />
                   Repeats
                 </span>
@@ -435,7 +435,7 @@ export default function TaskDetail({
                   </div>
                 )}
                 {task.recurrence !== 'none' && (
-                  <span className="mt-1.5 block text-[11px] text-slate-400 dark:text-slate-500">
+                  <span className="mt-1.5 block text-[11px] text-slate-400">
                     Completing this task creates the next occurrence automatically.
                   </span>
                 )}
@@ -443,8 +443,8 @@ export default function TaskDetail({
             </section>
 
             {/* Tags */}
-            <section className="mt-5 rounded-xl border border-slate-200 p-3.5 dark:border-slate-800">
-              <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+            <section className="mt-5 rounded-xl border border-slate-200 p-3.5">
+              <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                 <TagIcon className="h-3.5 w-3.5" />
                 Tags
               </p>
@@ -460,7 +460,7 @@ export default function TaskDetail({
                       className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition ${
                         active
                           ? tagTint(tag)
-                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                       }`}
                     >
                       {tag}
@@ -494,7 +494,7 @@ export default function TaskDetail({
                   onChange={(event) => setTagInput(event.target.value)}
                   placeholder="Add a tag…"
                   maxLength={24}
-                  className="w-full rounded-lg border border-transparent bg-transparent px-1 py-1.5 text-sm outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/10 dark:hover:border-slate-700 dark:focus:border-indigo-500"
+                  className="w-full rounded-lg border border-transparent bg-transparent px-1 py-1.5 text-sm outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/10"
                 />
                 {tagInput.trim() && (
                   <button
@@ -508,28 +508,28 @@ export default function TaskDetail({
             </section>
 
             {/* Manual progress */}
-            <section className="mt-5 rounded-xl border border-slate-200 p-3.5 dark:border-slate-800">
+            <section className="mt-5 rounded-xl border border-slate-200 p-3.5">
               <div className="mb-3 flex items-center justify-between">
-                <p className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+                <p className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
                   <GaugeIcon className="h-3.5 w-3.5" />
                   Progress
                 </p>
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${
                     progressValue === 100
-                      ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400'
-                      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                      ? 'bg-emerald-50 text-emerald-600'
+                      : 'bg-slate-100 text-slate-500'
                   }`}
                 >
                   {progressValue}%
                 </span>
               </div>
 
-              <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+              <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100">
                 <div
                   className={`h-full rounded-full transition-all duration-200 ${
                     progressValue === 100
-                      ? 'bg-emerald-400 dark:bg-emerald-500'
+                      ? 'bg-emerald-400'
                       : 'bg-gradient-to-r from-indigo-500 to-violet-500'
                   }`}
                   style={{ width: `${progressValue}%` }}
@@ -559,7 +559,7 @@ export default function TaskDetail({
                     className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
                       progressValue === preset
                         ? 'bg-indigo-500 text-white shadow-sm shadow-indigo-500/30'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                     }`}
                   >
                     {preset}%
@@ -567,7 +567,7 @@ export default function TaskDetail({
                 ))}
               </div>
 
-              <p className="mt-2.5 text-[11px] text-slate-400 dark:text-slate-500">
+              <p className="mt-2.5 text-[11px] text-slate-400">
                 {progressValue === 100
                   ? 'Great — this task is marked done.'
                   : 'Set 100% to complete the task, or any lower value to keep it open.'}
@@ -580,11 +580,11 @@ export default function TaskDetail({
             {/* Subtasks */}
             <section className="mt-7">
               <div className="mb-2.5 flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
                   <ListChecksIcon className="h-4 w-4 text-indigo-500" />
                   Subtasks
                   {task.subtasks.length > 0 && (
-                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
                       {doneSubtasks}/{task.subtasks.length}
                     </span>
                   )}
@@ -592,7 +592,7 @@ export default function TaskDetail({
               </div>
 
               {task.subtasks.length > 0 && (
-                <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-300"
                     style={{ width: `${subtaskPercent}%` }}
@@ -604,7 +604,7 @@ export default function TaskDetail({
                 {task.subtasks.map((subtask) => (
                   <div
                     key={subtask.id}
-                    className="group flex items-center gap-2.5 rounded-lg px-1 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                    className="group flex items-center gap-2.5 rounded-lg px-1 py-1.5 hover:bg-slate-50"
                   >
                     <button
                       type="button"
@@ -614,7 +614,7 @@ export default function TaskDetail({
                       className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
                         subtask.done
                           ? 'border-indigo-600 bg-indigo-600 text-white'
-                          : 'border-slate-300 text-transparent hover:border-indigo-400 dark:border-slate-600'
+                          : 'border-slate-300 text-transparent hover:border-indigo-400'
                       }`}
                       aria-label={subtask.done ? 'Mark subtask incomplete' : 'Complete subtask'}
                     >
@@ -623,8 +623,8 @@ export default function TaskDetail({
                     <span
                       className={`flex-1 text-sm ${
                         subtask.done
-                          ? 'text-slate-400 line-through dark:text-slate-500'
-                          : 'text-slate-700 dark:text-slate-200'
+                          ? 'text-slate-400 line-through'
+                          : 'text-slate-700'
                       }`}
                     >
                       {subtask.text}
@@ -632,7 +632,7 @@ export default function TaskDetail({
                     <button
                       type="button"
                       onClick={() => onDeleteSubtask(subtask)}
-                      className="rounded p-1 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 focus:opacity-100 dark:text-slate-600"
+                      className="rounded p-1 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 focus:opacity-100"
                       aria-label="Delete subtask"
                     >
                       <TrashIcon className="h-3.5 w-3.5" />
@@ -648,7 +648,7 @@ export default function TaskDetail({
                   onChange={(event) => setSubtaskText(event.target.value)}
                   placeholder="Add a subtask…"
                   maxLength={200}
-                  className="w-full rounded-lg border border-transparent bg-transparent px-1 py-1.5 text-sm outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/10 dark:hover:border-slate-700 dark:focus:border-indigo-500"
+                  className="w-full rounded-lg border border-transparent bg-transparent px-1 py-1.5 text-sm outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/10"
                 />
                 {subtaskText.trim() && (
                   <button
@@ -663,18 +663,18 @@ export default function TaskDetail({
             </section>
 
             {/* Comments */}
-            <section className="mt-8 border-t border-slate-100 pt-6 dark:border-slate-800">
-              <h3 className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">
+            <section className="mt-8 border-t border-slate-100 pt-6">
+              <h3 className="mb-3 text-sm font-bold text-slate-800">
                 Comments
                 {task.comments.length > 0 && (
-                  <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
                     {task.comments.length}
                   </span>
                 )}
               </h3>
 
               {task.comments.length === 0 ? (
-                <p className="rounded-xl bg-slate-50 px-3.5 py-3 text-xs leading-relaxed text-slate-400 dark:bg-slate-800/50 dark:text-slate-500">
+                <p className="rounded-xl bg-slate-50 px-3.5 py-3 text-xs leading-relaxed text-slate-400">
                   No comments yet. Leave an update for your team, ask a question, or drop a link.
                 </p>
               ) : (
@@ -684,24 +684,24 @@ export default function TaskDetail({
                       <Avatar email={comment.email} size="sm" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
-                          <span className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          <span className="truncate text-xs font-semibold text-slate-700">
                             {comment.userId === currentUserId ? 'You' : comment.email.split('@')[0]}
                           </span>
-                          <span className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">
+                          <span className="shrink-0 text-[10px] text-slate-400">
                             {timeAgo(comment.createdAt)}
                           </span>
                           {(comment.userId === currentUserId || canModerate) && (
                             <button
                               type="button"
                               onClick={() => onDeleteComment(comment)}
-                              className="ml-auto rounded p-0.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 focus:opacity-100 dark:text-slate-600"
+                              className="ml-auto rounded p-0.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 focus:opacity-100"
                               aria-label="Delete comment"
                             >
                               <TrashIcon className="h-3.5 w-3.5" />
                             </button>
                           )}
                         </div>
-                        <p className="mt-0.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-slate-600 dark:text-slate-300">
+                        <p className="mt-0.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-slate-600">
                           {comment.text}
                         </p>
                       </div>
@@ -740,8 +740,8 @@ export default function TaskDetail({
           </div>
         </div>
 
-        <footer className="flex shrink-0 items-center justify-between border-t border-slate-100 px-5 py-3.5 dark:border-slate-800">
-          <span className="text-[11px] text-slate-400 dark:text-slate-500">
+        <footer className="flex shrink-0 items-center justify-between border-t border-slate-100 px-5 py-3.5">
+          <span className="text-[11px] text-slate-400">
             {task.createdAt ? `Created ${fullDate(task.createdAt)}` : ''}
           </span>
           {canDelete && (

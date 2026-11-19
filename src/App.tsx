@@ -37,21 +37,17 @@ import {
   CheckIcon,
   ChevronRightIcon,
   InboxIcon,
-  MoonIcon,
   PlusIcon,
-  SunIcon,
   UsersIcon,
   XIcon,
 } from './components/Icons'
 
-const THEME_KEY = 'todo.theme'
-
 const TOAST_STYLES: Record<ToastTone, string> = {
   success:
-    'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200',
+    'border-emerald-200 bg-emerald-50 text-emerald-800',
   error:
-    'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200',
-  info: 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200',
+    'border-rose-200 bg-rose-50 text-rose-800',
+  info: 'border-slate-200 bg-white text-slate-700',
 }
 
 export default function App() {
@@ -64,7 +60,6 @@ export default function App() {
   const [teamModal, setTeamModal] = useState<{ teamId: string | null } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null)
   const [checkinOpen, setCheckinOpen] = useState(false)
   const [checkinMode, setCheckinMode] = useState<'prompt' | 'edit'>('prompt')
@@ -133,19 +128,6 @@ export default function App() {
       cancelled = true
     }
   }, [currentUserId])
-
-  const toggleTheme = useCallback(() => {
-    setDark((previous) => {
-      const next = !previous
-      document.documentElement.classList.toggle('dark', next)
-      try {
-        localStorage.setItem(THEME_KEY, next ? 'dark' : 'light')
-      } catch {
-        /* storage can be unavailable; the class still applies */
-      }
-      return next
-    })
-  }, [])
 
   // Keep the current view valid if teams change (including the very first team).
   useEffect(() => {
@@ -465,7 +447,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950">
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-canvas">
         <Logo />
         <Spinner className="h-5 w-5 text-indigo-500" />
         <p className="text-xs text-slate-400">Loading your lists…</p>
@@ -476,8 +458,6 @@ export default function App() {
   if (!data) {
     return (
       <AuthScreen
-        dark={dark}
-        onToggleTheme={toggleTheme}
         onAuthed={async () => {
           await refresh()
         }}
@@ -512,214 +492,205 @@ export default function App() {
   const closeDetail = () => setSelectedId(null)
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="flex h-full flex-col overflow-hidden bg-canvas">
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="shrink-0 border-b border-slate-200 bg-white/85 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
-          <div className="mx-auto w-full max-w-3xl px-4 pt-3 pb-2 sm:px-8">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Logo className="hidden shrink-0 md:inline-flex" />
+        <header className="shrink-0 bg-canvas">
+          <div className="mx-auto w-full max-w-6xl px-4 pt-3 pb-2 sm:px-8">
+            <div className="insight-card px-4 py-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Logo className="hidden shrink-0 md:inline-flex" />
 
-              <div className="flex min-w-0 items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/70">
-                <button
-                  type="button"
-                  onClick={openMyTasks}
-                  aria-pressed={!isCollab}
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold transition sm:px-3 ${
-                    !isCollab
-                      ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
-                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <InboxIcon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">My task</span>
-                </button>
-
-                <div
-                  className={`flex items-center rounded-lg transition ${
-                    isCollab ? 'bg-white shadow-sm dark:bg-slate-900' : ''
-                  }`}
-                >
+                <div className="flex min-w-0 items-center gap-1 rounded-xl bg-white/80 p-1 ring-1 ring-slate-200/70">
                   <button
                     type="button"
-                    onClick={openCollaborate}
-                    aria-pressed={isCollab}
-                    className={`flex items-center gap-1.5 rounded-lg py-1.5 pr-1 pl-2.5 text-sm font-semibold transition sm:pl-3 ${
-                      isCollab
-                        ? 'text-slate-900 dark:text-white'
-                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                    onClick={openMyTasks}
+                    aria-pressed={!isCollab}
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold transition sm:px-3 ${
+                      !isCollab
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <UsersIcon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">Collaborate</span>
+                    <InboxIcon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">My task</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setTeamModal({ teamId: null })}
-                    className={`mr-1 rounded-md p-1 transition ${
-                      isCollab
-                        ? 'text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-500/10'
-                        : 'text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-white'
+
+                  <div
+                    className={`flex items-center rounded-lg transition ${
+                      isCollab ? 'bg-white shadow-sm' : ''
                     }`}
-                    aria-label="Create a team"
-                    title="Create a team"
                   >
-                    <PlusIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="ml-auto flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  onClick={toggleTheme}
-                  className="icon-btn hidden sm:inline-flex"
-                  aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-                  title={dark ? 'Light mode' : 'Dark mode'}
-                >
-                  {dark ? <SunIcon className="h-4.5 w-4.5" /> : <MoonIcon className="h-4.5 w-4.5" />}
-                </button>
-                <AccountMenu
-                  email={data.user.email}
-                  dark={dark}
-                  onToggleTheme={toggleTheme}
-                  onOpenSettings={() => setSettingsOpen(true)}
-                  onLogout={handleLogout}
-                />
-              </div>
-            </div>
-
-            {isCollab && (
-              <div className="mt-2.5">
-                <TeamBar
-                  teams={data.teams}
-                  activeTeamId={currentTeam?.id ?? null}
-                  counts={openCounts.perTeam}
-                  onSelect={openTeam}
-                  onManage={(teamId) => setTeamModal({ teamId })}
-                  onNewTeam={() => setTeamModal({ teamId: null })}
-                />
-              </div>
-            )}
-
-            <div className="mt-3 flex items-center gap-3">
-              {currentTeam ? (
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-sm">
-                  {currentTeam.name.slice(0, 1).toUpperCase()}
-                </span>
-              ) : (
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 dark:bg-indigo-500/10 dark:text-indigo-400">
-                  {isCollab ? (
-                    <UsersIcon className="h-5 w-5" />
-                  ) : (
-                    <CheckIcon className="h-5 w-5" strokeWidth={2.5} />
-                  )}
-                </span>
-              )}
-
-              <div className="min-w-0 flex-1">
-                <h1 className="truncate text-xl font-bold tracking-tight">{title}</h1>
-                <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                  {subtitle}
-                  <span className="hidden sm:inline">
-                    {' '}
-                    ·{' '}
-                    {new Date().toLocaleDateString(undefined, {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </span>
-                </p>
-              </div>
-
-              {currentTeam && (
-                <div className="hidden items-center md:flex">
-                  <div className="flex -space-x-2">
-                    {currentTeam.members.slice(0, 3).map((member) => (
-                      <Avatar key={member.id} email={member.email} size="sm" />
-                    ))}
+                    <button
+                      type="button"
+                      onClick={openCollaborate}
+                      aria-pressed={isCollab}
+                      className={`flex items-center gap-1.5 rounded-lg py-1.5 pr-1 pl-2.5 text-sm font-semibold transition sm:pl-3 ${
+                        isCollab
+                          ? 'text-slate-900'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <UsersIcon className="h-4 w-4 shrink-0" />
+                      <span className="truncate">Collaborate</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTeamModal({ teamId: null })}
+                      className={`mr-1 rounded-md p-1 transition ${
+                        isCollab
+                          ? 'text-indigo-600 hover:bg-white'
+                          : 'text-slate-500 hover:bg-white hover:text-slate-800'
+                      }`}
+                      aria-label="Create a team"
+                      title="Create a team"
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                    </button>
                   </div>
-                  {currentTeam.members.length > 3 && (
-                    <span className="ml-1.5 text-[11px] font-medium text-slate-400">
-                      +{currentTeam.members.length - 3}
-                    </span>
-                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedDate(todayDateValue())}
-                aria-pressed={isToday}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                  isToday
-                    ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
-                }`}
-              >
-                <CalendarIcon className="h-3.5 w-3.5" />
-                Today
-              </button>
-
-              <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-1 py-0.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
-                    date.setDate(date.getDate() - 1)
-                    setSelectedDate(dateInputValue(date.getTime()))
-                  }}
-                  className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                  aria-label="Previous day"
-                >
-                  <ChevronRightIcon className="h-3.5 w-3.5 rotate-180" />
-                </button>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(event) => {
-                    if (event.target.value) setSelectedDate(event.target.value)
-                  }}
-                  aria-label="View tasks for a date"
-                  className="w-[8.5rem] cursor-pointer border-0 bg-transparent px-1 py-1 text-center text-xs font-semibold text-slate-700 outline-none dark:text-slate-200"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
-                    date.setDate(date.getDate() + 1)
-                    setSelectedDate(dateInputValue(date.getTime()))
-                  }}
-                  className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                  aria-label="Next day"
-                >
-                  <ChevronRightIcon className="h-3.5 w-3.5" />
-                </button>
+                <div className="ml-auto flex shrink-0 items-center gap-1">
+                  <AccountMenu
+                    email={data.user.email}
+                    onOpenSettings={() => setSettingsOpen(true)}
+                    onLogout={handleLogout}
+                  />
+                </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setComposerOpen((open) => !open)}
-                aria-expanded={composerOpen}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                  composerOpen
-                    ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-200 dark:hover:bg-indigo-500/25'
-                    : 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-500 active:scale-[0.98]'
-                }`}
-              >
-                {composerOpen ? (
-                  <XIcon className="h-3.5 w-3.5" />
-                ) : (
-                  <PlusIcon className="h-3.5 w-3.5" />
-                )}
-                {composerOpen ? 'Close' : 'Add task'}
-              </button>
+              {isCollab && (
+                <div className="mt-2.5">
+                  <TeamBar
+                    teams={data.teams}
+                    activeTeamId={currentTeam?.id ?? null}
+                    counts={openCounts.perTeam}
+                    onSelect={openTeam}
+                    onManage={(teamId) => setTeamModal({ teamId })}
+                    onNewTeam={() => setTeamModal({ teamId: null })}
+                  />
+                </div>
+              )}
 
-              <span className="ml-auto flex items-center gap-1.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                {formatDateValue(selectedDate)}
-              </span>
+              <div className="mt-3 flex items-center gap-3">
+                {currentTeam ? (
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-sm">
+                    {currentTeam.name.slice(0, 1).toUpperCase()}
+                  </span>
+                ) : (
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-500">
+                    {isCollab ? (
+                      <UsersIcon className="h-5 w-5" />
+                    ) : (
+                      <CheckIcon className="h-5 w-5" strokeWidth={2.5} />
+                    )}
+                  </span>
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <h1 className="truncate text-xl font-bold tracking-tight">{title}</h1>
+                  <p className="truncate text-xs text-slate-500">
+                    {subtitle}
+                    <span className="hidden sm:inline">
+                      {' '}
+                      ·{' '}
+                      {new Date().toLocaleDateString(undefined, {
+                        weekday: 'long',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  </p>
+                </div>
+
+                {currentTeam && (
+                  <div className="hidden items-center md:flex">
+                    <div className="flex -space-x-2">
+                      {currentTeam.members.slice(0, 3).map((member) => (
+                        <Avatar key={member.id} email={member.email} size="sm" />
+                      ))}
+                    </div>
+                    {currentTeam.members.length > 3 && (
+                      <span className="ml-1.5 text-[11px] font-medium text-slate-400">
+                        +{currentTeam.members.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(todayDateValue())}
+                  aria-pressed={isToday}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                    isToday
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-white text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  Today
+                </button>
+
+                <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white/90 px-1 py-0.5 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
+                      date.setDate(date.getDate() - 1)
+                      setSelectedDate(dateInputValue(date.getTime()))
+                    }}
+                    className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Previous day"
+                  >
+                    <ChevronRightIcon className="h-3.5 w-3.5 rotate-180" />
+                  </button>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(event) => {
+                      if (event.target.value) setSelectedDate(event.target.value)
+                    }}
+                    aria-label="View tasks for a date"
+                    className="w-[8.5rem] cursor-pointer border-0 bg-transparent px-1 py-1 text-center text-xs font-semibold text-slate-700 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
+                      date.setDate(date.getDate() + 1)
+                      setSelectedDate(dateInputValue(date.getTime()))
+                    }}
+                    className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Next day"
+                  >
+                    <ChevronRightIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setComposerOpen((open) => !open)}
+                  aria-expanded={composerOpen}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                    composerOpen
+                      ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                      : 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-500 active:scale-[0.98]'
+                  }`}
+                >
+                  {composerOpen ? (
+                    <XIcon className="h-3.5 w-3.5" />
+                  ) : (
+                    <PlusIcon className="h-3.5 w-3.5" />
+                  )}
+                  {composerOpen ? 'Close' : 'Add task'}
+                </button>
+
+                <span className="ml-auto flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+                  {formatDateValue(selectedDate)}
+                </span>
+              </div>
             </div>
           </div>
         </header>
@@ -731,14 +702,14 @@ export default function App() {
                 {data.invites.map((invite) => (
                   <div
                     key={invite.teamId}
-                    className="flex flex-wrap items-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3.5 py-2.5 dark:border-indigo-500/20 dark:bg-indigo-500/5"
+                    className="flex flex-wrap items-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3.5 py-2.5"
                   >
-                    <p className="min-w-0 flex-1 text-xs leading-snug text-slate-600 dark:text-slate-300">
-                      <span className="font-semibold text-slate-900 dark:text-white">
+                    <p className="min-w-0 flex-1 text-xs leading-snug text-slate-600">
+                      <span className="font-semibold text-slate-900">
                         {invite.invitedByEmail}
                       </span>{' '}
                       invited you to{' '}
-                      <span className="font-semibold text-slate-900 dark:text-white">
+                      <span className="font-semibold text-slate-900">
                         {invite.teamName}
                       </span>
                     </p>
@@ -753,7 +724,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => declineInvite(invite)}
-                        className="rounded-lg px-2.5 py-1 text-[11px] font-medium text-slate-500 transition hover:bg-white/70 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                        className="rounded-lg px-2.5 py-1 text-[11px] font-medium text-slate-500 transition hover:bg-white/70 hover:text-slate-700"
                       >
                         Decline
                       </button>
@@ -781,47 +752,43 @@ export default function App() {
             )}
 
             {!isCollab && (
-              <div className="mb-4">
+              <div className="mb-5 min-w-0 space-y-4">
                 <OffDayCard date={selectedDate} notify={notify} onChanged={refresh} />
-              </div>
-            )}
 
-            {!isCollab && isToday && dailyStateData && (
-              <div className="mb-4">
-                <DailyStateCard
-                  state={dailyStateData}
-                  checkin={checkinStatus?.checkin ?? null}
-                  checkinState={checkinStatus?.state ?? 'not_asked'}
-                  celebrate={checkinCelebrate}
-                  onCelebrated={() => setCheckinCelebrate(false)}
-                  onEditCheckin={openCheckin}
-                  notify={notify}
-                  onState={setDailyStateData}
-                />
-              </div>
-            )}
+                {isToday && dailyStateData && (
+                  <DailyStateCard
+                    state={dailyStateData}
+                    checkin={checkinStatus?.checkin ?? null}
+                    checkinState={checkinStatus?.state ?? 'not_asked'}
+                    celebrate={checkinCelebrate}
+                    onCelebrated={() => setCheckinCelebrate(false)}
+                    onEditCheckin={openCheckin}
+                    notify={notify}
+                    onState={setDailyStateData}
+                  />
+                )}
 
-            {!isCollab && isToday && (
-              <div className="mb-4">
-                <PredictionPanel
-                  date={selectedDate}
-                  today={todayDateValue()}
-                  notify={notify}
-                  onOpenCheckin={openCheckin}
-                  refreshKey={`${checkinStatus?.checkin?.updatedAt ?? 0}:${data?.tasks.length ?? 0}`}
-                />
+                {isToday && (
+                  <PredictionPanel
+                    date={selectedDate}
+                    today={todayDateValue()}
+                    notify={notify}
+                    onOpenCheckin={openCheckin}
+                    refreshKey={`${checkinStatus?.checkin?.updatedAt ?? 0}:${data?.tasks.length ?? 0}`}
+                  />
+                )}
               </div>
             )}
 
             {view.kind === 'collab' && !currentTeam ? (
-              <div className="animate-in flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 px-6 py-14 text-center dark:border-slate-800">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500 dark:bg-indigo-500/10 dark:text-indigo-400">
+              <div className="animate-in flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 px-6 py-14 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500">
                   <UsersIcon className="h-6 w-6" />
                 </div>
-                <h3 className="mt-4 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                <h3 className="mt-4 text-sm font-semibold text-slate-700">
                   No teams yet
                 </h3>
-                <p className="mt-1 max-w-xs text-sm text-slate-500 dark:text-slate-400">
+                <p className="mt-1 max-w-xs text-sm text-slate-500">
                   Create a team to share tasks, assign work, and comment with other people.
                 </p>
                 <button
@@ -862,7 +829,7 @@ export default function App() {
               </>
             )}
 
-            <p className="mt-10 flex items-center justify-center gap-1.5 text-[11px] text-slate-300 dark:text-slate-600">
+            <p className="mt-10 flex items-center justify-center gap-1.5 text-[11px] text-slate-300">
               <UsersIcon className="h-3.5 w-3.5" />
               Your personal list is private. Team lists are shared with members only.
             </p>

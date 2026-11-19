@@ -6,6 +6,8 @@ import { badRequest, localDateString, notFound, resolveDate, type AuthedRequest 
 import { buildPlan, taskContext } from './predictors'
 import { livePredictor } from './live-predictor'
 import { getPredictionSettings, offDayContext } from './off-days'
+import { buildDaySchedule } from './day-planner'
+import { rescheduleSuggestions } from './reschedule'
 import {
   listFeedback,
   listPredictions,
@@ -58,6 +60,15 @@ router.get('/plan', (req: AuthedRequest, res) => {
     checkinState: state,
     offDay: plan.offDay,
     plan,
+    schedule: buildDaySchedule(db, userId, plan, {
+      date,
+      today,
+      nowMinutes: nowMinutesFor(date, today),
+      answers: row && row.skipped === 0 ? answeredValues(row) : null,
+    }),
+    reschedules: plan.offDay
+      ? { available: false, reason: 'Off days have no reschedule ideas.', suggestions: [] }
+      : rescheduleSuggestions(db, userId, { date, today }),
     predictions: plan.offDay ? [] : listPredictions(db, userId, date),
     driftNotes,
   })

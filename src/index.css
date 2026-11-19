@@ -1,8 +1,8 @@
 @import 'tailwindcss';
 
-@custom-variant dark (&:where(.dark, .dark *));
-
 @theme {
+  --color-canvas: #fffaf5;
+  --color-energy-teal: #009688;
   --font-sans:
     'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
     Arial, sans-serif;
@@ -21,8 +21,7 @@
   }
 
   body {
-    @apply bg-slate-50 font-sans text-slate-900 antialiased;
-    @apply dark:bg-slate-950 dark:text-slate-100;
+    @apply bg-canvas font-sans text-slate-900 antialiased;
   }
 
   ::selection {
@@ -39,9 +38,6 @@
     cursor: pointer;
   }
 
-  .dark input[type='date']::-webkit-calendar-picker-indicator {
-    filter: invert(1);
-  }
 }
 
 @layer components {
@@ -49,11 +45,10 @@
     @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition;
     @apply placeholder:text-slate-400;
     @apply focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10;
-    @apply dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-500;
   }
 
   .label {
-    @apply mb-1.5 block text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400;
+    @apply mb-1.5 block text-xs font-semibold tracking-wide text-slate-500 uppercase;
   }
 
   .btn-primary {
@@ -67,18 +62,62 @@
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition;
     @apply hover:bg-slate-100 hover:text-slate-900 active:scale-[0.98];
     @apply focus-visible:ring-4 focus-visible:ring-slate-500/15 focus-visible:outline-none;
-    @apply dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white;
   }
 
   .btn-danger {
     @apply inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-600 transition;
     @apply hover:border-rose-300 hover:bg-rose-100 active:scale-[0.98];
-    @apply dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20;
   }
 
   .card {
     @apply rounded-2xl border border-slate-200/80 bg-white shadow-sm;
-    @apply dark:border-slate-800 dark:bg-slate-900;
+  }
+
+  /* Daily insight cards: one calm, consistent shell for the panels above the board. */
+  .insight-card {
+    @apply overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm bg-gradient-to-br from-white to-slate-50/80;
+  }
+
+  .insight-icon {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-slate-900/5;
+  }
+
+  .insight-eyebrow {
+    @apply text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400;
+  }
+
+  .insight-title {
+    @apply text-sm font-bold tracking-tight text-slate-800;
+  }
+
+  .insight-subtitle {
+    @apply mt-0.5 text-xs leading-relaxed text-slate-500;
+  }
+
+  .insight-section {
+    @apply rounded-2xl border border-slate-100 bg-white/80 p-3.5 shadow-sm;
+  }
+
+  .insight-section-title {
+    @apply text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400;
+  }
+
+  .insight-pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold;
+  }
+
+  .insight-primary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-indigo-500;
+    @apply focus-visible:ring-4 focus-visible:ring-indigo-500/20 focus-visible:outline-none disabled:opacity-50;
+  }
+
+  .insight-quiet {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700;
+    @apply focus-visible:ring-4 focus-visible:ring-slate-500/15 focus-visible:outline-none disabled:opacity-50;
+  }
+
+  .insight-hint {
+    @apply text-[11px] leading-relaxed text-slate-400;
   }
 
   .sticky-note {
@@ -103,11 +142,6 @@
     transition:
       transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
       box-shadow 0.22s ease;
-  }
-
-  .dark .sticky-note {
-    --note-shadow: rgb(0 0 0 / 0.5);
-    --note-shadow-hover: rgb(0 0 0 / 0.6);
   }
 
   /* Folded bottom-right corner for that paper-note look. */
@@ -166,12 +200,6 @@
     box-shadow: inset 0 0 0 1px rgb(148 120 80 / 0.12);
   }
 
-  .dark .sticky-board {
-    background-color: rgb(30 35 45 / 0.5);
-    background-image: radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.05) 1px, transparent 1.4px);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.05);
-  }
-
   .energy-sparkle {
     position: absolute;
     font-size: 0.7rem;
@@ -184,7 +212,6 @@
     @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition;
     @apply hover:bg-slate-100 hover:text-slate-900;
     @apply focus-visible:ring-4 focus-visible:ring-slate-500/15 focus-visible:outline-none;
-    @apply dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white;
   }
 
   /* Check-in wizard: a soft per-question accent, driven by --accent. */
@@ -205,7 +232,7 @@
   }
 
   .progress-range {
-    @apply h-1.5 cursor-pointer appearance-none rounded-full bg-slate-100 dark:bg-slate-800;
+    @apply h-1.5 cursor-pointer appearance-none rounded-full bg-slate-100;
     @apply focus-visible:ring-4 focus-visible:ring-indigo-500/15 focus-visible:outline-none;
   }
 

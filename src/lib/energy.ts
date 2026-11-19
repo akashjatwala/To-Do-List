@@ -32,32 +32,32 @@ export function goodnessToScore(goodnessValue: number): number {
   return Math.round(((clamped - 1) / 4) * 100)
 }
 
-export type EnergyTone = 'amber' | 'teal' | 'green'
+export type EnergyTone = 'peach' | 'butter' | 'cyan' | 'lime' | 'plain'
 
 export interface EnergyBand {
-  key: 'drained' | 'low' | 'steady' | 'good' | 'strong'
+  key: 'drained' | 'low' | 'good' | 'strong' | 'steady'
   /** Decorative band emoji. Always paired with the text label. */
   emoji: string
   /** Neutral, non-judgemental label. */
   label: string
-  /** Which soft gradient the card uses. Never red. */
+  /** Which soft background the card uses. Never red. */
   tone: EnergyTone
 }
 
 /**
- * The five score bands. Boundaries are inclusive of the lower number:
- * 0–20, 21–40, 41–60, 61–80, 81–100.
+ * The four score bands. Boundaries are inclusive of the lower number:
+ * 0–20, 21–50, 51–80, 81–100. A withheld score (including no check-in)
+ * uses the plain white band.
  */
 export function scoreBand(score: number | null): EnergyBand {
   if (score === null || Number.isNaN(score)) {
-    return { key: 'steady', emoji: '🙂', label: 'Steady', tone: 'teal' }
+    return { key: 'steady', emoji: '🙂', label: 'Steady', tone: 'plain' }
   }
   const value = Math.max(0, Math.min(100, score))
-  if (value <= 20) return { key: 'drained', emoji: '🪫', label: 'Running low', tone: 'amber' }
-  if (value <= 40) return { key: 'low', emoji: '😴', label: 'Low', tone: 'amber' }
-  if (value <= 60) return { key: 'steady', emoji: '🙂', label: 'Steady', tone: 'teal' }
-  if (value <= 80) return { key: 'good', emoji: '💪', label: 'Good', tone: 'green' }
-  return { key: 'strong', emoji: '⚡', label: 'Strong', tone: 'green' }
+  if (value <= 20) return { key: 'drained', emoji: '🪫', label: 'Running low', tone: 'peach' }
+  if (value <= 50) return { key: 'low', emoji: '😴', label: 'Low', tone: 'butter' }
+  if (value <= 80) return { key: 'good', emoji: '💪', label: 'Good', tone: 'cyan' }
+  return { key: 'strong', emoji: '⚡', label: 'Strong', tone: 'lime' }
 }
 
 export type EnergySubScoreKey = 'physical' | 'mood' | 'focus' | 'capacity'
@@ -190,30 +190,34 @@ export function usualPhrase(comparison: UsualComparison | null): string | null {
 
 /** The CSS colour token for a sub-score number, from its value. */
 export function subScoreTextClass(score: number | null): string {
-  if (score === null) return 'text-slate-400 dark:text-slate-500'
-  if (score <= 40) return 'text-amber-600 dark:text-amber-400'
-  if (score <= 60) return 'text-sky-700 dark:text-sky-300'
-  return 'text-emerald-600 dark:text-emerald-400'
+  if (score === null) return 'text-slate-400'
+  if (score <= 40) return 'text-amber-600'
+  if (score <= 60) return 'text-sky-700'
+  return 'text-emerald-600'
 }
 
 /** The bar fill class for a sub-score, from its value. */
 export function subScoreBarClass(score: number | null): string {
-  if (score === null) return 'bg-slate-300 dark:bg-slate-600'
+  if (score === null) return 'bg-slate-300'
   if (score <= 40) return 'bg-amber-400'
   if (score <= 60) return 'bg-sky-500'
   return 'bg-emerald-500'
 }
 
-/** The gradient tint classes for the card, from the band tone. Never red. */
-export function bandGradientClass(tone: EnergyTone): string {
-  if (tone === 'amber') return 'from-amber-50 to-orange-50 dark:from-amber-500/10 dark:to-orange-500/5'
-  if (tone === 'green') return 'from-emerald-50 to-teal-50 dark:from-emerald-500/10 dark:to-teal-500/5'
-  return 'from-sky-50 to-cyan-50 dark:from-sky-500/10 dark:to-cyan-500/5'
+/** The card background class for a band. Never red. */
+export function bandBackgroundClass(tone: EnergyTone): string {
+  if (tone === 'peach') return 'bg-[#ffccbc]'
+  if (tone === 'butter') return 'bg-[#fff9c4]'
+  if (tone === 'cyan') return 'bg-[#e0f7fa]'
+  if (tone === 'lime') return 'bg-[#dcedc8]'
+  return 'bg-white'
 }
 
-/** The ring stroke colour class for the card, from the band tone. */
+/** The ring stroke colour class for a band, dark enough to read on its background. */
 export function bandRingClass(tone: EnergyTone): string {
-  if (tone === 'amber') return 'text-amber-500 dark:text-amber-400'
-  if (tone === 'green') return 'text-emerald-500 dark:text-emerald-400'
-  return 'text-sky-500 dark:text-sky-400'
+  if (tone === 'peach') return 'text-[#c25e3a]'
+  if (tone === 'butter') return 'text-[#a67c00]'
+  if (tone === 'cyan') return 'text-energy-teal'
+  if (tone === 'lime') return 'text-[#5b8c3e]'
+  return 'text-slate-300'
 }

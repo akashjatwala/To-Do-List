@@ -228,11 +228,52 @@ export interface PredictionPlan {
   note: string
 }
 
+/** A proposed, non-binding slot in the day. Nothing is written to the task. */
+export interface ScheduleSlot {
+  taskId: string
+  text: string
+  start: number
+  end: number
+  duration: number
+  shifted: boolean
+}
+
+export interface DaySchedule {
+  available: boolean
+  reason: string
+  capacityMinutes: number | null
+  plannedMinutes: number
+  slots: ScheduleSlot[]
+  unplaced: Array<{ taskId: string; text: string; duration: number }>
+  overloaded: boolean
+  warning: string | null
+}
+
+/** A concrete better day for a task the user just skipped or postponed. */
+export interface RescheduleSuggestion {
+  taskId: string
+  text: string
+  skippedDate: string
+  skippedKind: 'skipped' | 'postponed'
+  suggestedDate: string
+  suggestedStart: number | null
+  suggestedEnd: number | null
+  reason: string
+}
+
+export interface RescheduleResult {
+  available: boolean
+  reason: string
+  suggestions: RescheduleSuggestion[]
+}
+
 export interface PredictionPlanResponse {
   gate: boolean
   checkinState: string
   offDay: boolean
   plan: PredictionPlan | null
+  schedule: DaySchedule
+  reschedules: RescheduleResult
   predictions: unknown[]
 }
 

@@ -66,17 +66,17 @@ export default function EnergyDetailSheet({
         role="dialog"
         aria-modal="true"
         aria-label={`${subScore.label} — what is behind it`}
-        className="animate-in relative w-full max-w-md rounded-t-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:rounded-3xl dark:border-slate-800 dark:bg-slate-900"
+        className="animate-in relative w-full max-w-md rounded-t-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:rounded-3xl"
       >
         <div className="flex items-start gap-3">
           <span className="text-2xl leading-none" aria-hidden="true">
             {subScore.emoji}
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-base font-bold tracking-tight text-slate-900">
               {subScore.label}
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500">
               {subScore.score === null ? 'Nothing answered here yet.' : `${subScore.score}/100 today`}
             </p>
           </div>
@@ -99,20 +99,20 @@ export default function EnergyDetailSheet({
             return (
               <li
                 key={key}
-                className="flex items-start gap-3 rounded-2xl bg-slate-50 px-3.5 py-2.5 dark:bg-slate-800/50"
+                className="flex items-start gap-3 rounded-2xl bg-slate-50 px-3.5 py-2.5"
               >
                 <span className="text-lg leading-none" aria-hidden="true">
                   {fieldEmoji(key)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
+                  <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
                     {fieldLabel(key)}
                   </p>
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                  <p className="text-sm font-medium text-slate-800">
                     {answerText(key, value) ?? 'Answered'}
                   </p>
                   {comparison && (
-                    <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                    <p className="mt-0.5 text-[11px] text-slate-400">
                       {comparison}
                     </p>
                   )}
@@ -122,7 +122,7 @@ export default function EnergyDetailSheet({
           })}
         </ul>
 
-        <p className="mt-4 text-[10px] leading-snug text-slate-400 dark:text-slate-500">
+        <p className="mt-4 text-[10px] leading-snug text-slate-400">
           Only what you answered is listed. Where there is enough history, the note compares it with
           your own usual — an association in what you reported, not a cause.
         </p>

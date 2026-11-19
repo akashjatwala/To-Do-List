@@ -22,7 +22,7 @@ export default function SettingsModal({
       description="Manage your account and security."
       width="max-w-md"
     >
-      <div className="mb-4 flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/70">
+      <div className="mb-4 flex gap-1 rounded-xl bg-slate-100 p-1">
         {(
           [
             { key: 'password', label: 'Password' },
@@ -35,8 +35,8 @@ export default function SettingsModal({
             onClick={() => setTab(item.key)}
             className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
               tab === item.key
-                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
-                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             {item.label}
@@ -120,12 +120,12 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
       />
 
       {error && (
-        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">
           {error}
         </p>
       )}
 
-      <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+      <p className="text-[11px] leading-relaxed text-slate-400">
         Changing your password signs you out of every other device. This session stays active.
       </p>
 
@@ -166,12 +166,12 @@ function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3.5 dark:border-rose-500/30 dark:bg-rose-500/10">
-        <p className="flex items-center gap-2 text-sm font-semibold text-rose-700 dark:text-rose-300">
+      <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3.5">
+        <p className="flex items-center gap-2 text-sm font-semibold text-rose-700">
           <AlertIcon className="h-4 w-4" />
           Delete account
         </p>
-        <p className="mt-1 text-xs leading-relaxed text-rose-600/90 dark:text-rose-300/80">
+        <p className="mt-1 text-xs leading-relaxed text-rose-600/90">
           This permanently removes your account, your personal tasks, and any teams you host. This
           cannot be undone.
         </p>
@@ -199,7 +199,7 @@ function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
           />
 
           {error && (
-            <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+            <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">
               {error}
             </p>
           )}
@@ -271,7 +271,7 @@ function PasswordField({
         <button
           type="button"
           onClick={onToggleShow}
-          className="absolute top-1/2 right-2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200"
+          className="absolute top-1/2 right-2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition hover:text-slate-600"
           aria-label={show ? 'Hide password' : 'Show password'}
           tabIndex={-1}
         >

@@ -31,17 +31,22 @@ test('goodnessToScore maps the flipped scale onto 0–100', () => {
   assert.equal(goodnessToScore(9), 100)
 })
 
-test('scoreBand follows the five documented boundaries', () => {
+test('scoreBand follows the four documented boundaries', () => {
   assert.equal(scoreBand(0).key, 'drained')
   assert.equal(scoreBand(20).key, 'drained')
   assert.equal(scoreBand(21).key, 'low')
-  assert.equal(scoreBand(40).key, 'low')
-  assert.equal(scoreBand(41).key, 'steady')
-  assert.equal(scoreBand(60).key, 'steady')
-  assert.equal(scoreBand(61).key, 'good')
+  assert.equal(scoreBand(50).key, 'low')
+  assert.equal(scoreBand(51).key, 'good')
   assert.equal(scoreBand(80).key, 'good')
   assert.equal(scoreBand(81).key, 'strong')
   assert.equal(scoreBand(100).key, 'strong')
+})
+
+test('scoreBand maps each range to its requested background colour', () => {
+  assert.equal(scoreBand(10).tone, 'peach')
+  assert.equal(scoreBand(30).tone, 'butter')
+  assert.equal(scoreBand(60).tone, 'cyan')
+  assert.equal(scoreBand(90).tone, 'lime')
 })
 
 test('scoreBand never uses red and always has a text label', () => {
@@ -53,10 +58,10 @@ test('scoreBand never uses red and always has a text label', () => {
   }
 })
 
-test('scoreBand treats a withheld score as steady rather than a low band', () => {
+test('scoreBand treats a withheld score as steady with a plain white band', () => {
   const band = scoreBand(null)
   assert.equal(band.key, 'steady')
-  assert.equal(band.tone, 'teal')
+  assert.equal(band.tone, 'plain')
 })
 
 test('displaySubScores only counts answered fields and never invents values', () => {
@@ -146,7 +151,7 @@ test('usualPhrase never says good or bad and never states a cause', () => {
 })
 
 test('sub-score colour helpers pick a sensible tone and never red', () => {
-  assert.equal(subScoreTextClass(null), 'text-slate-400 dark:text-slate-500')
+  assert.equal(subScoreTextClass(null), 'text-slate-400')
   assert.match(subScoreTextClass(30), /amber/)
   assert.match(subScoreTextClass(50), /sky/)
   assert.match(subScoreTextClass(90), /emerald/)
