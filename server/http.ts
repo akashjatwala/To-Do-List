@@ -22,7 +22,14 @@ export function parseCookies(header: string | undefined): Record<string, string>
     if (index === -1) continue
     const key = part.slice(0, index).trim()
     if (!key) continue
-    out[key] = decodeURIComponent(part.slice(index + 1).trim())
+    const raw = part.slice(index + 1).trim()
+    try {
+      out[key] = decodeURIComponent(raw)
+    } catch {
+      // A malformed escape sequence in one cookie must not turn the whole
+      // request into a 500. Keep the raw value; auth lookups simply miss it.
+      out[key] = raw
+    }
   }
   return out
 }
