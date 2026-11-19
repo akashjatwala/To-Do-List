@@ -11,21 +11,23 @@
 - `server/ml/off-days.ts` — off days and the reduced-confidence window
 - `server/ml/estimates.ts` — the display estimates and their validation
 - `server/ml/predictions.ts` — the prediction log and feedback
-- `server/ml/day-planner.ts` — the proposed flow and workload warning for the plan
-- `server/ml/reschedule.ts` — display-only ideas for tasks that could move to another day
+- `server/ml/day-planner.ts` — the proposed flow and workload warning (still computed by the API, no longer shown in the UI)
+- `server/ml/reschedule.ts` — display-only ideas for tasks that could move to another day (still computed by the API, no longer shown in the UI)
 - `server/ml/prediction-routes.ts` — the `/api/predictions` routes
 - `src/components/PredictionPanel.tsx` — the on-screen card
 
 ## What is predicted
 
-| Number | Meaning | Absent when |
-| --- | --- | --- |
-| Completion probability | How likely you are to do the task on that day | Never (always a number) |
-| Target probability | How likely you are to reach the day's target | The task has no target duration |
-| Expected duration | How long it usually takes, with a low–high range | Not enough duration history |
-| Recommended window | A suggested start–end time | No timing history yet |
-| Confidence | low / medium / high | Never |
-| Stage | 1 (starting estimate) or 2 (personalised) | Never |
+| Number | Shown as | Meaning | Absent when |
+| --- | --- | --- | --- |
+| Completion probability | Will finish | How likely you are to do the task on that day | Never (always a number) |
+| Target probability | Full time goal | How likely you are to reach the task's full time target | The task has no target duration |
+| Expected duration | Est. time | Roughly how long it usually takes | Not enough duration history |
+| Confidence | low / medium / high | How much personal history backs the number | Never |
+| Stage | not shown | 1 (starting estimate) or 2 (personalised) | Never |
+
+The recommended window, proposed flow, workload warning and "better days" ideas are
+still computed, logged and returned by the API, but the current UI does not display them.
 
 Everything is a **suggestion**. A preferred time, where one is set, is an initial hint
 only — never a deadline.
@@ -76,8 +78,8 @@ See [ml.md](ml.md) for how a champion is trained, promoted and watched.
 - `GET /api/predictions/plan` is gated on today's check-in. Until it is completed or skipped, the response says `gate: true` and shows no numbers.
 - An off day returns `offDay: true` with **no** predictions at all.
 - The plan ranks today's open tasks by probability, priority, what is left of the target and how much time is left. The ranking is a suggestion; it never changes a probability.
-- The same `/plan` response also carries `schedule` (a proposed flow and workload warning) and `reschedules` (ideas for another day). Both are **display-only**: nothing is written to a task's date, and accepting an idea only records your choice as feedback. An off day suppresses both.
-- Low-confidence, low-priority, sufficiently-labelled tasks may get optional reschedule/drop suggestions. They are offered, never forced.
+- The same `/plan` response also carries `schedule` (a proposed flow and workload warning) and `reschedules` (ideas for another day). Both are still computed as **display-only** data — nothing is written to a task's date — but the current UI does not show them. An off day suppresses both.
+- Low-confidence, low-priority, sufficiently-labelled tasks may still produce **Worth a look** suggestions. They are offered as ideas, never forced.
 - Plain-language **drift notes** (a recent-vs-long-term shift, or a dated configuration change) are added next to the plan. They are informational and never change a number.
 
 ## The prediction log

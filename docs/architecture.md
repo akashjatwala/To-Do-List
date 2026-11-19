@@ -36,7 +36,7 @@ Each job lives in its own file, so it can be tested and reasoned about alone.
 | Feature engineering | `ml/features.ts`, `ml/dataset.ts` | Builds the one feature vector used by both training and serving |
 | Training | `ml/training.ts`, `ml/model/` (`logistic.ts`, `gbm.ts`, `quantile.ts`, `math.ts`), `ml/calibration.ts`, `ml/pipeline.ts` | Trains the candidate models and chooses one |
 | Evaluation | `ml/metrics.ts` | Brier score, calibration, duration error |
-| Prediction (serving) | `ml/predictors.ts` (baseline), `ml/serving.ts` (champion), `ml/estimates.ts`, `ml/cold-start.ts` | Produces the numbers and the time window shown to the user |
+| Prediction (serving) | `ml/predictors.ts` (baseline), `ml/serving.ts` (champion), `ml/estimates.ts`, `ml/cold-start.ts` | Produces the probabilities and duration estimate shown to the user; the time window is computed and logged but not displayed |
 | Continuous learning | `ml/learning.ts`, `ml/shadow.ts` | Links recorded activity to outcomes, gates and rate-limits retraining |
 | Model versioning | `ml/registry.ts` | Append-only model rows, promotion, rollback, loading |
 | Live health & drift | `ml/health.ts`, `ml/drift.ts` | Watches the served model and reports change |

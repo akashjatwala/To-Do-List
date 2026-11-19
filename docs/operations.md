@@ -94,8 +94,9 @@ Both prediction routes (`GET /api/predictions/plan` and `GET /api/predictions/ta
 through one entry point, `server/ml/live-predictor.ts`. For each task it serves the champion
 completion, target and duration numbers when a model is registered, loadable and healthy;
 otherwise it falls back to the baseline predictor. The recommended time window and the
-plain-language explanation still come from the baseline, so timing is unchanged. With no
-trained model in the database, behaviour is identical to the baseline-only app.
+plain-language explanation still come from the baseline, so timing is unchanged. The window
+is logged with the prediction but is not displayed in the current UI. With no trained model
+in the database, behaviour is identical to the baseline-only app.
 
 To compare the two or disable model serving in an emergency, start the server with
 `ML_DISABLE_MODEL_SERVING=1`. This keeps all baseline-only behaviour without changing or

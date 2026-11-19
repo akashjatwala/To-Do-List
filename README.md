@@ -1,4 +1,6 @@
-# To-do.
+# DUIT
+
+**Do It. Do It Smarter**
 
 A focused to-do list app for individuals and small teams, with a private, on-device
 learning system that predicts what you are realistically likely to get done and
@@ -24,14 +26,14 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - Tap a sticky note once to open its task details and edit it (double-click also works on desktop)
 - One-tap tags (Work, Personal, Meeting, …) plus custom tags
 - An optional ideal duration per task, shown on the note and in task details
-- Completed tasks move to a normal list on the right, scoped to the same day
+- Completed tasks collect in a list on the right, scoped to the same day
 - Create personal tasks in **My task**, or open a team in **Collaborate** — new tasks are filed into the list you are viewing
-- **Add task** opens a composer just above the Off days card, so it sits before the day's Off days, Energy Level and Today's plan cards
+- **Add task** opens a composer just under the header, above the Energy Level card and board. In **My task**, the Off days and Today's plan cards sit in the right-hand column above Completed, leaving more room for the notes
 - Recurring tasks (daily, weekly, monthly, or custom weekly weekdays / nth-weekday monthly); completing one automatically creates the next occurrence
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking
 - Task comments
-- Light-only interface with a clean white background and no theme toggle
+- Light-only interface with a soft cream background (`#F8F1E8`) and no theme toggle
 - Responsive phone layout: the board and completed list stack, notes open on tap, and controls stay reachable on touch
 - Installable PWA: **Add to Home Screen** on iOS, or the **Install** button where supported; the app shell can open offline, while live data still needs the server
 
@@ -40,9 +42,9 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - A daily check-in (nine optional questions) and an optional evening review
 - Activity logging: timed sessions and one-tap per-day statuses (completed / partial / skipped / postponed)
 - Per-activity statistics, a readiness/energy view, and similar-day context
-- Predictions: how likely you are to do a task, whether you will hit the target, how long it usually takes, and a suggested time window
+- Predictions shown as **Will finish**, **Full time goal** and **Est. time**, with a plain-language confidence level and hover explanations for each number
 - Off days (sick / travel / holiday / other) that reduce confidence rather than inventing data
-- A read-only day planner (proposed flow and workload warning) and reschedule ideas, shown as suggestions only — they never change a task's date
+- Display-only **Worth a look** suggestions. The server still computes the proposed flow, workload warning and "better days" ideas, but they are no longer shown in the UI; none of them change a task's date
 - Versioned tags, priority, target duration and preferred time, with full history
 - Local model training, versioning, promotion, rollback and a plain-words model health view
 - Trained champions are served for completion, target and duration when healthy; with no model yet, the starting estimates are shown instead
