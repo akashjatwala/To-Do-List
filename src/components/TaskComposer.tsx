@@ -139,7 +139,7 @@ export default function TaskComposer({
   }
 
   const selectClass =
-    'cursor-pointer rounded-lg border-0 bg-transparent py-1.5 pr-6 pl-7 text-xs font-medium text-slate-600 outline-none transition hover:bg-slate-100'
+    'cursor-pointer rounded-lg border-0 bg-transparent py-1.5 pr-6 pl-7 text-base font-medium text-slate-600 outline-none transition hover:bg-slate-100 sm:text-xs'
 
   const customTags = tags.filter((tag) => !COMMON_TAGS.includes(tag))
 
@@ -158,7 +158,7 @@ export default function TaskComposer({
           onChange={(event) => setText(event.target.value)}
           placeholder={`Add a task to ${contextLabel}…`}
           maxLength={500}
-          className="w-full border-0 bg-transparent py-2 text-[15px] text-slate-900 outline-none placeholder:text-slate-400"
+          className="w-full border-0 bg-transparent py-2 text-base text-slate-900 outline-none placeholder:text-slate-400"
           aria-label="New task"
         />
       </div>
@@ -170,7 +170,7 @@ export default function TaskComposer({
             type="date"
             value={due}
             onChange={(event) => setDue(event.target.value)}
-            className="max-w-[7.5rem] cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-slate-600 outline-none"
+            className="max-w-full cursor-pointer border-0 bg-transparent p-0 text-base font-medium text-slate-600 outline-none sm:max-w-[7.5rem] sm:text-xs"
             aria-label="Due date"
           />
         </label>
@@ -225,7 +225,7 @@ export default function TaskComposer({
             value={duration}
             onChange={(event) => setDuration(event.target.value.replace(/\D/g, '').slice(0, 5))}
             placeholder="Duration"
-            className="w-[4.5rem] border-0 bg-transparent p-0 text-xs font-medium text-slate-600 outline-none placeholder:text-slate-400"
+            className="w-[5.5rem] border-0 bg-transparent p-0 text-base font-medium text-slate-600 outline-none placeholder:text-slate-400 sm:w-[4.5rem] sm:text-xs"
             aria-label="Ideal duration in minutes"
             title="Ideal duration of the task, in minutes"
           />
@@ -241,7 +241,7 @@ export default function TaskComposer({
             type="time"
             value={preferredTime}
             onChange={(event) => setPreferredTime(event.target.value)}
-            className="w-[5.5rem] cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-slate-600 outline-none"
+            className="w-[6.5rem] cursor-pointer border-0 bg-transparent p-0 text-base font-medium text-slate-600 outline-none sm:w-[5.5rem] sm:text-xs"
             aria-label="Preferred time of day"
           />
         </label>

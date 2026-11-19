@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type PointerEvent,
+} from 'react'
 import type { Task } from '@/types'
 import { formatDuration, PRIORITY_META, STICKY_META, recurrenceShort } from '@/lib/taskmeta'
 import { noteTilt, pinClass } from '@/lib/notes'
@@ -24,7 +31,7 @@ interface BoardProps {
 
 /**
  * A decorative push-pin, centred on a note's top edge. It is not interactive
- * (the note still drags and double-clicks as before) and is hidden from screen
+ * (the note still opens on tap and drags from the grip) and is hidden from screen
  * readers; the colour is chosen by a stable rule so a note keeps its pin.
  */
 function PushPin({ taskId }: { taskId: string }) {
@@ -61,6 +68,8 @@ export function StickyBoard({
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<{ id: string; side: 'before' | 'after' } | null>(null)
   const dragId = useRef<string | null>(null)
+  // Pointer events batch state updates, so keep the live drop target in a ref too.
+  const dropRef = useRef<{ id: string; side: 'before' | 'after' } | null>(null)
 
   useEffect(() => {
     setOrdered(tasks)
@@ -98,8 +107,28 @@ export function StickyBoard({
 
   const clearDrag = () => {
     dragId.current = null
+    dropRef.current = null
     setDraggingId(null)
     setDropTarget(null)
+  }
+
+  const markDropTarget = (id: string, side: 'before' | 'after') => {
+    if (dropRef.current?.id === id && dropRef.current.side === side) return
+    const next = { id, side }
+    dropRef.current = next
+    setDropTarget(next)
+  }
+
+  const moveNote = (sourceId: string, targetId: string, side: 'before' | 'after') => {
+    const next = [...ordered]
+    const from = next.findIndex((item) => item.id === sourceId)
+    if (from === -1 || sourceId === targetId) return
+    const [moved] = next.splice(from, 1)
+    const targetIndex = next.findIndex((item) => item.id === targetId)
+    if (targetIndex === -1) return
+    next.splice(targetIndex + (side === 'after' ? 1 : 0), 0, moved)
+    setOrdered(next)
+    onReorder(next.map((item) => item.id))
   }
 
   const handleDragStart = (event: DragEvent<HTMLElement>, task: Task) => {
@@ -116,14 +145,15 @@ export function StickyBoard({
     event.dataTransfer.dropEffect = 'move'
     const rect = event.currentTarget.getBoundingClientRect()
     const side = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
-    setDropTarget((current) =>
-      current?.id === task.id && current.side === side ? current : { id: task.id, side },
-    )
+    markDropTarget(task.id, side)
   }
 
   const handleDragLeave = (event: DragEvent<HTMLElement>, task: Task) => {
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-    setDropTarget((current) => (current?.id === task.id ? null : current))
+    if (dropRef.current?.id === task.id) {
+      dropRef.current = null
+      setDropTarget(null)
+    }
   }
 
   const handleDrop = (event: DragEvent<HTMLElement>, task: Task) => {
@@ -136,19 +166,51 @@ export function StickyBoard({
 
     const rect = event.currentTarget.getBoundingClientRect()
     const side = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
-    const next = [...ordered]
-    const from = next.findIndex((item) => item.id === sourceId)
-    if (from === -1) {
-      clearDrag()
+    clearDrag()
+    moveNote(sourceId, task.id, side)
+  }
+
+  // Touch devices have no HTML5 drag-and-drop, so the grip uses pointer events.
+  const handleGripDown = (event: PointerEvent<HTMLButtonElement>, task: Task) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    // Stop the browser's native HTML5 drag from competing with the pointer drag.
+    event.preventDefault()
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      // Synthetic or cancelled pointers cannot be captured; dragging still works.
+    }
+    dragId.current = task.id
+    setDraggingId(task.id)
+    dropRef.current = null
+    setDropTarget(null)
+  }
+
+  const handleGripMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const sourceId = dragId.current
+    if (!sourceId) return
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest('[data-note-id]') as HTMLElement | null
+    const targetId = target?.dataset.noteId
+    if (!targetId || targetId === sourceId) {
+      dropRef.current = null
+      setDropTarget(null)
       return
     }
-    const [moved] = next.splice(from, 1)
-    const targetIndex = next.findIndex((item) => item.id === task.id)
-    next.splice(targetIndex + (side === 'after' ? 1 : 0), 0, moved)
+    const rect = target.getBoundingClientRect()
+    const side = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
+    markDropTarget(targetId, side)
+  }
 
+  const handleGripUp = (event: PointerEvent<HTMLButtonElement>) => {
+    const sourceId = dragId.current
+    const target = dropRef.current
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
     clearDrag()
-    setOrdered(next)
-    onReorder(next.map((item) => item.id))
+    if (sourceId && target) moveNote(sourceId, target.id, target.side)
   }
 
   if (ordered.length === 0) {
@@ -189,12 +251,17 @@ export function StickyBoard({
             onDragOver={(event) => handleDragOver(event, task)}
             onDragLeave={(event) => handleDragLeave(event, task)}
             onDrop={(event) => handleDrop(event, task)}
+            data-note-id={task.id}
+            onClick={(event) => {
+              if ((event.target as HTMLElement).closest('[data-note-action]')) return
+              onOpen(task)
+            }}
             onDoubleClick={(event) => {
               if ((event.target as HTMLElement).closest('[data-note-action]')) return
               onOpen(task)
             }}
             style={{ '--tilt': `${noteTilt(task.id)}deg` } as CSSProperties}
-            title="Drag to rearrange · Double-click to open"
+            title="Tap to open · drag the grip to rearrange"
             className={`sticky-note group relative flex min-h-[10rem] cursor-grab flex-col border-2 px-4 pt-7 pb-4 active:cursor-grabbing ${meta.note} ${
               isDragging ? 'opacity-40' : ''
             } ${isNew ? 'sticky-pin-new' : ''}`}
@@ -233,13 +300,19 @@ export function StickyBoard({
                 </p>
               </div>
 
-              <span
-                aria-hidden="true"
+              <button
+                type="button"
                 data-note-action
-                className={`mt-0.5 hidden shrink-0 rounded-md p-1 opacity-25 transition group-hover:opacity-60 sm:inline-flex ${meta.muted}`}
+                aria-label={`Drag to reorder ${task.text}`}
+                title="Drag to reorder"
+                onPointerDown={(event) => handleGripDown(event, task)}
+                onPointerMove={handleGripMove}
+                onPointerUp={handleGripUp}
+                onPointerCancel={clearDrag}
+                className={`mt-0.5 inline-flex shrink-0 touch-none rounded-md p-1 opacity-40 transition hover:opacity-90 sm:opacity-25 sm:group-hover:opacity-60 ${meta.muted}`}
               >
                 <GripIcon className="h-3.5 w-3.5" />
-              </span>
+              </button>
 
               {canDelete(task) && (
                 <button
@@ -248,7 +321,7 @@ export function StickyBoard({
                   onClick={() => {
                     if (window.confirm(`Delete “${task.text}”?`)) onDelete(task)
                   }}
-                  className={`-mt-1 -mr-1.5 rounded-lg p-1 opacity-0 transition group-hover:opacity-60 hover:opacity-100 focus:opacity-100 ${meta.muted}`}
+                  className={`-mt-1 -mr-1.5 rounded-lg p-1 opacity-60 transition hover:opacity-100 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-60 ${meta.muted}`}
                   aria-label="Delete task"
                   title="Delete task"
                 >
@@ -409,7 +482,7 @@ export function CompletedColumn({
                       onClick={() => {
                         if (window.confirm(`Delete “${task.text}”?`)) onDelete(task)
                       }}
-                      className="mt-0.5 rounded p-1 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 focus:opacity-100"
+                      className="mt-0.5 rounded p-1 text-slate-300 opacity-70 transition hover:text-rose-500 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                       aria-label="Delete task"
                       title="Delete task"
                     >

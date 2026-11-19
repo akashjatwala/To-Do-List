@@ -20,8 +20,8 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - Two top-level views — **My task** (only your private personal tasks) and **Collaborate** (team lists; pick a team from the row underneath, and use the **+** beside Collaborate to create one)
 - A day-by-day board: sticky notes for the selected day, with a calendar picker and prev/next-day controls
 - Priority-colored sticky notes — low = soft green, medium = cream, high = soft red
-- Drag sticky notes to rearrange them; the order is saved and remembered
-- Double-click anywhere on a sticky note to open its task details and edit it (a single click does nothing)
+- Drag sticky notes to rearrange them (use the grip on touch); the order is saved and remembered
+- Tap a sticky note once to open its task details and edit it (double-click also works on desktop)
 - One-tap tags (Work, Personal, Meeting, …) plus custom tags
 - An optional ideal duration per task, shown on the note and in task details
 - Completed tasks move to a normal list on the right, scoped to the same day
@@ -31,8 +31,9 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking
 - Task comments
-- Light-only interface with a soft warm-canvas theme and no theme toggle
-- Responsive layout with a slide-over task panel
+- Light-only interface with a clean white background and no theme toggle
+- Responsive phone layout: the board and completed list stack, notes open on tap, and controls stay reachable on touch
+- Installable PWA: **Add to Home Screen** on iOS, or the **Install** button where supported; the app shell can open offline, while live data still needs the server
 
 **Learning system (local, on-device)**
 

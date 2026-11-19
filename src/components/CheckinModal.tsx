@@ -257,7 +257,7 @@ export default function CheckinModal({
         role="dialog"
         aria-modal="true"
         aria-label={mode === 'prompt' ? 'Daily check-in' : 'Update your check-in'}
-        className="animate-in relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl"
+        className="animate-in relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl"
       >
         {/* Header: greeting, progress and the always-available skip controls */}
         <div className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-2 sm:px-5">
@@ -381,7 +381,7 @@ export default function CheckinModal({
                 rows={2}
                 maxLength={500}
                 placeholder="A short note, if you want to remember the context."
-                className="field resize-none text-sm"
+                className="field resize-none"
               />
             </label>
           </div>

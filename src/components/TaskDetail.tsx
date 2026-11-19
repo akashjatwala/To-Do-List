@@ -109,8 +109,13 @@ export default function TaskDetail({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previousOverflow
+    }
   }, [onClose])
 
   const saveTitle = async () => {
@@ -307,7 +312,7 @@ export default function TaskDetail({
                   type="date"
                   value={dateInputValue(task.due)}
                   onChange={(event) => onUpdate({ due: dueFromDateInput(event.target.value) })}
-                  className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10"
+                  className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-base text-slate-700 outline-none transition sm:text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10"
                 />
                 {task.due !== null && (
                   <button
@@ -342,7 +347,7 @@ export default function TaskDetail({
                     }}
                     placeholder="No estimate"
                     aria-label="Ideal duration in minutes"
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-base text-slate-700 outline-none transition sm:text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10"
                   />
                   <span className="shrink-0 text-xs font-medium text-slate-400">
                     min
@@ -364,7 +369,7 @@ export default function TaskDetail({
                       void onUpdate({ preferredTime: event.target.value || null })
                     }}
                     aria-label="Preferred time of day"
-                    className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10"
+                    className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-base text-slate-700 outline-none transition sm:text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10"
                   />
                   {preferredTime && (
                     <button
@@ -421,7 +426,7 @@ export default function TaskDetail({
                 <select
                   value={task.recurrence}
                   onChange={(event) => changeRecurrence(event.target.value as Recurrence)}
-                  className="field cursor-pointer py-2! text-sm"
+                  className="field cursor-pointer py-2!"
                 >
                   {RECURRENCE_VALUES.map((value) => (
                     <option key={value} value={value}>
@@ -494,7 +499,7 @@ export default function TaskDetail({
                   onChange={(event) => setTagInput(event.target.value)}
                   placeholder="Add a tag…"
                   maxLength={24}
-                  className="w-full rounded-lg border border-transparent bg-transparent px-1 py-1.5 text-sm outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/10"
+                  className="w-full rounded-lg border border-transparent bg-transparent px-1 py-1.5 text-base outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/10 sm:text-sm"
                 />
                 {tagInput.trim() && (
                   <button
@@ -632,7 +637,7 @@ export default function TaskDetail({
                     <button
                       type="button"
                       onClick={() => onDeleteSubtask(subtask)}
-                      className="rounded p-1 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 focus:opacity-100"
+                      className="rounded p-1 text-slate-300 opacity-70 transition hover:text-rose-500 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                       aria-label="Delete subtask"
                     >
                       <TrashIcon className="h-3.5 w-3.5" />
@@ -648,7 +653,7 @@ export default function TaskDetail({
                   onChange={(event) => setSubtaskText(event.target.value)}
                   placeholder="Add a subtask…"
                   maxLength={200}
-                  className="w-full rounded-lg border border-transparent bg-transparent px-1 py-1.5 text-sm outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/10"
+                  className="w-full rounded-lg border border-transparent bg-transparent px-1 py-1.5 text-base outline-none placeholder:text-slate-400 hover:border-slate-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-500/10 sm:text-sm"
                 />
                 {subtaskText.trim() && (
                   <button
@@ -694,7 +699,7 @@ export default function TaskDetail({
                             <button
                               type="button"
                               onClick={() => onDeleteComment(comment)}
-                              className="ml-auto rounded p-0.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 focus:opacity-100"
+                              className="ml-auto rounded p-0.5 text-slate-300 opacity-70 transition hover:text-rose-500 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                               aria-label="Delete comment"
                             >
                               <TrashIcon className="h-3.5 w-3.5" />
@@ -723,7 +728,7 @@ export default function TaskDetail({
                   rows={2}
                   maxLength={2000}
                   placeholder="Write a comment…  (Enter to send)"
-                  className="field resize-none text-sm"
+                  className="field resize-none"
                 />
                 <div className="mt-2 flex justify-end">
                   <button

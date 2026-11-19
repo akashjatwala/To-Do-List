@@ -63,7 +63,8 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`animate-in relative w-full ${width} max-h-[90vh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-6 shadow-2xl sm:rounded-2xl`}
+        className={`animate-in relative w-full ${width} max-h-[90dvh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-6 shadow-2xl sm:rounded-2xl`}
+        style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>

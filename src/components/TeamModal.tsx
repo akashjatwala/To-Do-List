@@ -296,7 +296,7 @@ function ManageTeam({
                   <button
                     type="button"
                     onClick={() => removeMember(member.id, member.email)}
-                    className="rounded-lg p-1.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-500"
+                    className="rounded-lg p-1.5 text-slate-300 opacity-70 transition hover:bg-rose-50 hover:text-rose-500 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                     aria-label={`Remove ${member.email}`}
                     title="Remove from team"
                   >

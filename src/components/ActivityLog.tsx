@@ -284,14 +284,14 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
           max={today}
           onChange={(event) => setSessionDate(event.target.value)}
           aria-label="Session date"
-          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-indigo-400"
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-base text-slate-600 outline-none focus:border-indigo-400 sm:text-xs"
         />
         <input
           type="time"
           value={startTime}
           onChange={(event) => setStartTime(event.target.value)}
           aria-label="Session start time"
-          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none focus:border-indigo-400"
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-base text-slate-600 outline-none focus:border-indigo-400 sm:text-xs"
         />
         <input
           type="text"
@@ -300,7 +300,7 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
           onChange={(event) => setMinutes(event.target.value.replace(/\D/g, '').slice(0, 4))}
           placeholder="Minutes"
           aria-label="Session duration in minutes"
-          className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 outline-none placeholder:text-slate-400 focus:border-indigo-400"
+          className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-base text-slate-600 outline-none placeholder:text-slate-400 focus:border-indigo-400 sm:text-xs"
         />
         <button
           type="submit"
@@ -334,7 +334,7 @@ export default function ActivityLog({ taskId }: { taskId: string }) {
                 type="button"
                 disabled={busy}
                 onClick={() => void run(() => api.deleteSession(session.id))}
-                className="ml-auto rounded p-0.5 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:text-rose-500 disabled:opacity-0"
+                className="ml-auto rounded p-0.5 text-slate-300 opacity-70 transition hover:text-rose-500 disabled:opacity-0 sm:opacity-0 sm:group-hover:opacity-100"
                 aria-label="Delete session"
               >
                 <TrashIcon className="h-3.5 w-3.5" />

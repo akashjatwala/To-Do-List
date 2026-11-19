@@ -226,7 +226,7 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
                   setStartDate(event.target.value)
                   if (endDate < event.target.value) setEndDate(event.target.value)
                 }}
-                className="field w-auto! px-2.5! py-1.5! text-xs! font-normal normal-case tracking-normal!"
+                className="field w-auto! px-2.5! py-1.5! text-base! font-normal normal-case tracking-normal! sm:text-xs!"
               />
             </label>
             <label className="flex flex-col gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
@@ -236,7 +236,7 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
                 value={endDate}
                 min={startDate}
                 onChange={(event) => setEndDate(event.target.value)}
-                className="field w-auto! px-2.5! py-1.5! text-xs! font-normal normal-case tracking-normal!"
+                className="field w-auto! px-2.5! py-1.5! text-base! font-normal normal-case tracking-normal! sm:text-xs!"
               />
             </label>
             <span className="insight-hint pb-1.5">Leave the same date for a single day.</span>

@@ -20,6 +20,7 @@ import { dateInputValue, dueFromDateInput, formatDateValue, todayDateValue } fro
 import { localDateString } from '@/lib/checkin'
 import AuthScreen from './components/AuthScreen'
 import AccountMenu from './components/AccountMenu'
+import InstallButton from './components/InstallButton'
 import SettingsModal from './components/SettingsModal'
 import CheckinModal from './components/CheckinModal'
 import DailyStateCard from './components/DailyStateCard'
@@ -550,6 +551,7 @@ export default function App() {
                 </div>
 
                 <div className="ml-auto flex shrink-0 items-center gap-1">
+                  <InstallButton />
                   <AccountMenu
                     email={data.user.email}
                     onOpenSettings={() => setSettingsOpen(true)}
@@ -653,7 +655,7 @@ export default function App() {
                       if (event.target.value) setSelectedDate(event.target.value)
                     }}
                     aria-label="View tasks for a date"
-                    className="w-[8.5rem] cursor-pointer border-0 bg-transparent px-1 py-1 text-center text-xs font-semibold text-slate-700 outline-none"
+                    className="w-[9.5rem] max-w-full cursor-pointer border-0 bg-transparent px-1 py-1 text-center text-base font-semibold text-slate-700 outline-none sm:w-[8.5rem] sm:text-xs"
                   />
                   <button
                     type="button"
@@ -802,7 +804,7 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="mt-4 grid grid-cols-[minmax(0,1fr)_15rem] items-start gap-5 sm:grid-cols-[minmax(0,1fr)_18rem]">
+                <div className="mt-4 grid grid-cols-1 items-start gap-5 md:grid-cols-[minmax(0,1fr)_16rem] xl:grid-cols-[minmax(0,1fr)_18rem]">
                   <StickyBoard
                     tasks={openTasks}
                     emptyTitle={emptyCopy.title}

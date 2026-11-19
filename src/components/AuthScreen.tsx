@@ -277,7 +277,7 @@ export default function AuthScreen({ onAuthed }: AuthScreenProps) {
                     </FieldIcon>
                     <input
                       id="reset-code"
-                      className="field pr-3.5 pl-10 font-mono text-xs"
+                      className="field pr-3.5 pl-10 font-mono sm:text-xs"
                       value={resetCode}
                       onChange={(event) => setResetCode(event.target.value)}
                       placeholder="Paste your reset code"
