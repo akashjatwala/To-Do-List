@@ -753,32 +753,18 @@ export default function App() {
               </div>
             )}
 
-            {!isCollab && (
-              <div className="mb-5 min-w-0 space-y-4">
-                <OffDayCard date={selectedDate} notify={notify} onChanged={refresh} />
-
-                {isToday && dailyStateData && (
-                  <DailyStateCard
-                    state={dailyStateData}
-                    checkin={checkinStatus?.checkin ?? null}
-                    checkinState={checkinStatus?.state ?? 'not_asked'}
-                    celebrate={checkinCelebrate}
-                    onCelebrated={() => setCheckinCelebrate(false)}
-                    onEditCheckin={openCheckin}
-                    notify={notify}
-                    onState={setDailyStateData}
-                  />
-                )}
-
-                {isToday && (
-                  <PredictionPanel
-                    date={selectedDate}
-                    today={todayDateValue()}
-                    notify={notify}
-                    onOpenCheckin={openCheckin}
-                    refreshKey={`${checkinStatus?.checkin?.updatedAt ?? 0}:${data?.tasks.length ?? 0}`}
-                  />
-                )}
+            {!isCollab && isToday && dailyStateData && (
+              <div className="mb-4 min-w-0">
+                <DailyStateCard
+                  state={dailyStateData}
+                  checkin={checkinStatus?.checkin ?? null}
+                  checkinState={checkinStatus?.state ?? 'not_asked'}
+                  celebrate={checkinCelebrate}
+                  onCelebrated={() => setCheckinCelebrate(false)}
+                  onEditCheckin={openCheckin}
+                  notify={notify}
+                  onState={setDailyStateData}
+                />
               </div>
             )}
 
@@ -804,7 +790,7 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="mt-4 grid grid-cols-1 items-start gap-5 md:grid-cols-[minmax(0,1fr)_16rem] xl:grid-cols-[minmax(0,1fr)_18rem]">
+                <div className="mt-4 grid grid-cols-1 items-start gap-5 md:grid-cols-[minmax(0,1fr)_19rem] xl:grid-cols-[minmax(0,1fr)_21rem]">
                   <StickyBoard
                     tasks={openTasks}
                     emptyTitle={emptyCopy.title}
@@ -818,15 +804,33 @@ export default function App() {
                     onReorder={reorderTasks}
                   />
 
-                  <CompletedColumn
-                    tasks={completedTasks}
-                    currentUserId={data.user.id}
-                    showOwner={isCollab}
-                    canDelete={canDeleteTask}
-                    onOpen={(task) => setSelectedId(task.id)}
-                    onToggle={toggleTask}
-                    onDelete={deleteTask}
-                  />
+                  <div className="flex min-w-0 flex-col gap-3">
+                    {!isCollab && (
+                      <>
+                        <OffDayCard date={selectedDate} notify={notify} onChanged={refresh} />
+
+                        {isToday && (
+                          <PredictionPanel
+                            date={selectedDate}
+                            today={todayDateValue()}
+                            notify={notify}
+                            onOpenCheckin={openCheckin}
+                            refreshKey={`${checkinStatus?.checkin?.updatedAt ?? 0}:${data?.tasks.length ?? 0}`}
+                          />
+                        )}
+                      </>
+                    )}
+
+                    <CompletedColumn
+                      tasks={completedTasks}
+                      currentUserId={data.user.id}
+                      showOwner={isCollab}
+                      canDelete={canDeleteTask}
+                      onOpen={(task) => setSelectedId(task.id)}
+                      onToggle={toggleTask}
+                      onDelete={deleteTask}
+                    />
+                  </div>
                 </div>
               </>
             )}

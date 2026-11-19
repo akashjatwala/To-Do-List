@@ -180,8 +180,8 @@ export default function AuthScreen({ onAuthed }: AuthScreenProps) {
             </span>
           </h1>
           <p className="mt-4 max-w-sm text-[15px] leading-relaxed text-slate-300">
-            A calm, focused to-do list for yourself — and a shared space for the people you work
-            with.
+            DUIT — Do It. Do It Smarter. A calm, focused task list for yourself, and a shared space
+            for the people you work with.
           </p>
 
           <ul className="mt-10 space-y-5">

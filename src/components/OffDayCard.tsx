@@ -119,32 +119,28 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
 
   if (loading) {
     return (
-      <div className="insight-card flex items-center gap-3 px-4 py-4">
-        <span className="insight-icon bg-slate-100 text-slate-400">
+      <div className="insight-card flex items-center gap-2.5 px-3 py-2.5">
+        <span className="insight-icon h-8 w-8 bg-slate-100 text-slate-400">
           <CalendarIcon className="h-4 w-4" />
         </span>
-        <div>
-          <p className="insight-eyebrow">Day settings</p>
-          <p className="insight-title">Checking off days…</p>
-        </div>
+        <p className="insight-title">Checking off days…</p>
       </div>
     )
   }
 
   return (
     <section className="insight-card" aria-label="Off days">
-      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="insight-icon bg-indigo-50 text-indigo-500">
+      <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="insight-icon h-8 w-8 bg-indigo-50 text-indigo-500">
             <CalendarIcon className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="insight-eyebrow">Day settings</p>
             <h2 className="insight-title">{onOffDay ? `Off day · ${kindLabel(offDay?.kind ?? null)}` : 'Off days'}</h2>
             <p className="insight-subtitle">
               {onOffDay
                 ? [summary, offDay?.note].filter(Boolean).join(' · ')
-                : 'Time away is never counted as missed. Your logged activity stays exactly as it is.'}
+                : 'Time away is never counted as missed.'}
             </p>
           </div>
         </div>
@@ -181,7 +177,7 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
       </div>
 
       {reducedConfidence && !onOffDay && (
-        <p className="mx-4 mb-4 rounded-xl border-l-2 border-amber-400 bg-amber-50/80 px-3 py-2.5 text-xs leading-relaxed text-amber-800">
+        <p className="mx-3 mb-2.5 rounded-lg border-l-2 border-amber-400 bg-amber-50/80 px-2.5 py-1.5 text-[11px] leading-snug text-amber-800">
           Just back from an off period — predictions carry reduced confidence for a few days.
         </p>
       )}
@@ -262,12 +258,6 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
         </div>
       )}
 
-      {!editing && !onOffDay && (
-        <p className="insight-hint flex items-center gap-1.5 border-t border-slate-100 px-4 py-2.5">
-          <PencilIcon className="h-3 w-3" />
-          You can also mark a past day or a whole range.
-        </p>
-      )}
     </section>
   )
 }
