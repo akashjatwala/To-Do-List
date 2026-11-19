@@ -52,10 +52,11 @@ The four states a day can be in are derived, not stored: `not_asked` (no row),
 ## Energy card (display only)
 
 `src/lib/energy.ts` re-groups the **same answered fields** into four sub-scores for the card
-(physical, mood, focus, capacity) and picks one of five bands: Running low (0–20), Low
-(21–40), Steady (41–60), Good (61–80), Strong (81–100). A withheld score shows as **Steady**,
-not a low band. Emoji are decorative and always paired with a text label; the palette never
-uses red.
+(physical, mood, focus, capacity) and picks one of four bands: Running low (0–20, `#FFCCBC`),
+Low (21–50, `#FFF9C4`), Good (51–80, `#E0F7FA`) and Strong (81–100, `#DCEDC8`). A withheld
+score (including no check-in) shows as **Steady** on a white card, not a low band. The score
+ring darkens to match each band, using `#009688` for the cyan band. Emoji are decorative and
+always paired with a text label; the palette never uses red.
 
 This module changes **no** stored value, no API and no server score — the overall score and
 its three internal groups still come from `readiness.ts`.

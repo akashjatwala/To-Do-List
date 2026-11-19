@@ -11,6 +11,8 @@
 - `server/ml/off-days.ts` — off days and the reduced-confidence window
 - `server/ml/estimates.ts` — the display estimates and their validation
 - `server/ml/predictions.ts` — the prediction log and feedback
+- `server/ml/day-planner.ts` — the proposed flow and workload warning for the plan
+- `server/ml/reschedule.ts` — display-only ideas for tasks that could move to another day
 - `server/ml/prediction-routes.ts` — the `/api/predictions` routes
 - `src/components/PredictionPanel.tsx` — the on-screen card
 
@@ -74,6 +76,7 @@ See [ml.md](ml.md) for how a champion is trained, promoted and watched.
 - `GET /api/predictions/plan` is gated on today's check-in. Until it is completed or skipped, the response says `gate: true` and shows no numbers.
 - An off day returns `offDay: true` with **no** predictions at all.
 - The plan ranks today's open tasks by probability, priority, what is left of the target and how much time is left. The ranking is a suggestion; it never changes a probability.
+- The same `/plan` response also carries `schedule` (a proposed flow and workload warning) and `reschedules` (ideas for another day). Both are **display-only**: nothing is written to a task's date, and accepting an idea only records your choice as feedback. An off day suppresses both.
 - Low-confidence, low-priority, sufficiently-labelled tasks may get optional reschedule/drop suggestions. They are offered, never forced.
 - Plain-language **drift notes** (a recent-vs-long-term shift, or a dated configuration change) are added next to the plan. They are informational and never change a number.
 

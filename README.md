@@ -31,7 +31,7 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking
 - Task comments
-- Light and dark themes (follows your system by default)
+- Light-only interface with a soft warm-canvas theme and no theme toggle
 - Responsive layout with a slide-over task panel
 
 **Learning system (local, on-device)**
@@ -41,6 +41,7 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - Per-activity statistics, a readiness/energy view, and similar-day context
 - Predictions: how likely you are to do a task, whether you will hit the target, how long it usually takes, and a suggested time window
 - Off days (sick / travel / holiday / other) that reduce confidence rather than inventing data
+- A read-only day planner (proposed flow and workload warning) and reschedule ideas, shown as suggestions only — they never change a task's date
 - Versioned tags, priority, target duration and preferred time, with full history
 - Local model training, versioning, promotion, rollback and a plain-words model health view
 - Trained champions are served for completion, target and duration when healthy; with no model yet, the starting estimates are shown instead
