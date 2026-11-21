@@ -29,7 +29,7 @@ const TAG_MAX = 24
 const TAGS_MAX = 8
 const DURATION_MAX = 60 * 24 * 7
 
-const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const
+const PRIORITIES = ['none', 'low', 'medium', 'high'] as const
 type Priority = (typeof PRIORITIES)[number]
 
 const PREFERRED_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -106,9 +106,20 @@ function spawnNextOccurrence(task: TaskRow): string {
     .prepare('SELECT * FROM subtasks WHERE task_id = ? ORDER BY position ASC, rowid ASC')
     .all(task.id) as unknown as SubtaskRow[]
   const insert = db.prepare(
-    'INSERT INTO subtasks (id, task_id, text, done, position) VALUES (?, ?, ?, 0, ?)',
+    'INSERT INTO subtasks (id, task_id, text, done, position, assignee_id) VALUES (?, ?, ?, 0, ?, ?)',
   )
-  for (const subtask of subtasks) insert.run(randomUUID(), id, subtask.text, subtask.position)
+  for (const subtask of subtasks) {
+    insert.run(randomUUID(), id, subtask.text, subtask.position, subtask.assignee_id ?? null)
+  }
+
+  // The next occurrence keeps the same team working on it.
+  const assignees = db
+    .prepare('SELECT user_id FROM task_assignees WHERE task_id = ?')
+    .all(task.id) as unknown as Array<{ user_id: number }>
+  const insertAssignee = db.prepare(
+    'INSERT OR IGNORE INTO task_assignees (task_id, user_id) VALUES (?, ?)',
+  )
+  for (const assignee of assignees) insertAssignee.run(id, assignee.user_id)
 
   syncTaskFoundation(db, db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as unknown as TaskRow)
 
@@ -148,6 +159,18 @@ function loadSubtask(taskId: string, subtaskId: string): SubtaskRow | undefined 
   return db
     .prepare('SELECT * FROM subtasks WHERE id = ? AND task_id = ?')
     .get(subtaskId, taskId) as unknown as SubtaskRow | undefined
+}
+
+/** A subtask can only be assigned to a member of the task's team. */
+function parseSubtaskAssignee(value: unknown, loaded: LoadedTask): number | null | undefined {
+  if (value === undefined || value === null || value === '') return null
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) return undefined
+  if (!loaded.task.team_id) return undefined
+  return db
+    .prepare('SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?')
+    .get(loaded.task.team_id, value)
+    ? value
+    : undefined
 }
 
 router.post('/', (req: AuthedRequest, res) => {
@@ -399,6 +422,50 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
   res.json({ ok: true, spawnedId })
 })
 
+/**
+ * Replace the assignees of a team task. Every team member may do this, not just
+ * the host: assigning teammates is part of collaborating on a shared task.
+ */
+router.put('/:taskId/assignees', (req: AuthedRequest, res) => {
+  const loaded = loadTask(param(req, 'taskId'), req.userId!)
+  if (!loaded) return notFound(res, 'Task not found.')
+  if (loaded.task.team_id === null) {
+    return badRequest(res, 'Only team tasks can be assigned to teammates.')
+  }
+
+  const raw = req.body?.userIds
+  if (!Array.isArray(raw)) return badRequest(res, 'Send the teammates to assign.')
+  const userIds: number[] = []
+  for (const value of raw) {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+      return badRequest(res, 'That teammate is not valid.')
+    }
+    if (!userIds.includes(value)) userIds.push(value)
+  }
+  if (userIds.length > 50) return badRequest(res, 'A task can have at most 50 assignees.')
+
+  const isMember = db.prepare('SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?')
+  for (const userId of userIds) {
+    if (!isMember.get(loaded.task.team_id, userId)) {
+      return badRequest(res, 'Every assignee must be a member of the team.')
+    }
+  }
+
+  const clear = db.prepare('DELETE FROM task_assignees WHERE task_id = ?')
+  const add = db.prepare('INSERT OR IGNORE INTO task_assignees (task_id, user_id) VALUES (?, ?)')
+  db.exec('BEGIN')
+  try {
+    clear.run(loaded.task.id)
+    for (const userId of userIds) add.run(loaded.task.id, userId)
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
+
+  res.json({ ok: true })
+})
+
 router.delete('/:taskId', (req: AuthedRequest, res) => {
   const userId = req.userId!
   const loaded = loadTask(param(req, 'taskId'), userId)
@@ -418,14 +485,18 @@ router.post('/:taskId/subtasks', (req: AuthedRequest, res) => {
 
   const label = text(req.body?.text, SUBTASK_MAX)
   if (!label) return badRequest(res, `Subtask text must be 1–${SUBTASK_MAX} characters.`)
+  const assigneeId = parseSubtaskAssignee(req.body?.assigneeId, loaded)
+  if (assigneeId === undefined) {
+    return badRequest(res, 'Only teammates on a team task can be assigned to a subtask.')
+  }
 
   const id = randomUUID()
   const max = db
     .prepare('SELECT COALESCE(MAX(position), 0) AS p FROM subtasks WHERE task_id = ?')
     .get(loaded.task.id) as unknown as { p: number }
   db.prepare(
-    'INSERT INTO subtasks (id, task_id, text, done, position) VALUES (?, ?, ?, 0, ?)',
-  ).run(id, loaded.task.id, label, max.p + 1)
+    'INSERT INTO subtasks (id, task_id, text, done, position, assignee_id) VALUES (?, ?, ?, 0, ?, ?)',
+  ).run(id, loaded.task.id, label, max.p + 1, assigneeId)
 
   res.status(201).json({ id })
 })
@@ -437,7 +508,7 @@ router.patch('/:taskId/subtasks/:subtaskId', (req: AuthedRequest, res) => {
   if (!subtask) return notFound(res, 'Subtask not found.')
 
   const updates: string[] = []
-  const values: Array<string | number> = []
+  const values: Array<string | number | null> = []
 
   if (req.body?.text !== undefined) {
     const label = text(req.body.text, SUBTASK_MAX)
@@ -449,6 +520,14 @@ router.patch('/:taskId/subtasks/:subtaskId', (req: AuthedRequest, res) => {
     if (typeof req.body.done !== 'boolean') return badRequest(res, '“done” must be true or false.')
     updates.push('done = ?')
     values.push(req.body.done ? 1 : 0)
+  }
+  if (req.body?.assigneeId !== undefined) {
+    const assigneeId = parseSubtaskAssignee(req.body.assigneeId, loaded)
+    if (assigneeId === undefined) {
+      return badRequest(res, 'Only teammates on a team task can be assigned to a subtask.')
+    }
+    updates.push('assignee_id = ?')
+    values.push(assigneeId)
   }
 
   if (updates.length === 0) return badRequest(res, 'Nothing to update.')

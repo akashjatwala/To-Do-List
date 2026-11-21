@@ -4,12 +4,10 @@ import type {
   CheckinAnswers,
   CheckinState,
   DailyState,
-  DayReviewAnswer,
   ToastTone,
 } from '@/types'
 import { labelForKey } from '@/lib/checkin'
 import {
-  bandBackgroundClass,
   bandRingClass,
   displaySubScores,
   scoreBand,
@@ -35,8 +33,8 @@ import { SparklesIcon } from './Icons'
  * days-like-today section are intentionally not shown here, but their code is
  * left in place below (behind `SHOW_HIDDEN_SECTIONS`) so nothing is lost.
  *
- * The Update button opens the check-in prefilled; the evening review
- * and low-capacity suggestions continue to work exactly as before.
+ * The Update button opens the check-in prefilled; low-capacity suggestions
+ * continue to work exactly as before.
  */
 interface DailyStateCardProps {
   state: DailyState
@@ -75,16 +73,6 @@ function markCelebrated(date: string): void {
   }
 }
 
-const REVIEW_LABELS: Record<DayReviewAnswer, string> = {
-  much_better: 'Much better',
-  better: 'Better',
-  about_same: 'About the same',
-  worse: 'Worse',
-  much_worse: 'Much worse',
-}
-
-const REVIEW_ORDER: DayReviewAnswer[] = ['much_better', 'better', 'about_same', 'worse', 'much_worse']
-
 const RING_RADIUS = 34
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 
@@ -98,15 +86,13 @@ export default function DailyStateCard({
   notify,
   onState,
 }: DailyStateCardProps) {
-  const [reviewDismissed, setReviewDismissed] = useState(false)
-  const [changingReview, setChangingReview] = useState(false)
   const [busy, setBusy] = useState(false)
   const [openSub, setOpenSub] = useState<EnergySubScore | null>(null)
   const [history, setHistory] = useState<Array<{ answers: CheckinAnswers }>>([])
   const historyLoaded = useRef(false)
   const reducedMotion = useReducedMotion()
 
-  const { summary, estimates, similarDays, recentContext, association, review, advanced } = state
+  const { summary, estimates, similarDays, recentContext, association, advanced } = state
   const readiness = summary.readiness
   const score = readiness.score
   const band = scoreBand(score)
@@ -162,22 +148,6 @@ export default function DailyStateCard({
     }
   }, [notify, onState, state.date, state.today])
 
-  const answerReview = useCallback(
-    async (answer: DayReviewAnswer) => {
-      setBusy(true)
-      try {
-        await api.saveDayReview(state.date, answer)
-        setChangingReview(false)
-        await refresh()
-      } catch (error) {
-        notify(errorMessage(error), 'error')
-      } finally {
-        setBusy(false)
-      }
-    },
-    [notify, refresh, state.date],
-  )
-
   const chooseSuggestion = useCallback(
     async (key: string, choice: 'accepted' | 'dismissed') => {
       setBusy(true)
@@ -214,10 +184,6 @@ export default function DailyStateCard({
     [state.date],
   )
 
-  const isToday = state.date === state.today
-  const isEvening = new Date().getHours() >= 17
-  const showReviewPrompt = isToday && !review && isEvening && !reviewDismissed
-
   const dashOffset = RING_CIRCUMFERENCE * (1 - Math.max(0, Math.min(100, displayScore)) / 100)
   const noCheckin = checkinState === 'not_asked'
   const skipped = checkinState === 'skipped'
@@ -225,32 +191,46 @@ export default function DailyStateCard({
 
   return (
     <section
-      className={`card overflow-hidden ${bandBackgroundClass(band.tone)}`}
+      className="overflow-hidden rounded-[24px] bg-[#F8E7C4] p-5"
       aria-label="Energy Level"
     >
-      <div className="flex items-center gap-3 border-b border-white/60 px-4 py-4">
-        <span
-          className="insight-icon bg-white/80 text-base"
-          aria-hidden="true"
-        >
-          ⚡
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="insight-eyebrow">Daily check-in</p>
-          <h2 className="insight-title">Energy Level</h2>
+      <div className="mb-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Energy</h2>
+          {!noCheckin && (
+            <button
+              type="button"
+              onClick={onEditCheckin}
+              className="inline-flex items-center justify-center rounded-lg bg-white px-3 py-1.5 text-[11px] font-semibold text-[#454B58] shadow-sm ring-1 ring-white/70 transition hover:bg-white/90 focus-visible:ring-4 focus-visible:ring-[#15181E]/10 focus-visible:outline-none"
+            >
+              Update
+            </button>
+          )}
         </div>
-        {!noCheckin && (
-          <button
-            type="button"
-            onClick={onEditCheckin}
-            className="inline-flex items-center justify-center rounded-lg bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-white focus-visible:ring-4 focus-visible:ring-slate-500/15 focus-visible:outline-none"
-          >
-            Update
-          </button>
-        )}
+        <p className="mt-1 text-sm font-medium text-[#454B58]">
+          How are you feeling right now?
+        </p>
       </div>
 
-      <div className="space-y-4 px-4 py-4">
+      <div className="mb-4 grid grid-cols-5 gap-2">
+        {['😞', '🙁', '😐', '🙂', '😄'].map((emoji, index) => (
+          <button
+            key={emoji}
+            type="button"
+            onClick={onEditCheckin}
+            aria-label={`Choose mood ${index + 1} of 5`}
+            className="flex h-12 items-center justify-center rounded-xl bg-white text-xl shadow-sm ring-1 ring-white/70 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-4 focus-visible:ring-[#15181E]/10 focus-visible:outline-none"
+          >
+            <span aria-hidden="true">{emoji}</span>
+          </button>
+        ))}
+      </div>
+      <div className="mb-4 flex justify-between text-[10px] font-medium text-[#454B58]">
+        <span>Very low</span>
+        <span>Very good</span>
+      </div>
+
+      <div className="space-y-3">
         {noCheckin ? (
           <div className="flex flex-col items-center rounded-2xl bg-slate-50 px-4 py-6 text-center shadow-sm ring-1 ring-slate-200/80">
             <span className="text-3xl" aria-hidden="true">
@@ -480,55 +460,6 @@ export default function DailyStateCard({
             <p className="mt-1.5 text-[10px] text-indigo-700/70">
               Only offered — nothing is changed or dropped for you.
             </p>
-          </div>
-        )}
-
-        {(showReviewPrompt || review) && (
-          <div className="rounded-2xl border border-slate-100 bg-white/80 p-3.5 shadow-sm">
-            {review && !changingReview ? (
-              <p className="text-xs text-slate-500">
-                This evening you said the day was{' '}
-                <span className="font-semibold text-slate-700">
-                  {REVIEW_LABELS[review.answer].toLowerCase()}
-                </span>{' '}
-                than this morning.{' '}
-                <button
-                  type="button"
-                  onClick={() => setChangingReview(true)}
-                  className="font-medium text-indigo-600 underline-offset-2 hover:underline"
-                >
-                  Change
-                </button>
-              </p>
-            ) : (
-              <>
-                <p className="text-xs font-medium text-slate-600">
-                  How did today go compared with how you felt this morning?
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {REVIEW_ORDER.map((answer) => (
-                    <button
-                      key={answer}
-                      type="button"
-                      onClick={() => answerReview(answer)}
-                      disabled={busy}
-                      className="insight-quiet bg-white/70 ring-1 ring-slate-200"
-                    >
-                      {REVIEW_LABELS[answer]}
-                    </button>
-                  ))}
-                </div>
-                {showReviewPrompt && (
-                  <button
-                    type="button"
-                    onClick={() => setReviewDismissed(true)}
-                    className="mt-1.5 text-[10px] text-slate-400 hover:text-slate-600"
-                  >
-                    Not now
-                  </button>
-                )}
-              </>
-            )}
           </div>
         )}
 

@@ -27,15 +27,22 @@ import {
 const router = Router()
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase()
+const normalizeName = (name: unknown) =>
+  typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : ''
+const displayName = (user: { name: string; email: string }) =>
+  user.name.trim() || user.email.split('@')[0]
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10)
 
 router.post('/signup', async (req, res) => {
   sweepExpired()
   const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''
+  const name = normalizeName(req.body?.name)
   const password = req.body?.password
   const remember = req.body?.remember === true
 
   if (!validEmail(email)) return fail(res, 400, 'Please enter a valid email address.')
+  if (!name) return fail(res, 400, 'Please enter your name.')
+  if (name.length > 60) return fail(res, 400, 'Name must be 60 characters or fewer.')
   const passwordError = validatePassword(password)
   if (passwordError) return fail(res, 400, passwordError)
   if (getUserByEmail(email)) {
@@ -44,13 +51,13 @@ router.post('/signup', async (req, res) => {
 
   const hash = await bcrypt.hash(password, 10)
   const result = db
-    .prepare('INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)')
-    .run(email, hash, Date.now())
+    .prepare('INSERT INTO users (email, name, password_hash, created_at) VALUES (?, ?, ?, ?)')
+    .run(email, name, hash, Date.now())
   const userId = Number(result.lastInsertRowid)
 
   const token = createSession(userId, remember)
   setSessionCookie(res, token, remember)
-  res.status(201).json({ user: { id: userId, email } })
+  res.status(201).json({ user: { id: userId, email, name } })
 })
 
 router.post('/login', async (req, res) => {
@@ -65,7 +72,7 @@ router.post('/login', async (req, res) => {
 
   const token = createSession(user.id, remember)
   setSessionCookie(res, token, remember)
-  res.json({ user: { id: user.id, email: user.email } })
+  res.json({ user: { id: user.id, email: user.email, name: displayName(user) } })
 })
 
 router.post('/logout', (req, res) => {
@@ -79,7 +86,25 @@ router.get('/me', (req: AuthedRequest, res) => {
   if (!req.userId) return unauthorized(res)
   const user = getUserById(req.userId)
   if (!user) return unauthorized(res)
-  res.json({ user: { id: user.id, email: user.email } })
+  res.json({ user: { id: user.id, email: user.email, name: displayName(user) } })
+})
+
+router.patch('/me', (req: AuthedRequest, res) => {
+  if (!req.userId) return unauthorized(res)
+  const user = getUserById(req.userId)
+  if (!user) return unauthorized(res)
+  const name = normalizeName(req.body?.name)
+  if (!name) return fail(res, 400, 'Enter a name.')
+  if (name.length > 60) return fail(res, 400, 'Keep the name under 60 characters.')
+  db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name, user.id)
+  res.json({ user: { id: user.id, email: user.email, name } })
+})
+
+router.post('/sessions/others', (req: AuthedRequest, res) => {
+  if (!req.userId) return unauthorized(res)
+  const token = parseCookies(req.headers.cookie)[SESSION_COOKIE]
+  if (token) destroyOtherSessions(req.userId, token)
+  res.json({ ok: true })
 })
 
 router.post('/password', async (req: AuthedRequest, res) => {

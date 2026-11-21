@@ -338,7 +338,8 @@ export function readinessAssociation(
       correlation,
       sample: pairs.length,
       useful: false,
-      note: 'So far the score has not clearly lined up with what you got done, so it is shown as a description only.',
+      // No claim is shown while the association is unclear.
+      note: '',
     }
   }
   const direction = correlation > 0 ? 'higher' : 'lower'

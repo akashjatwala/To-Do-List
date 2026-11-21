@@ -20,14 +20,23 @@
 
 | Number | Shown as | Meaning | Absent when |
 | --- | --- | --- | --- |
-| Completion probability | Will finish | How likely you are to do the task on that day | Never (always a number) |
-| Target probability | Full time goal | How likely you are to reach the task's full time target | The task has no target duration |
-| Expected duration | Est. time | Roughly how long it usually takes | Not enough duration history |
-| Confidence | low / medium / high | How much personal history backs the number | Never |
+| Completion probability | Nudge: "Chance of finishing today" subtitle, then task name + percentage with a bar below; task detail: "Chance of finishing today" | How likely you are to finish the task that day | Never (always a number) |
+| Target probability | Not shown in the current UI | How likely you are to reach the task's full time target | The task has no target duration |
+| Expected duration | Not shown in the current UI | Roughly how long it usually takes | Not enough duration history |
+| Confidence | Not shown in the current UI | How much personal history backs the number | Never |
 | Stage | not shown | 1 (starting estimate) or 2 (personalised) | Never |
 
-The recommended window, proposed flow, workload warning and "better days" ideas are
-still computed, logged and returned by the API, but the current UI does not display them.
+The recommended window, proposed flow, workload warning, "better days" ideas, target
+probability and expected duration are still computed, logged and returned by the API, but the
+current UI does not display them in Nudge.
+
+## What Nudge displays
+
+The card is headed **Nudge** with the subtitle **Chance of finishing today** underneath; the
+header has no decorative icon. For each open personal task due on the selected date it shows the
+task name, the completion probability as a percentage beside it, and a bar underneath. It does
+not show a confidence label, target probability, estimated time, suggested window or progress
+wording. The check-in gate and the off-day message still appear when relevant.
 
 Everything is a **suggestion**. A preferred time, where one is set, is an initial hint
 only — never a deadline.
@@ -61,7 +70,8 @@ Two stages, with a per-user threshold (`stage2_min_days`, default 10 labelled da
 - **Stage 2** — the activity's own statistics drive the prediction.
 
 Confidence drops when the check-in was skipped (wider uncertainty, never an invented value)
-and in the reduced-confidence window after an off day.
+and in the reduced-confidence window after an off day. The Nudge card no longer prints a
+sentence about the skip; the uncertainty is still part of the prediction.
 
 ## Baseline vs model
 
@@ -77,10 +87,10 @@ See [ml.md](ml.md) for how a champion is trained, promoted and watched.
 
 - `GET /api/predictions/plan` is gated on today's check-in. Until it is completed or skipped, the response says `gate: true` and shows no numbers.
 - An off day returns `offDay: true` with **no** predictions at all.
-- The plan ranks today's open tasks by probability, priority, what is left of the target and how much time is left. The ranking is a suggestion; it never changes a probability.
+- The plan only considers open **personal** tasks due on the requested date; team tasks and tasks due on other dates (or with no due date) are never part of it. It ranks them by probability, priority, what is left of the target and how much time is left. The ranking is a suggestion; it never changes a probability.
 - The same `/plan` response also carries `schedule` (a proposed flow and workload warning) and `reschedules` (ideas for another day). Both are still computed as **display-only** data — nothing is written to a task's date — but the current UI does not show them. An off day suppresses both.
 - Low-confidence, low-priority, sufficiently-labelled tasks may still produce **Worth a look** suggestions. They are offered as ideas, never forced.
-- Plain-language **drift notes** (a recent-vs-long-term shift, or a dated configuration change) are added next to the plan. They are informational and never change a number.
+- Plain-language **drift notes** (a recent-vs-long-term shift, or a dated configuration change) are returned with the plan. They are informational, never change a number, and are not displayed in the current Nudge card.
 
 ## The prediction log
 

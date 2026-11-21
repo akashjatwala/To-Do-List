@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { Avatar } from './ui'
-import { ChevronDownIcon, LogOutIcon, SettingsIcon } from './Icons'
+import { LogOutIcon, SettingsIcon } from './Icons'
 
 export default function AccountMenu({
+  name,
   email,
-  onOpenSettings,
+  onOpenAccount,
   onLogout,
 }: {
+  name: string
   email: string
-  onOpenSettings: () => void
+  onOpenAccount: () => void
   onLogout: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -32,7 +33,7 @@ export default function AccountMenu({
     }
   }, [open])
 
-  const name = email.split('@')[0]
+  const displayName = name.trim() || email.split('@')[0]
 
   return (
     <div ref={ref} className="relative">
@@ -42,7 +43,7 @@ export default function AccountMenu({
           className="animate-in absolute top-full right-0 z-50 mt-2 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
         >
           <div className="mb-1 border-b border-slate-100 px-3 py-2 sm:hidden">
-            <p className="truncate text-sm font-semibold text-slate-700">{name}</p>
+            <p className="truncate text-sm font-semibold text-slate-700">{displayName}</p>
             <p className="truncate text-[11px] text-slate-400">{email}</p>
           </div>
           <button
@@ -50,12 +51,12 @@ export default function AccountMenu({
             role="menuitem"
             onClick={() => {
               setOpen(false)
-              onOpenSettings()
+              onOpenAccount()
             }}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
           >
             <SettingsIcon className="h-4 w-4" />
-            Settings
+            My Account
           </button>
           <button
             type="button"
@@ -77,20 +78,14 @@ export default function AccountMenu({
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`flex max-w-[13rem] items-center gap-2.5 rounded-xl px-1.5 py-1.5 text-left transition hover:bg-slate-100 ${
-          open ? 'bg-slate-100' : ''
+        className={`flex items-center gap-3 rounded-full py-1 pl-2 pr-1 text-left transition hover:bg-slate-50 ${
+          open ? 'bg-slate-50' : ''
         }`}
       >
-        <Avatar email={email} size="sm" />
-        <div className="hidden min-w-0 flex-1 sm:block">
-          <p className="truncate text-xs font-semibold text-slate-700">{name}</p>
-          <p className="truncate text-[11px] text-slate-400">{email}</p>
-        </div>
-        <ChevronDownIcon
-          className={`hidden h-4 w-4 shrink-0 text-slate-400 transition-transform sm:block ${
-            open ? 'rotate-180' : ''
-          }`}
-        />
+        <span className="hidden text-sm font-semibold text-[#454B58] sm:block">{displayName}</span>
+        <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-[#15181E] text-sm font-bold text-white">
+          {displayName.slice(0, 1).toUpperCase()}
+        </span>
       </button>
     </div>
   )

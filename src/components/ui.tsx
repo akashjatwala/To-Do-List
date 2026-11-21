@@ -1,6 +1,35 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { initials, avatarColor } from '@/lib/date'
 import { XIcon } from './Icons'
+
+/**
+ * Locks page scrolling while one or more dialogs are open.
+ *
+ * A plain "save and restore" lock breaks when dialogs overlap: if a confirm
+ * dialog and its parent unmount in the same commit, the parent can restore the
+ * unlocked value before the confirm restores its locked value, leaving the
+ * body permanently locked. Counting locks makes restoration order-independent.
+ */
+let bodyLockCount = 0
+let bodyOverflowBeforeLock = ''
+
+export function useBodyScrollLock(active: boolean) {
+  useEffect(() => {
+    if (!active) return
+    if (bodyLockCount === 0) {
+      bodyOverflowBeforeLock = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+    }
+    bodyLockCount += 1
+
+    return () => {
+      bodyLockCount = Math.max(0, bodyLockCount - 1)
+      if (bodyLockCount === 0) {
+        document.body.style.overflow = bodyOverflowBeforeLock
+      }
+    }
+  }, [active])
+}
 
 export function Avatar({
   email,
@@ -37,18 +66,15 @@ export function Modal({
   children: ReactNode
   width?: string
 }) {
+  useBodyScrollLock(open)
+
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
-    }
+    return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
   if (!open) return null
@@ -81,6 +107,77 @@ export function Modal({
       </div>
     </div>
   )
+}
+
+export interface ConfirmOptions {
+  title: string
+  description?: string
+  confirmLabel?: string
+  hint?: string
+}
+
+/** An in-app replacement for window.confirm, using the same modal shell as
+ * the rest of the app so destructive actions stay visually consistent. */
+export function ConfirmDialog({
+  open,
+  title,
+  description,
+  confirmLabel = 'Delete',
+  hint,
+  onConfirm,
+  onClose,
+}: ConfirmOptions & {
+  open: boolean
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  return (
+    <Modal open={open} onClose={onClose} title={title} description={description} width="max-w-sm">
+      {hint && (
+        <p className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-600">
+          {hint}
+        </p>
+      )}
+      <div className="flex justify-end gap-2">
+        <button type="button" className="btn-ghost" onClick={onClose}>
+          Cancel
+        </button>
+        <button type="button" className="btn-danger" onClick={onConfirm} autoFocus>
+          {confirmLabel}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+/** Returns an async `confirm` function plus the dialog element to render. */
+export function useConfirm() {
+  const [pending, setPending] = useState<
+    (ConfirmOptions & { resolve: (value: boolean) => void }) | null
+  >(null)
+
+  const confirm = (options: ConfirmOptions) =>
+    new Promise<boolean>((resolve) => setPending({ ...options, resolve }))
+
+  const dialog = (
+    <ConfirmDialog
+      open={pending !== null}
+      title={pending?.title ?? ''}
+      description={pending?.description}
+      confirmLabel={pending?.confirmLabel}
+      hint={pending?.hint}
+      onClose={() => {
+        pending?.resolve(false)
+        setPending(null)
+      }}
+      onConfirm={() => {
+        pending?.resolve(true)
+        setPending(null)
+      }}
+    />
+  )
+
+  return { confirm, dialog }
 }
 
 export function Spinner({ className = 'h-4 w-4' }: { className?: string }) {

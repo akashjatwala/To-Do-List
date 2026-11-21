@@ -24,6 +24,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     ownerEmail: 'me@example.com',
     subtasks: [],
     comments: [],
+    assignees: [],
     ...overrides,
   }
 }
@@ -60,10 +61,48 @@ test('the pins are hidden from screen readers', () => {
   assert.match(html, /aria-hidden="true"[^>]*class="sticky-pin/)
 })
 
+test('every pin uses the same red accent', () => {
+  const html = renderBoard([makeTask({ id: 'note-a' }), makeTask({ id: 'note-b' })])
+  const pins = html.match(/class="sticky-pin[^"]*"/g) ?? []
+  assert.equal(pins.length, 2)
+  for (const pin of pins) assert.match(pin, /text-\[#D9480F\]/)
+  assert.doesNotMatch(html, /text-(sky|amber|emerald)-500/)
+})
+
+test('notes follow the reference layout with tags, tear line and time row', () => {
+  const html = renderBoard([
+    makeTask({
+      text: 'Finish quarterly report',
+      priority: 'high',
+      tags: ['work'],
+      due: new Date(2026, 10, 21, 23, 59).getTime(),
+      duration: 90,
+    }),
+  ])
+  assert.doesNotMatch(html, />High</)
+  assert.doesNotMatch(html, /sticky-note[^>]*border-\[?/)
+  assert.match(html, />#work</)
+  assert.match(html, /sticky-tear/)
+  assert.match(html, /@ /)
+  assert.match(html, /1 hr 30 min/)
+})
+
+test('the none priority note uses its gray color code', () => {
+  const html = renderBoard([makeTask({ priority: 'none' })])
+  assert.match(html, /bg-\[#E6E8EB\] text-\[#3A404B\]/)
+})
+
 test('notes sit on a board and keep a small stable tilt', () => {
   const html = renderBoard([makeTask()])
   assert.match(html, /sticky-board/)
   assert.match(html, /--tilt:\s*-?\d+(\.\d+)?deg/)
+})
+
+test('notes use a normal cursor and no native drag ghost', () => {
+  const html = renderBoard([makeTask()])
+  assert.match(html, /cursor-default/)
+  assert.doesNotMatch(html, /cursor-(grab|grabbing)/)
+  assert.doesNotMatch(html, /draggable=/)
 })
 
 test('the note content and actions are unchanged', () => {

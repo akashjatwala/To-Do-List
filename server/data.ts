@@ -7,6 +7,7 @@ export interface SubtaskDTO {
   text: string
   done: boolean
   position: number
+  assignee: TaskAssigneeDTO | null
 }
 
 export interface CommentDTO {
@@ -15,6 +16,12 @@ export interface CommentDTO {
   createdAt: number
   userId: number
   email: string
+}
+
+export interface TaskAssigneeDTO {
+  id: number
+  email: string
+  name: string
 }
 
 export interface TaskDTO {
@@ -36,6 +43,7 @@ export interface TaskDTO {
   ownerEmail: string
   subtasks: SubtaskDTO[]
   comments: CommentDTO[]
+  assignees: TaskAssigneeDTO[]
 }
 
 export interface MemberDTO {
@@ -64,6 +72,7 @@ export interface InviteDTO {
 export interface UserDTO {
   id: number
   email: string
+  name: string
 }
 
 interface SubtaskRow {
@@ -72,6 +81,7 @@ interface SubtaskRow {
   text: string
   done: number
   position: number
+  assignee_id: number | null
 }
 
 interface CommentRow {
@@ -105,7 +115,12 @@ interface InviteJoinRow {
 
 export function publicUser(userId: number): UserDTO | null {
   const user = getUserById(userId)
-  return user ? { id: user.id, email: user.email } : null
+  if (!user) return null
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name.trim() || user.email.split('@')[0],
+  }
 }
 
 export function teamsFor(userId: number): TeamDTO[] {
@@ -190,9 +205,15 @@ export function tasksFor(userId: number): TaskDTO[] {
 
   const subtaskRows = db
     .prepare(
-      `SELECT * FROM subtasks WHERE task_id IN (${placeholders}) ORDER BY position ASC, rowid ASC`,
+      `SELECT s.*, u.email AS assignee_email, u.name AS assignee_name
+       FROM subtasks s
+       LEFT JOIN users u ON u.id = s.assignee_id
+       WHERE s.task_id IN (${placeholders})
+       ORDER BY s.position ASC, s.rowid ASC`,
     )
-    .all(...ids) as unknown as SubtaskRow[]
+    .all(...ids) as unknown as Array<
+    SubtaskRow & { assignee_email: string | null; assignee_name: string | null }
+  >
 
   const commentRows = db
     .prepare(
@@ -206,7 +227,20 @@ export function tasksFor(userId: number): TaskDTO[] {
   const subtasks = new Map<string, SubtaskDTO[]>()
   for (const row of subtaskRows) {
     const list = subtasks.get(row.task_id) ?? []
-    list.push({ id: row.id, text: row.text, done: row.done === 1, position: row.position })
+    list.push({
+      id: row.id,
+      text: row.text,
+      done: row.done === 1,
+      position: row.position,
+      assignee:
+        row.assignee_id === null || !row.assignee_email
+          ? null
+          : {
+              id: row.assignee_id,
+              email: row.assignee_email,
+              name: (row.assignee_name ?? '').trim() || row.assignee_email.split('@')[0],
+            },
+    })
     subtasks.set(row.task_id, list)
   }
 
@@ -223,6 +257,32 @@ export function tasksFor(userId: number): TaskDTO[] {
     comments.set(row.task_id, list)
   }
 
+  const assigneeRows = db
+    .prepare(
+      `SELECT ta.task_id, u.id, u.email, u.name
+       FROM task_assignees ta
+       JOIN users u ON u.id = ta.user_id
+       WHERE ta.task_id IN (${placeholders})
+       ORDER BY u.name ASC, u.email ASC`,
+    )
+    .all(...ids) as unknown as Array<{
+    task_id: string
+    id: number
+    email: string
+    name: string
+  }>
+
+  const assignees = new Map<string, TaskAssigneeDTO[]>()
+  for (const row of assigneeRows) {
+    const list = assignees.get(row.task_id) ?? []
+    list.push({
+      id: row.id,
+      email: row.email,
+      name: row.name.trim() || row.email.split('@')[0],
+    })
+    assignees.set(row.task_id, list)
+  }
+
   return rows.map((row) => ({
     id: row.id,
     text: row.text,
@@ -230,7 +290,8 @@ export function tasksFor(userId: number): TaskDTO[] {
     createdAt: row.created_at,
     due: row.due,
     progress: row.progress ?? 0,
-    priority: row.priority ?? 'none',
+    // Historical "urgent" tasks are shown as high; urgent is no longer an option.
+    priority: row.priority === 'urgent' ? 'high' : (row.priority ?? 'none'),
     tags: parseTagList(row.tags),
     recurrence: row.recurrence ?? 'none',
     recurrenceConfig: readRecurrenceConfig(row.recurrence_config),
@@ -242,6 +303,7 @@ export function tasksFor(userId: number): TaskDTO[] {
     ownerEmail: row.owner_email,
     subtasks: subtasks.get(row.id) ?? [],
     comments: comments.get(row.id) ?? [],
+    assignees: assignees.get(row.id) ?? [],
   }))
 }
 

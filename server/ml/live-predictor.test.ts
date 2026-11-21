@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
 import { createCheckinSchema } from '../checkins-store'
 import { createFoundationSchema, createMlSchema, createPredictionSchema } from './schema'
-import { recordTaskConfig } from './task-config'
+import { endOfLocalDay, recordTaskConfig } from './task-config'
 import { createSession } from './sessions'
 import { setDailyStatus } from './daily-activity'
 import { addDays } from './off-days'
@@ -30,6 +30,7 @@ import { makeLivePredictor } from './live-predictor'
 
 const USER = 1
 const CONFIG_FROM = Date.parse('2025-01-01T00:00:00')
+const PLAN_DATE = '2026-01-13'
 
 function freshDb(): DatabaseSync {
   const db = new DatabaseSync(':memory:')
@@ -65,9 +66,9 @@ function freshDb(): DatabaseSync {
 function insertTask(db: DatabaseSync, text = 'Read', duration = 60): string {
   const id = randomUUID()
   db.prepare(
-    `INSERT INTO tasks (id, user_id, text, created_at, priority, tags, recurrence, duration)
-     VALUES (?, ?, ?, 1, 'none', '[]', 'none', ?)`,
-  ).run(id, USER, text, duration)
+    `INSERT INTO tasks (id, user_id, text, created_at, due, priority, tags, recurrence, duration)
+     VALUES (?, ?, ?, 1, ?, 'none', '[]', 'none', ?)`,
+  ).run(id, USER, text, endOfLocalDay(PLAN_DATE), duration)
   recordTaskConfig(
     db,
     {
@@ -186,7 +187,7 @@ test('live predictor: the kill switch keeps baseline-only behaviour', () => {
 test('buildPlan: routes every open task through the injected predictor', () => {
   const db = freshDb()
   insertTask(db)
-  const today = '2026-01-13'
+  const today = PLAN_DATE
   let calls = 0
   const spy: TaskPredictor = (db, userId, taskId, ctx, options) => {
     calls += 1

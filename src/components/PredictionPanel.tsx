@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api, errorMessage } from '@/api'
 import type { PredictionPlan, ToastTone } from '@/types'
 import { ListChecksIcon, SparklesIcon } from './Icons'
@@ -26,23 +26,8 @@ interface PredictionPanelProps {
   refreshKey?: unknown
 }
 
-const CONFIDENCE_STYLE: Record<string, string> = {
-  low: 'bg-slate-100 text-slate-600',
-  medium: 'bg-indigo-50 text-indigo-600',
-  high: 'bg-emerald-50 text-emerald-600',
-}
-
 function percent(value: number): string {
   return `${Math.round(value * 100)}%`
-}
-
-function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <span className="inline-flex cursor-help items-baseline gap-1 whitespace-nowrap" title={hint}>
-      <span className="text-[10px] text-slate-400">{label}</span>
-      <span className="text-[11px] font-bold text-slate-700">{value}</span>
-    </span>
-  )
 }
 
 export default function PredictionPanel({
@@ -119,15 +104,10 @@ export default function PredictionPanel({
     [date, notify],
   )
 
-  const headline = useMemo(() => {
-    if (offDay) return 'Off day'
-    return "Today's plan"
-  }, [offDay])
-
   if (loading) {
     return (
-      <div className="insight-card flex items-center gap-2.5 px-3 py-2.5">
-        <span className="insight-icon h-8 w-8 bg-violet-50 text-violet-500">
+      <div className="flex items-center gap-2.5 rounded-[24px] bg-[#E7E1F5] px-5 py-4">
+        <span className="insight-icon h-8 w-8 bg-white/70 text-[#4A2C8A]">
           <ListChecksIcon className="h-4 w-4" />
         </span>
         <p className="insight-title">Working out today&apos;s plan…</p>
@@ -138,81 +118,55 @@ export default function PredictionPanel({
   const mainColumn: ReactNode = (
     <div className="min-w-0 space-y-2">
       {plan && plan.entries.length === 0 && (
-        <p className="insight-hint rounded-xl bg-slate-50 px-3 py-3 text-center">
-          Nothing to plan for today yet.
+        <p className="rounded-2xl bg-white/70 px-3 py-3 text-center text-xs text-[#454B58]">
+          Nothing to nudge you about today yet.
         </p>
       )}
 
       {plan && plan.entries.length > 0 && (
         <ul className="space-y-1.5">
-          {plan.entries.map((entry) => {
-            const prediction = entry.prediction
-            const duration = prediction.expectedDuration === null ? null : `${prediction.expectedDuration} min`
-            return (
-              <li
-                key={entry.taskId}
-                className="rounded-xl border border-slate-100 bg-white/80 px-2.5 py-2 transition hover:border-indigo-100"
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="min-w-0 truncate text-xs font-semibold text-slate-800">
-                    {entry.text}
-                  </p>
-                  <span
-                    className={`shrink-0 text-[9px] font-bold uppercase tracking-wide ${
-                      CONFIDENCE_STYLE[prediction.confidence] ?? CONFIDENCE_STYLE.low
-                    }`}
-                  >
-                    {prediction.confidence}
-                  </span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-                  <Metric
-                    label="Will finish"
-                    value={percent(prediction.completionProbability)}
-                    hint="Chance you'll get this done at all today, based on your own past completion history. Just a suggestion — not a promise."
-                  />
-                  {prediction.targetProbability !== null && (
-                    <Metric
-                      label="Full time goal"
-                      value={percent(prediction.targetProbability)}
-                      hint="Chance you'll log every minute of this task's time target today. Lower when the time left looks tight."
-                    />
-                  )}
-                  {duration && (
-                    <Metric
-                      label="Est. time"
-                      value={duration}
-                      hint="Roughly how long this task usually takes, from your past sessions."
-                    />
-                  )}
-                  {prediction.exploratory && (
-                    <span className="text-[10px] font-semibold text-amber-600">New time</span>
-                  )}
-                </div>
-              </li>
-            )
-          })}
+          {plan.entries.map((entry) => (
+            <li
+              key={entry.taskId}
+              className="rounded-2xl bg-white/70 px-3 py-2.5 shadow-sm"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate text-sm font-bold text-[#15181E]">
+                  {entry.text}
+                </p>
+                <span className="shrink-0 text-lg leading-none font-extrabold text-[#4A2C8A]">
+                  {percent(entry.prediction.completionProbability)}
+                </span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/70">
+                <div
+                  className="h-full rounded-full bg-[#4A2C8A] transition-[width]"
+                  style={{ width: percent(entry.prediction.completionProbability) }}
+                />
+              </div>
+            </li>
+          ))}
         </ul>
       )}
 
       {plan && plan.suggestions.length > 0 && (
         <div className="space-y-1.5">
-          <p className="insight-section-title flex items-center gap-1.5 px-0.5">
+          <p className="flex items-center gap-1.5 px-0.5 text-[10px] font-bold tracking-[0.14em] text-[#4A2C8A]">
             <SparklesIcon className="h-3 w-3" />
             Worth a look
           </p>
           {plan.suggestions.map((suggestion) => (
             <div
               key={`${suggestion.kind}:${suggestion.taskId}`}
-              className="rounded-xl border border-amber-100 bg-amber-50/60 p-2.5"
+              className="rounded-2xl bg-white/70 p-2.5 shadow-sm"
             >
-              <p className="text-[11px] leading-snug text-amber-900">{suggestion.message}</p>
+              <p className="text-[11px] leading-snug text-[#454B58]">{suggestion.message}</p>
               <div className="mt-1.5 flex items-center gap-1.5">
                 <button
                   type="button"
                   disabled={busyTask === suggestion.taskId}
                   onClick={() => void answerSuggestion(suggestion.taskId, suggestion.kind, 'accepted')}
-                  className="rounded-lg bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                  className="rounded-lg bg-[#4A2C8A] px-2 py-0.5 text-[10px] font-semibold text-white transition hover:bg-[#5C3BA6] disabled:opacity-50"
                 >
                   {suggestion.kind === 'drop' ? 'Drop it' : 'Move it'}
                 </button>
@@ -220,7 +174,7 @@ export default function PredictionPanel({
                   type="button"
                   disabled={busyTask === suggestion.taskId}
                   onClick={() => void answerSuggestion(suggestion.taskId, suggestion.kind, 'dismissed')}
-                  className="rounded-lg px-2 py-0.5 text-[10px] font-semibold text-slate-500 transition hover:bg-white disabled:opacity-50"
+                  className="rounded-lg px-2 py-0.5 text-[10px] font-semibold text-[#454B58] transition hover:bg-white disabled:opacity-50"
                 >
                   Keep it
                 </button>
@@ -234,47 +188,37 @@ export default function PredictionPanel({
   )
 
   return (
-    <section className="insight-card" aria-label="Today's plan">
-      <div className="flex items-center gap-2.5 border-b border-slate-100 px-3 py-2.5">
-        <span className="insight-icon h-8 w-8 bg-violet-50 text-violet-500">
-          <ListChecksIcon className="h-4 w-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="insight-title">{headline}</h2>
-          {plan && !offDay && <p className="truncate text-[10px] text-slate-400">{plan.note}</p>}
-        </div>
-        {!gate && !offDay && plan && plan.entries.length > 0 && (
-          <span className="shrink-0 text-[10px] font-semibold text-violet-600">
-            {plan.entries.length} tasks
-          </span>
-        )}
+    <section className="overflow-hidden rounded-[24px] bg-[#E7E1F5] p-5" aria-label="Today's plan">
+      <div className="mb-3">
+        <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Nudge</h2>
+        <p className="mt-1 text-xs font-bold text-[#454B58]">Chance of finishing today</p>
       </div>
 
       {offDay && (
-        <div className="p-2.5">
-          <p className="rounded-xl border border-slate-100 bg-white/70 px-2.5 py-2 text-[11px] leading-snug text-slate-600">
-            No predictions are shown on an off day. You can still check in if you like.
-          </p>
-        </div>
+        <p className="rounded-2xl bg-white/70 px-4 py-3 text-xs leading-relaxed text-[#454B58]">
+          No predictions are shown on an off day. You can still check in if you like.
+        </p>
       )}
 
       {gate && !offDay && (
-        <div className="p-2.5">
-          <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-2.5 py-2">
-            <p className="text-[11px] leading-snug text-indigo-900">
-              Answer today&apos;s check-in to see what you&apos;re likely to get done, and when.
-            </p>
-            {onOpenCheckin && (
-              <button type="button" onClick={onOpenCheckin} className="insight-primary mt-2">
-                <SparklesIcon className="h-3 w-3" />
-                Check in
-              </button>
-            )}
-          </div>
+        <div className="rounded-2xl bg-white/70 p-4">
+          <p className="text-xs leading-relaxed text-[#454B58]">
+            Answer today&apos;s check-in to see what you&apos;re likely to get done, and when.
+          </p>
+          {onOpenCheckin && (
+            <button
+              type="button"
+              onClick={onOpenCheckin}
+              className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#4A2C8A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5C3BA6] focus-visible:ring-4 focus-visible:ring-[#4A2C8A]/20 focus-visible:outline-none"
+            >
+              <SparklesIcon className="h-3 w-3" />
+              Check in
+            </button>
+          )}
         </div>
       )}
 
-      {!gate && !offDay && <div className="p-2.5">{mainColumn}</div>}
+      {!gate && !offDay && <div>{mainColumn}</div>}
     </section>
   )
 }

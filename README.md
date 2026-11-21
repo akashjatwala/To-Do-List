@@ -1,7 +1,5 @@
 # DUIT
 
-**Do It. Do It Smarter**
-
 A focused to-do list app for individuals and small teams, with a private, on-device
 learning system that predicts what you are realistically likely to get done and
 suggests suitable times.
@@ -15,11 +13,11 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 **Lists and tasks**
 
 - Email + password accounts with "remember me" sessions
-- Account settings from the sidebar account menu: change password (other devices get signed out) or delete your account
+- **My Account** dialog from the account menu: edit your name, change password (other devices get signed out), or delete your account
 - Personal to-do lists
 - Shared team lists with host/member roles
 - Email invitations (accept or decline in-app)
-- Two top-level views — **My task** (only your private personal tasks) and **Collaborate** (team lists; pick a team from the row underneath, and use the **+** beside Collaborate to create one)
+- Two top-level views — **My tasks** (only your private personal tasks) and **Teams** (team lists; pick a team from the row underneath, and use **New team** to create one)
 - A day-by-day board: sticky notes for the selected day, with a calendar picker and prev/next-day controls
 - Priority-colored sticky notes — low = soft green, medium = cream, high = soft red
 - Drag sticky notes to rearrange them (use the grip on touch); the order is saved and remembered
@@ -27,8 +25,8 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - One-tap tags (Work, Personal, Meeting, …) plus custom tags
 - An optional ideal duration per task, shown on the note and in task details
 - Completed tasks collect in a list on the right, scoped to the same day
-- Create personal tasks in **My task**, or open a team in **Collaborate** — new tasks are filed into the list you are viewing
-- **Add task** opens a composer just under the header, above the Energy Level card and board. In **My task**, the Off days and Today's plan cards sit in the right-hand column above Completed, leaving more room for the notes
+- Create personal tasks in **My tasks**, or open a team in **Teams** — new tasks are filed into the list you are viewing
+- **Add task** opens a centered dialog. In **My tasks**, the Off days and Today's plan cards sit in the right-hand column above Completed, leaving more room for the notes
 - Recurring tasks (daily, weekly, monthly, or custom weekly weekdays / nth-weekday monthly); completing one automatically creates the next occurrence
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking
@@ -43,7 +41,8 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - Activity logging: timed sessions and one-tap per-day statuses (completed / partial / skipped / postponed)
 - Per-activity statistics, a readiness/energy view, and similar-day context
 - Predictions shown as **Will finish**, **Full time goal** and **Est. time**, with a plain-language confidence level and hover explanations for each number
-- Off days (sick / travel / holiday / other) that reduce confidence rather than inventing data
+- Off days (just off / sick / travelling / holiday / other), each with its own emoji, that reduce confidence rather than inventing data
+- The **Nudge** card shows only open personal tasks due on the selected day; team tasks and other days are excluded
 - Display-only **Worth a look** suggestions. The server still computes the proposed flow, workload warning and "better days" ideas, but they are no longer shown in the UI; none of them change a task's date
 - Versioned tags, priority, target duration and preferred time, with full history
 - Local model training, versioning, promotion, rollback and a plain-words model health view

@@ -12,7 +12,7 @@ import {
 import { api, errorMessage } from '@/api'
 import { useReducedMotion } from '@/lib/useReducedMotion'
 import { ArrowRightIcon, CheckIcon, ChevronRightIcon, XIcon } from './Icons'
-import { Spinner } from './ui'
+import { Spinner, useBodyScrollLock } from './ui'
 
 /**
  * The daily check-in wizard.
@@ -212,19 +212,15 @@ export default function CheckinModal({
     onClose()
   }, [answers, clearTimer, context, date, initial, onChanged, onClose])
 
-  // Escape closes (persisting partial progress through the dismiss handler) and
-  // the page behind the wizard is locked from scrolling while it is open.
+  // Escape closes (persisting partial progress through the dismiss handler).
+  useBodyScrollLock(true)
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') dismiss()
     }
     window.addEventListener('keydown', onKey)
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
-    }
+    return () => window.removeEventListener('keydown', onKey)
   }, [dismiss])
 
   const skipAll = useCallback(async () => {

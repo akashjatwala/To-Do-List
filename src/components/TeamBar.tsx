@@ -1,6 +1,6 @@
 import type { Team } from '@/types'
 import { initials } from '@/lib/date'
-import { PlusIcon, SettingsIcon } from './Icons'
+import { SettingsIcon } from './Icons'
 
 const TEAM_TINTS = [
   'from-indigo-500 to-violet-500',
@@ -23,32 +23,16 @@ export default function TeamBar({
   counts,
   onSelect,
   onManage,
-  onNewTeam,
 }: {
   teams: Team[]
   activeTeamId: string | null
   counts: Record<string, number>
   onSelect: (teamId: string) => void
   onManage: (teamId: string) => void
-  onNewTeam: () => void
+  onNewTeam?: () => void
 }) {
-  if (teams.length === 0) {
-    return (
-      <div className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2">
-        <p className="min-w-0 flex-1 truncate text-xs text-slate-400">
-          No teams yet — create one to share tasks with other people.
-        </p>
-        <button
-          type="button"
-          onClick={onNewTeam}
-          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-indigo-600 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-indigo-500"
-        >
-          <PlusIcon className="h-3 w-3" />
-          New team
-        </button>
-      </div>
-    )
-  }
+  // With no teams the only "New team" action lives beside the progress counter.
+  if (teams.length === 0) return null
 
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto pb-1">

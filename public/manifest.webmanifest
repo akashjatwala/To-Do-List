@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "DUIT · Do It. Do It Smarter",
+  "name": "DUIT",
   "short_name": "DUIT",
-  "description": "DUIT — Do It. Do It Smarter. A calm, local-first task board with energy-aware planning.",
+  "description": "DUIT — A calm, local-first task board with energy-aware planning.",
   "lang": "en",
   "start_url": "/",
   "scope": "/",

@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { answeredValues, getCheckin, type CheckinAnswerKey, type CheckinState } from '../checkins-store'
 import { averageGoodness, readinessFromCheckin } from './readiness'
-import { configForDate } from './task-config'
+import { configForDate, endOfLocalDay, startOfLocalDay } from './task-config'
 import { dailyActivity } from './daily-activity'
 import { getPredictionSettings, offDayContext, type OffDayKind, type PredictionSettings } from './off-days'
 import {
@@ -567,9 +567,16 @@ export function buildPlan(
   const tagStats = groupStatistics(db, userId, taskIds, today, priorRate, 'tag')
   const priorityStats = groupStatistics(db, userId, taskIds, today, priorRate, 'priority')
 
+  // Only tasks due on the requested day belong in that day's Nudge. Personal
+  // tasks only; team tasks are never part of this plan.
   const openTasks = db
-    .prepare('SELECT id FROM tasks WHERE user_id = ? AND done = 0 AND team_id IS NULL ORDER BY created_at')
-    .all(userId) as unknown as Array<{ id: string }>
+    .prepare(
+      `SELECT id FROM tasks
+       WHERE user_id = ? AND done = 0 AND team_id IS NULL
+         AND due >= ? AND due <= ?
+       ORDER BY created_at`,
+    )
+    .all(userId, startOfLocalDay(date), endOfLocalDay(date)) as unknown as Array<{ id: string }>
 
   const context: PredictContext = {
     date,

@@ -1,0 +1,501 @@
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import type { Priority, Recurrence, RecurrenceConfig, Team } from '@/types'
+import { dueFromDateInput, formatDateValue } from '@/lib/date'
+import {
+  COMMON_TAGS,
+  PRIORITY_META,
+  PRIORITY_VALUES,
+  RECURRENCE_META,
+  STICKY_META,
+  TAG_LIMIT,
+  tagTint,
+} from '@/lib/taskmeta'
+import {
+  CalendarIcon,
+  ClockIcon,
+  PlusIcon,
+  RepeatIcon,
+  TagIcon,
+  UsersIcon,
+  XIcon,
+} from './Icons'
+import { Modal, Spinner } from './ui'
+
+export interface NewTaskInput {
+  text: string
+  due: number | null
+  priority: Priority
+  tags: string[]
+  recurrence: Recurrence
+  recurrenceConfig: RecurrenceConfig | null
+  duration: number | null
+  preferredTime: string | null
+  teamId: string | null
+}
+
+const DURATION_MAX = 60 * 24 * 7
+const DURATION_PRESETS = [15, 30, 45, 60, 120]
+const RECURRENCE_CHOICES: Recurrence[] = ['none', 'daily', 'weekly', 'monthly']
+
+/** Pastel paper palette, with None and Medium adjusted to stay distinct from the preview. */
+const PRIORITY_CHIP: Record<Priority, string> = {
+  none: 'border-[#7B8190]/80 bg-[#E6E8EB] text-[#3A404B]',
+  low: STICKY_META.low.note,
+  medium: 'border-[#D9A520]/80 bg-[#F5E9A8] text-[#6B5400]',
+  high: STICKY_META.high.note,
+}
+
+const FIELD_LABEL = 'label normal-case tracking-normal'
+
+const chipClass = (active: boolean) =>
+  `rounded-lg px-3 py-1.5 text-xs font-semibold transition focus-visible:ring-4 focus-visible:ring-[#D9480F]/20 focus-visible:outline-none ${
+    active
+      ? 'bg-[#D9480F] text-white shadow-sm'
+      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+  }`
+
+function addMinutes(time: string, minutes: number): string {
+  const [rawHour, rawMinute] = time.split(':')
+  const hour = Number(rawHour)
+  const minute = Number(rawMinute)
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return time
+  const total = (hour * 60 + minute + minutes) % (24 * 60)
+  const nextHour = Math.floor(total / 60)
+  const nextMinute = total % 60
+  return `${`${nextHour}`.padStart(2, '0')}:${`${nextMinute}`.padStart(2, '0')}`
+}
+
+function previewDate(value: string): string {
+  const timestamp = dueFromDateInput(value)
+  if (timestamp === null) return 'No date'
+  return new Date(timestamp).toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
+export default function NewTaskDialog({
+  open,
+  onClose,
+  teams,
+  defaultTeamId,
+  defaultDue,
+  onAdd,
+}: {
+  open: boolean
+  onClose: () => void
+  teams: Team[]
+  defaultTeamId: string | null
+  defaultDue: string
+  onAdd: (input: NewTaskInput) => Promise<boolean>
+}) {
+  const [text, setText] = useState('')
+  const [due, setDue] = useState(defaultDue)
+  const [priority, setPriority] = useState<Priority>('none')
+  const [recurrence, setRecurrence] = useState<Recurrence>('none')
+  const [duration, setDuration] = useState<number | null>(null)
+  const [customDuration, setCustomDuration] = useState('')
+  const [customOpen, setCustomOpen] = useState(false)
+  const [preferredTime, setPreferredTime] = useState('')
+  const [tags, setTags] = useState<string[]>([])
+  const [tagDraft, setTagDraft] = useState('')
+  const [teamId, setTeamId] = useState<string | null>(defaultTeamId)
+  const [addAnother, setAddAnother] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const textRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setText('')
+    setDue(defaultDue)
+    setPriority('none')
+    setRecurrence('none')
+    setDuration(null)
+    setCustomDuration('')
+    setCustomOpen(false)
+    setPreferredTime('')
+    setTags([])
+    setTagDraft('')
+    setTeamId(defaultTeamId)
+    setAddAnother(false)
+    const timer = window.setTimeout(() => textRef.current?.focus(), 0)
+    return () => window.clearTimeout(timer)
+  }, [open, defaultDue, defaultTeamId])
+
+  const toggleTag = (tag: string) => {
+    setTags((current) =>
+      current.includes(tag)
+        ? current.filter((item) => item !== tag)
+        : current.length >= TAG_LIMIT
+          ? current
+          : [...current, tag],
+    )
+  }
+
+  const commitDraft = () => {
+    const value = tagDraft.trim().replace(/\s+/g, ' ')
+    setTagDraft('')
+    if (!value || tags.includes(value) || tags.length >= TAG_LIMIT) return
+    setTags((current) => [...current, value])
+  }
+
+  const onDraftKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' || event.key === ',') {
+      event.preventDefault()
+      commitDraft()
+    }
+  }
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    const value = text.trim()
+    if (!value || busy) return
+    const draft = tagDraft.trim().replace(/\s+/g, ' ')
+    const nextTags = draft && !tags.includes(draft) ? [...tags, draft].slice(0, TAG_LIMIT) : tags
+    const customMinutes = Number.parseInt(customDuration, 10)
+    const minutes =
+      duration ??
+      (Number.isFinite(customMinutes) && customMinutes > 0
+        ? Math.min(customMinutes, DURATION_MAX)
+        : null)
+
+    setBusy(true)
+    const ok = await onAdd({
+      text: value,
+      due: dueFromDateInput(due),
+      priority,
+      tags: nextTags,
+      recurrence,
+      recurrenceConfig: null,
+      duration: minutes,
+      preferredTime: preferredTime || null,
+      teamId,
+    })
+    setBusy(false)
+
+    if (!ok) return
+    if (addAnother) {
+      setText('')
+      setTags([])
+      setTagDraft('')
+      textRef.current?.focus()
+    } else {
+      onClose()
+    }
+  }
+
+  const customTags = tags.filter(
+    (tag) => !COMMON_TAGS.some((common) => common.toLowerCase() === tag.toLowerCase()),
+  )
+  const selectedDuration = duration ?? (customDuration.trim() ? Number(customDuration) : null)
+  const suggestedTime =
+    preferredTime && selectedDuration
+      ? `${preferredTime}–${addMinutes(preferredTime, selectedDuration)}`
+      : '—'
+
+  return (
+    <Modal open={open} onClose={onClose} title="New task" width="max-w-5xl">
+      <form onSubmit={submit}>
+        <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_19rem]">
+          <div className="min-w-0 space-y-5">
+            <section>
+              <label className={FIELD_LABEL} htmlFor="new-task-title">
+                Task
+              </label>
+              <input
+                id="new-task-title"
+                ref={textRef}
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder="What needs doing?"
+                maxLength={500}
+                className="field text-base"
+                aria-label="New task"
+              />
+            </section>
+
+            <section>
+              <p className={FIELD_LABEL}>Priority</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Priority">
+                {PRIORITY_VALUES.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPriority(value)}
+                    aria-pressed={priority === value}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition focus-visible:ring-4 focus-visible:ring-[#D9480F]/20 focus-visible:outline-none ${
+                      PRIORITY_CHIP[value]
+                    } ${priority === value ? 'ring-2 ring-[#D9480F] ring-offset-1' : 'opacity-75 hover:opacity-100'}`}
+                  >
+                    {value === 'none' ? 'None' : PRIORITY_META[value].label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <section>
+                <label className={FIELD_LABEL} htmlFor="new-task-due">
+                  Due date
+                </label>
+                <label className="relative flex items-center">
+                  <CalendarIcon className="pointer-events-none absolute left-3 h-4 w-4 text-slate-400" />
+                  <input
+                    id="new-task-due"
+                    type="date"
+                    value={due}
+                    onChange={(event) => setDue(event.target.value)}
+                    className="field pl-9"
+                    aria-label="Due date"
+                  />
+                </label>
+              </section>
+
+              <section>
+                <label className={FIELD_LABEL} htmlFor="new-task-time">
+                  Time (optional)
+                </label>
+                <label className="relative flex items-center">
+                  <ClockIcon className="pointer-events-none absolute left-3 h-4 w-4 text-slate-400" />
+                  <input
+                    id="new-task-time"
+                    type="time"
+                    value={preferredTime}
+                    onChange={(event) => setPreferredTime(event.target.value)}
+                    className="field pl-9"
+                    aria-label="Time (optional)"
+                  />
+                </label>
+              </section>
+            </div>
+
+            <section>
+              <p className={FIELD_LABEL}>How long will it take?</p>
+              <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Duration">
+                {DURATION_PRESETS.map((minutes) => (
+                  <button
+                    key={minutes}
+                    type="button"
+                    onClick={() => {
+                      setDuration(duration === minutes ? null : minutes)
+                      setCustomDuration('')
+                      setCustomOpen(false)
+                    }}
+                    aria-pressed={duration === minutes}
+                    className={chipClass(duration === minutes)}
+                  >
+                    {minutes < 60 ? `${minutes} min` : `${minutes / 60}h`}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDuration(null)
+                    setCustomOpen(true)
+                  }}
+                  aria-pressed={customOpen}
+                  className={chipClass(customOpen)}
+                >
+                  Custom
+                </button>
+                {customOpen && (
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                    <input
+                      type="number"
+                      min={1}
+                      max={DURATION_MAX}
+                      value={customDuration}
+                      onChange={(event) => setCustomDuration(event.target.value)}
+                      className="field w-20! py-1.5! text-xs"
+                      aria-label="Custom duration in minutes"
+                    />
+                    min
+                  </label>
+                )}
+              </div>
+            </section>
+
+            <section>
+              <p className={FIELD_LABEL}>Repeats</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Repeats">
+                {RECURRENCE_CHOICES.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setRecurrence(value)}
+                    aria-pressed={recurrence === value}
+                    className={chipClass(recurrence === value)}
+                  >
+                    {value === 'none' ? 'Never' : RECURRENCE_META[value].short}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <p className={FIELD_LABEL}>Add to</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Add to">
+                <button
+                  type="button"
+                  onClick={() => setTeamId(null)}
+                  aria-pressed={teamId === null}
+                  className={chipClass(teamId === null)}
+                >
+                  My tasks
+                </button>
+                {teams.map((team) => (
+                  <button
+                    key={team.id}
+                    type="button"
+                    onClick={() => setTeamId(team.id)}
+                    aria-pressed={teamId === team.id}
+                    className={chipClass(teamId === team.id)}
+                  >
+                    {team.name}
+                  </button>
+                ))}
+              </div>
+              {teams.length === 0 && (
+                <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
+                  <UsersIcon className="h-3.5 w-3.5" />
+                  Create a team to share tasks.
+                </p>
+              )}
+            </section>
+
+            <section>
+              <div className="flex items-center justify-between">
+                <p className={`${FIELD_LABEL} mb-0`}>Tags</p>
+                <span className="text-[11px] text-slate-400">
+                  {tags.length}/{TAG_LIMIT}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2" role="group" aria-label="Tags">
+                {COMMON_TAGS.map((tag) => {
+                  const value = tag.toLowerCase()
+                  return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleTag(value)}
+                    aria-pressed={tags.includes(value)}
+                    className={`rounded-md px-2 py-1 text-[11px] font-medium transition ${
+                      tags.includes(value) ? tagTint(value) : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                  >
+                    #{value}
+                  </button>
+                  )
+                })}
+                {customTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className={`inline-flex items-center gap-1 rounded-md py-1 pr-1 pl-2 text-[11px] font-medium ${tagTint(tag)}`}
+                  >
+                    #{tag.toLowerCase()}
+                    <button
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      className="rounded p-0.5 opacity-60 transition hover:opacity-100"
+                      aria-label={`Remove tag ${tag}`}
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                <label className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-500 transition focus-within:border-[#D9480F]">
+                  <TagIcon className="h-3.5 w-3.5" />
+                  <input
+                    value={tagDraft}
+                    onChange={(event) => setTagDraft(event.target.value)}
+                    onKeyDown={onDraftKeyDown}
+                    onBlur={commitDraft}
+                    placeholder="Add tag"
+                    maxLength={24}
+                    className="w-20 border-0 bg-transparent p-0 text-[11px] outline-none placeholder:text-slate-400"
+                    aria-label="Add tag"
+                  />
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <aside className="min-w-0">
+            <p className={FIELD_LABEL}>Preview</p>
+            <div className="rounded-2xl bg-[#FDF3E7] p-5 text-[#15181E] shadow-sm ring-1 ring-[#D9480F]/15">
+              {priority !== 'none' && (
+                <span
+                  className={`mb-3 inline-block rounded-md px-2 py-0.5 text-[10px] font-bold normal-case tracking-wide ${PRIORITY_CHIP[priority]}`}
+                >
+                  {PRIORITY_META[priority].label}
+                </span>
+              )}
+              <h3 className="text-base leading-snug font-bold break-words">
+                {text.trim() || 'Your task title'}
+              </h3>
+              {(tags.length > 0 || tagDraft.trim()) && (
+                <p className="mt-2 text-[11px] font-medium text-[#6B4F1D]">
+                  {[...tags, tagDraft.trim()].filter(Boolean).map((tag) => `#${tag.toLowerCase()}`).join('  ')}
+                </p>
+              )}
+              <div className="mt-4 space-y-1.5 text-xs font-medium text-[#6B4F1D]">
+                <p>{previewDate(due)}{preferredTime ? ` · ${preferredTime}` : ''}</p>
+                <p>{selectedDuration ? `${selectedDuration} min` : 'No duration yet'}</p>
+                {recurrence !== 'none' && <p>{RECURRENCE_META[recurrence].label}</p>}
+                <p>
+                  {teamId
+                    ? teams.find((team) => team.id === teamId)?.name ?? 'Team task'
+                    : 'My tasks'}
+                </p>
+              </div>
+              <div className="mt-4 border-t border-[#D9480F]/20 pt-4">
+                <p className="text-[11px] font-bold tracking-wide text-[#8A3B00] normal-case">
+                  Suggested time
+                </p>
+                <p className="mt-1 text-lg font-extrabold">{suggestedTime}</p>
+                <p className="mt-1 text-[11px] leading-snug text-[#8A3B00]/80">
+                  Low confidence until it has more of your history.
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-snug text-slate-400">
+              <RepeatIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {formatDateValue(due) || 'Pick a date'} · {getListLabel(teamId, teams)}
+            </p>
+          </aside>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600">
+            <input
+              type="checkbox"
+              checked={addAnother}
+              onChange={(event) => setAddAnother(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-[#D9480F] accent-[#D9480F]"
+            />
+            Add and create another
+          </label>
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn-ghost" onClick={onClose} disabled={busy}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!text.trim() || busy}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D9480F] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#C23E0C] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy ? <Spinner className="h-4 w-4" /> : <PlusIcon className="h-4 w-4" />}
+              Add task
+            </button>
+          </div>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function getListLabel(teamId: string | null, teams: Team[]): string {
+  if (!teamId) return 'Personal list'
+  return teams.find((team) => team.id === teamId)?.name ?? 'Team task'
+}

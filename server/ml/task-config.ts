@@ -183,6 +183,12 @@ export function listTaskConfigs(db: DatabaseSync, taskId: string): TaskConfigRow
     .all(taskId) as unknown as TaskConfigRow[]
 }
 
+/** Start of a local calendar day, used to scope tasks to a due date. */
+export function startOfLocalDay(date: string): number {
+  const [year, month, day] = date.split('-').map(Number)
+  return new Date(year, month - 1, day).getTime()
+}
+
 /** End of a local calendar day, used to decide which version applied. */
 export function endOfLocalDay(date: string): number {
   const [year, month, day] = date.split('-').map(Number)

@@ -107,9 +107,11 @@ Recording activity is the moment the system learns something real.
 ## What the user is actually served
 
 Both prediction routes call `server/ml/live-predictor.ts`, which wraps `serving.ts`. That is
-the link between all the training above and the numbers shown in the app: the champion is
-served for completion, target and duration when present and healthy, otherwise the baseline
-is served. With no trained model yet, this is the baseline-only behaviour as before.
+the link between all the training above and the numbers in the app: the champion is served
+for completion, target and duration when present and healthy, otherwise the baseline is
+served. The current Nudge card displays only the completion probability (percentage beside
+the task, with a bar below); target and duration remain computed and logged but are not shown
+there. With no trained model yet, this is the baseline-only behaviour as before.
 `ML_DISABLE_MODEL_SERVING=1` keeps that baseline-only path for comparison or emergencies
 (read at startup). The wiring is covered by `server/ml/live-predictor.test.ts`.
 
@@ -137,8 +139,8 @@ plain words:
 - **Configuration changes** — a target, priority, tag set or preferred time that changed is read from the versioned config history and dated, so a changed target is not mistaken for a change in you.
 - **Explanations, not causes.** Everything is an association over your own days. Nothing claims why a rate moved.
 
-Drift notes are additive: they are shown next to predictions, never in place of them, and never
-change a number.
+Drift notes are additive: they are returned with the plan as informational text, never in
+place of a prediction, and never change a number. The current Nudge card does not display them.
 
 ## Versioning and rollback
 

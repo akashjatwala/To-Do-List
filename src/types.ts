@@ -3,6 +3,7 @@ import type { CheckinAnswerKey } from './lib/checkin'
 export interface User {
   id: number
   email: string
+  name: string
 }
 
 export interface Subtask {
@@ -10,6 +11,7 @@ export interface Subtask {
   text: string
   done: boolean
   position: number
+  assignee: TaskAssignee | null
 }
 
 export interface Comment {
@@ -20,13 +22,19 @@ export interface Comment {
   email: string
 }
 
-export type Priority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
+export type Priority = 'none' | 'low' | 'medium' | 'high'
 
 export type Recurrence = 'none' | 'daily' | 'weekly' | 'monthly' | 'custom'
 
 export type RecurrenceConfig =
   | { mode: 'weekly'; days: number[] }
   | { mode: 'monthly'; nth: number; weekday: number }
+
+export interface TaskAssignee {
+  id: number
+  email: string
+  name: string
+}
 
 export interface Task {
   id: string
@@ -47,6 +55,7 @@ export interface Task {
   ownerEmail: string
   subtasks: Subtask[]
   comments: Comment[]
+  assignees: TaskAssignee[]
 }
 
 export interface Member {
@@ -83,7 +92,9 @@ export interface BootstrapData {
   tasks: Task[]
 }
 
-export type View = { kind: 'my' } | { kind: 'collab'; teamId: string | null }
+export type View =
+  | { kind: 'my' }
+  | { kind: 'collab'; teamId: string | null }
 
 export type ToastTone = 'success' | 'error' | 'info'
 

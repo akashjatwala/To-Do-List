@@ -1,59 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { api, errorMessage } from '@/api'
-import { Modal, Spinner } from './ui'
+import { Spinner } from './ui'
 import { AlertIcon, EyeIcon, EyeOffIcon, LockIcon } from './Icons'
 
-export default function SettingsModal({
-  onClose,
-  onPasswordChanged,
-  onDeleted,
-}: {
-  onClose: () => void
-  onPasswordChanged: () => void
-  onDeleted: () => void
-}) {
-  const [tab, setTab] = useState<'password' | 'account'>('password')
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Settings"
-      description="Manage your account and security."
-      width="max-w-md"
-    >
-      <div className="mb-4 flex gap-1 rounded-xl bg-slate-100 p-1">
-        {(
-          [
-            { key: 'password', label: 'Password' },
-            { key: 'account', label: 'Account' },
-          ] as const
-        ).map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => setTab(item.key)}
-            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-              tab === item.key
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'password' ? (
-        <ChangePassword onDone={onPasswordChanged} />
-      ) : (
-        <DeleteAccount onDeleted={onDeleted} />
-      )}
-    </Modal>
-  )
-}
-
-function ChangePassword({ onDone }: { onDone: () => void }) {
+export function ChangePassword({ onDone }: { onDone: () => void }) {
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -139,7 +89,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
   )
 }
 
-function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
+export function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
   const [confirming, setConfirming] = useState(false)

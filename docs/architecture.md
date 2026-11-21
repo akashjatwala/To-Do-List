@@ -21,7 +21,7 @@ flowchart TD
   ML --> DB
 ```
 
-- The **frontend** renders and sends mutations. It never computes a prediction and never writes an outcome.
+- The **frontend** renders and sends mutations. It never computes a prediction and never writes an outcome. The header clock is a ticking state value, so it stays in sync with the system clock.
 - The **API** authenticates the session, validates input, and calls the learning modules.
 - The **database** is a single local SQLite file, currently 32 tables after the 2026-11-18 cleanup and table merges described in [data-model.md](data-model.md). The learning system writes only its own tables plus the tables it owns in `server/ml/schema.ts`.
 
@@ -36,7 +36,7 @@ Each job lives in its own file, so it can be tested and reasoned about alone.
 | Feature engineering | `ml/features.ts`, `ml/dataset.ts` | Builds the one feature vector used by both training and serving |
 | Training | `ml/training.ts`, `ml/model/` (`logistic.ts`, `gbm.ts`, `quantile.ts`, `math.ts`), `ml/calibration.ts`, `ml/pipeline.ts` | Trains the candidate models and chooses one |
 | Evaluation | `ml/metrics.ts` | Brier score, calibration, duration error |
-| Prediction (serving) | `ml/predictors.ts` (baseline), `ml/serving.ts` (champion), `ml/estimates.ts`, `ml/cold-start.ts` | Produces the probabilities and duration estimate shown to the user; the time window is computed and logged but not displayed |
+| Prediction (serving) | `ml/predictors.ts` (baseline), `ml/serving.ts` (champion), `ml/estimates.ts`, `ml/cold-start.ts` | Produces the completion, target and duration estimates; the current Nudge UI shows only the completion probability (percentage beside the task, bar below), and the recommended window is computed and logged but not displayed |
 | Continuous learning | `ml/learning.ts`, `ml/shadow.ts` | Links recorded activity to outcomes, gates and rate-limits retraining |
 | Model versioning | `ml/registry.ts` | Append-only model rows, promotion, rollback, loading |
 | Live health & drift | `ml/health.ts`, `ml/drift.ts` | Watches the served model and reports change |
@@ -93,7 +93,7 @@ sequenceDiagram
   alt check-in not done
     A-->>U: gate: show the check-in first
   else check-in done or skipped
-    A->>S: serveTask per open task
+    A->>S: serveTask per open personal task due on that date
     S->>R: load champion (if any)
     S->>D: log model vs baseline (health), never as an outcome
     A-->>U: plan + predictions + drift notes

@@ -72,8 +72,8 @@ const del = <T>(path: string) => request<T>(path, { method: 'DELETE' })
 export const api = {
   bootstrap: () => request<BootstrapData>('/api/bootstrap'),
 
-  signup: (email: string, password: string, remember: boolean) =>
-    post<{ user: User }>('/api/auth/signup', { email, password, remember }),
+  signup: (email: string, name: string, password: string, remember: boolean) =>
+    post<{ user: User }>('/api/auth/signup', { email, name, password, remember }),
   login: (email: string, password: string, remember: boolean) =>
     post<{ user: User }>('/api/auth/login', { email, password, remember }),
   logout: () => post<{ ok: true }>('/api/auth/logout'),
@@ -82,6 +82,8 @@ export const api = {
     post<{ ok: true }>('/api/auth/reset', { token, password }),
   changePassword: (currentPassword: string, newPassword: string) =>
     post<{ ok: true }>('/api/auth/password', { currentPassword, newPassword }),
+  updateName: (name: string) => patch<{ user: User }>('/api/auth/me', { name }),
+  signOutOthers: () => post<{ ok: true }>('/api/auth/sessions/others'),
   deleteAccount: (password: string) =>
     request<{ ok: true }>('/api/auth/account', {
       method: 'DELETE',
@@ -117,10 +119,16 @@ export const api = {
   ) => patch<{ ok: true; spawnedId: string | null }>(`/api/tasks/${id}`, patchBody),
   deleteTask: (id: string) => del<{ ok: true }>(`/api/tasks/${id}`),
   reorderTasks: (ids: string[]) => post<{ ok: true }>('/api/tasks/reorder', { ids }),
+  setTaskAssignees: (id: string, userIds: number[]) =>
+    put<{ ok: true }>(`/api/tasks/${id}/assignees`, { userIds }),
 
-  addSubtask: (taskId: string, text: string) =>
-    post<{ id: string }>(`/api/tasks/${taskId}/subtasks`, { text }),
-  updateSubtask: (taskId: string, subtaskId: string, patchBody: { text?: string; done?: boolean }) =>
+  addSubtask: (taskId: string, text: string, assigneeId?: number | null) =>
+    post<{ id: string }>(`/api/tasks/${taskId}/subtasks`, { text, assigneeId: assigneeId ?? null }),
+  updateSubtask: (
+    taskId: string,
+    subtaskId: string,
+    patchBody: { text?: string; done?: boolean; assigneeId?: number | null },
+  ) =>
     patch<{ ok: true }>(`/api/tasks/${taskId}/subtasks/${subtaskId}`, patchBody),
   deleteSubtask: (taskId: string, subtaskId: string) =>
     del<{ ok: true }>(`/api/tasks/${taskId}/subtasks/${subtaskId}`),
@@ -207,6 +215,7 @@ export const api = {
 
   // ---- Off days and prediction settings ----
 
+  listOffDays: () => request<{ items: OffDay[] }>('/api/off-days'),
   getOffDayDay: (date: string) =>
     request<{
       date: string

@@ -15,6 +15,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL DEFAULT '',
     password_hash TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
@@ -84,7 +85,9 @@ db.exec(`
     text TEXT NOT NULL,
     done INTEGER NOT NULL DEFAULT 0,
     position INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    assignee_id INTEGER,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (assignee_id) REFERENCES users(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS comments (
@@ -97,11 +100,23 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- A team task can be assigned to several teammates. The creator remains the
+  -- task's owner (tasks.user_id); this table only records who is working on it.
+  CREATE TABLE IF NOT EXISTS task_assignees (
+    task_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    PRIMARY KEY (task_id, user_id),
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_team ON tasks(team_id);
   CREATE INDEX IF NOT EXISTS idx_subtasks_task ON subtasks(task_id);
   CREATE INDEX IF NOT EXISTS idx_comments_task ON comments(task_id);
+  CREATE INDEX IF NOT EXISTS idx_task_assignees_task ON task_assignees(task_id);
+  CREATE INDEX IF NOT EXISTS idx_task_assignees_user ON task_assignees(user_id);
   CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id);
   CREATE INDEX IF NOT EXISTS idx_team_invites_email ON team_invites(email);
 `)
@@ -124,6 +139,13 @@ createMlSchema(db)
 
 // Lightweight migrations for databases created by older versions of the app.
 // Fresh databases already have every column above; these only fill gaps in old files.
+const userColumns = db.prepare('PRAGMA table_info(users)').all() as unknown as Array<{
+  name: string
+}>
+if (!userColumns.some((column) => column.name === 'name')) {
+  db.exec("ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+}
+
 const taskColumns = db.prepare('PRAGMA table_info(tasks)').all() as unknown as Array<{
   name: string
 }>
@@ -152,9 +174,31 @@ if (!hasTaskColumn('preferred_time')) {
   db.exec('ALTER TABLE tasks ADD COLUMN preferred_time TEXT')
 }
 
+const subtaskColumns = db.prepare('PRAGMA table_info(subtasks)').all() as unknown as Array<{
+  name: string
+}>
+if (!subtaskColumns.some((column) => column.name === 'assignee_id')) {
+  db.exec(
+    'ALTER TABLE subtasks ADD COLUMN assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL',
+  )
+}
+
+/** Clear a departing member's assignments on that team's tasks. */
+export function clearTeamAssignees(teamId: string, userId: number) {
+  db.prepare(
+    `DELETE FROM task_assignees
+     WHERE user_id = ? AND task_id IN (SELECT id FROM tasks WHERE team_id = ?)`,
+  ).run(userId, teamId)
+  db.prepare(
+    `UPDATE subtasks SET assignee_id = NULL
+     WHERE assignee_id = ? AND task_id IN (SELECT id FROM tasks WHERE team_id = ?)`,
+  ).run(userId, teamId)
+}
+
 export interface UserRow {
   id: number
   email: string
+  name: string
   password_hash: string
   created_at: number
 }
@@ -205,6 +249,7 @@ export interface SubtaskRow {
   text: string
   done: number
   position: number
+  assignee_id: number | null
 }
 
 export interface CommentRow {

@@ -13,21 +13,15 @@ test('noteTilt stays within the gentle range', () => {
   }
 })
 
-test('pinColor is stable and always one of the known colours', () => {
+test('every pin is the same red accent', () => {
+  assert.deepEqual(PIN_COLORS, ['red'])
   for (const id of ['a', 'task-1', 'note-xyz', '12345', 'zzzz']) {
-    const colour = pinColor(id)
-    assert.equal(colour, pinColor(id))
-    assert.ok((PIN_COLORS as readonly string[]).includes(colour))
+    assert.equal(pinColor(id), 'red')
+    assert.equal(pinClass(id), 'text-[#D9480F]')
   }
 })
 
-test('pinClass returns a non-empty class for every note', () => {
-  for (const id of ['a', 'task-1', 'note-xyz']) {
-    assert.ok(pinClass(id).length > 0)
-  }
-})
-
-test('different ids can land on different pins (not all one colour)', () => {
-  const colours = new Set(Array.from({ length: 40 }, (_, index) => pinColor(`task-${index}`)))
-  assert.ok(colours.size > 1)
+test('pinClass stays red for every id', () => {
+  const classes = new Set(Array.from({ length: 40 }, (_, index) => pinClass(`task-${index}`)))
+  assert.deepEqual([...classes], ['text-[#D9480F]'])
 })

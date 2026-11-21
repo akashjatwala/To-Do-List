@@ -57,7 +57,8 @@
 | Mood is a predictive input, never a diagnosis | Associations are explained; causes are never claimed |
 | Sensitive questions are optional | Personal context helps predictions but must never be required |
 | Everything stays local | No external ML service, no telemetry, no upload path |
-| Drift is measured and reported, not predicted | A routine change is an association over your own days, shown next to predictions, never hidden |
+| Keep Nudge to one number | The completion probability answers the card's question; target, duration and confidence are still computed and logged, but a percentage beside the task with a bar below keeps the display uncluttered |
+| Drift is measured and reported, not predicted | A routine change is an association over your own days, returned by the API but not shown in the current Nudge card |
 | Separate module per stage | Each stage (collection, validation, features, training, evaluation, prediction, learning, versioning) can be tested and replaced alone |
 
 ## Related docs

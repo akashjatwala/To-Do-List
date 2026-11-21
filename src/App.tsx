@@ -16,29 +16,27 @@ import type {
   UserInvite,
   View,
 } from '@/types'
-import { dateInputValue, dueFromDateInput, formatDateValue, todayDateValue } from '@/lib/date'
-import { localDateString } from '@/lib/checkin'
+import { dateInputValue, dueFromDateInput, todayDateValue } from '@/lib/date'
+import { greetingForHour, localDateString } from '@/lib/checkin'
 import AuthScreen from './components/AuthScreen'
 import AccountMenu from './components/AccountMenu'
 import InstallButton from './components/InstallButton'
-import SettingsModal from './components/SettingsModal'
+import MyAccountDialog from './components/MyAccountDialog'
 import CheckinModal from './components/CheckinModal'
 import DailyStateCard from './components/DailyStateCard'
 import OffDayCard from './components/OffDayCard'
 import PredictionPanel from './components/PredictionPanel'
-import TaskComposer, { type NewTaskInput } from './components/TaskComposer'
-import { CompletedColumn, StickyBoard } from './components/StickyBoard'
+import NewTaskDialog, { type NewTaskInput } from './components/NewTaskDialog'
+import { CompletedColumn, RepeatingColumn, StickyBoard } from './components/StickyBoard'
 import TaskDetail from './components/TaskDetail'
 import TeamBar from './components/TeamBar'
 import TeamModal from './components/TeamModal'
-import { Avatar, Spinner } from './components/ui'
+import { TeamInvitationsCard, TeamMembersCard } from './components/TeamSidebarCards'
+import { Spinner } from './components/ui'
 import { Logo } from './components/Logo'
 import {
-  CalendarIcon,
   CheckIcon,
   ChevronRightIcon,
-  InboxIcon,
-  PlusIcon,
   UsersIcon,
   XIcon,
 } from './components/Icons'
@@ -56,16 +54,19 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<View>({ kind: 'my' })
   const [selectedDate, setSelectedDate] = useState(() => todayDateValue())
-  const [composerOpen, setComposerOpen] = useState(false)
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [teamModal, setTeamModal] = useState<{ teamId: string | null } | null>(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null)
   const [checkinOpen, setCheckinOpen] = useState(false)
   const [checkinMode, setCheckinMode] = useState<'prompt' | 'edit'>('prompt')
   const [checkinCelebrate, setCheckinCelebrate] = useState(false)
   const [dailyStateData, setDailyStateData] = useState<DailyState | null>(null)
+  // The header clock reads from a ticking value, not from render time, so it
+  // keeps up with the system clock while the app stays open.
+  const [now, setNow] = useState(() => new Date())
   const toastId = useRef(0)
   const lastTeamId = useRef<string | null>(null)
   const checkinCheckedFor = useRef<number | null>(null)
@@ -149,6 +150,17 @@ export default function App() {
     }
   }, [data, selectedId])
 
+  // Keep the header clock and greeting in step with the system clock.
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 10_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  // A different date or team means the dialog's defaults are no longer valid.
+  useEffect(() => {
+    setTaskDialogOpen(false)
+  }, [view, selectedDate])
+
   // Load the read-only daily state for today (personal view only). It reloads
   // whenever the check-in changes, so a mid-day edit updates the summary.
   useEffect(() => {
@@ -179,7 +191,7 @@ export default function App() {
     if (!data) return []
     // "My task" is the personal list only; shared tasks live behind Collaborate.
     if (view.kind === 'my') return data.tasks.filter((task) => task.teamId === null)
-    if (!view.teamId) return []
+    if (view.kind !== 'collab' || !view.teamId) return []
     return data.tasks.filter((task) => task.teamId === view.teamId)
   }, [data, view])
 
@@ -191,8 +203,22 @@ export default function App() {
     [viewTasks, selectedDate],
   )
 
-  const openTasks = useMemo(() => dateTasks.filter((task) => !task.done), [dateTasks])
-  const completedTasks = useMemo(() => dateTasks.filter((task) => task.done), [dateTasks])
+  // A team board shows the whole shared list; a personal board stays date-scoped.
+  // Repeats live in the Repeating card rather than on the board.
+  const boardTasks = useMemo(
+    () =>
+      view.kind === 'collab'
+        ? viewTasks.filter((task) => task.recurrence === 'none')
+        : dateTasks,
+    [view.kind, viewTasks, dateTasks],
+  )
+  const openTasks = useMemo(() => boardTasks.filter((task) => !task.done), [boardTasks])
+  const completedTasks = useMemo(() => boardTasks.filter((task) => task.done), [boardTasks])
+  // Repeats are ongoing routines, so they are listed regardless of the chosen day.
+  const repeatingTasks = useMemo(
+    () => viewTasks.filter((task) => task.recurrence !== 'none'),
+    [viewTasks],
+  )
 
   const isToday = selectedDate === todayDateValue()
 
@@ -200,12 +226,33 @@ export default function App() {
     const perTeam: Record<string, number> = {}
     let personal = 0
     for (const task of data?.tasks ?? []) {
-      if (task.done) continue
+      if (task.done || task.recurrence !== 'none') continue
       if (task.teamId) perTeam[task.teamId] = (perTeam[task.teamId] ?? 0) + 1
       else personal += 1
     }
     return { personal, perTeam }
   }, [data])
+
+  const memberOpenCounts = useMemo(() => {
+    const counts: Record<number, number> = {}
+    for (const task of viewTasks) {
+      if (task.done || task.recurrence !== 'none') continue
+      counts[task.userId] = (counts[task.userId] ?? 0) + 1
+    }
+    return counts
+  }, [viewTasks])
+
+  const teamStats = useMemo(() => {
+    // Repeats are ongoing routines; they belong in Repeating, not the day's counter.
+    const tasks = viewTasks.filter((task) => task.recurrence === 'none')
+    const done = tasks.filter((task) => task.done).length
+    return {
+      total: tasks.length,
+      done,
+      open: tasks.length - done,
+      percent: tasks.length === 0 ? 0 : Math.round((done / tasks.length) * 100),
+    }
+  }, [viewTasks])
 
   const selectedTask = data?.tasks.find((task) => task.id === selectedId) ?? null
 
@@ -217,10 +264,9 @@ export default function App() {
     setData(null)
     setSelectedId(null)
     setTeamModal(null)
-    setSettingsOpen(false)
     setView({ kind: 'my' })
     setSelectedDate(todayDateValue())
-    setComposerOpen(false)
+    setTaskDialogOpen(false)
     checkinCheckedFor.current = null
     setCheckinStatus(null)
     setCheckinOpen(false)
@@ -376,9 +422,31 @@ export default function App() {
     }
   }
 
-  const addSubtask = async (task: Task, text: string) => {
+  const setAssignees = async (task: Task, userIds: number[]) => {
     try {
-      await api.addSubtask(task.id, text)
+      await api.setTaskAssignees(task.id, userIds)
+      await refresh()
+      return true
+    } catch (error) {
+      notify(errorMessage(error), 'error')
+      return false
+    }
+  }
+
+  const addSubtask = async (task: Task, text: string, assigneeId: number | null) => {
+    try {
+      await api.addSubtask(task.id, text, assigneeId)
+      await refresh()
+      return true
+    } catch (error) {
+      notify(errorMessage(error), 'error')
+      return false
+    }
+  }
+
+  const assignSubtask = async (task: Task, subtask: Subtask, assigneeId: number | null) => {
+    try {
+      await api.updateSubtask(task.id, subtask.id, { assigneeId })
       await refresh()
       return true
     } catch (error) {
@@ -468,236 +536,268 @@ export default function App() {
 
   const isCollab = view.kind === 'collab'
 
+  const accountName =
+    data.user.name.trim() ||
+    data.user.email
+      .split('@')[0]
+      .replace(/^./, (char) => char.toUpperCase())
+  const currentHour = now.getHours()
+  const clockLabel = `${`${now.getHours()}`.padStart(2, '0')}:${`${now.getMinutes()}`.padStart(2, '0')}`
+  const longDateLabel = (() => {
+    const timestamp = dueFromDateInput(selectedDate)
+    if (timestamp === null) return ''
+    return new Date(timestamp).toLocaleDateString(undefined, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    })
+  })()
+  const doneCount = completedTasks.length
+  const totalCount = dateTasks.length
+  const donePercent = totalCount === 0 ? 0 : Math.round((doneCount / totalCount) * 100)
+  const remainingMinutes = openTasks.reduce((total, task) => total + (task.duration ?? 0), 0)
+  const remainingLabel =
+    remainingMinutes < 60
+      ? `${remainingMinutes} min left`
+      : `${Math.floor(remainingMinutes / 60)} h ${remainingMinutes % 60} min left`
+
+  // Personal notes belong to the signed-in user. Team notes are host-only:
+  // this gates the note's trash icon and the delete button in task detail.
   const canDeleteTask = (task: Task) =>
-    task.userId === data.user.id ||
-    (task.teamId !== null &&
-      data.teams.find((team) => team.id === task.teamId)?.role === 'host')
+    task.teamId === null
+      ? task.userId === data.user.id
+      : data.teams.find((team) => team.id === task.teamId)?.role === 'host'
 
-  const title = currentTeam ? currentTeam.name : isCollab ? 'Collaborate' : 'My task'
-  const subtitle = currentTeam
-    ? `${currentTeam.members.length} ${currentTeam.members.length === 1 ? 'member' : 'members'} · shared list`
-    : isCollab
-      ? 'Pick a team to open its shared tasks'
-      : 'Only your personal tasks'
-
-  const emptyCopy = isToday
-    ? {
-        title: 'Nothing due today',
-        text: 'Enjoy the breathing room — or add something for today.',
-      }
-    : {
-        title: 'Nothing scheduled',
-        text: 'This day is clear. Pick another date, or add a task for it above.',
-      }
+  const emptyCopy =
+    view.kind === 'collab'
+      ? {
+          title: 'No tasks yet',
+          text: 'Add a task to get this team started.',
+        }
+      : isToday
+        ? {
+            title: 'Nothing due today',
+            text: 'Enjoy the breathing room — or add something for today.',
+          }
+        : {
+            title: 'Nothing scheduled',
+            text: 'This day is clear. Pick another date, or add a task for it above.',
+          }
 
   const closeDetail = () => setSelectedId(null)
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-canvas">
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="shrink-0 bg-canvas">
-          <div className="mx-auto w-full max-w-6xl px-4 pt-3 pb-2 sm:px-8">
-            <div className="insight-card px-4 py-4">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <Logo className="hidden shrink-0 md:inline-flex" />
+    <div className="min-h-full bg-canvas">
+      <main className="min-w-0">
+        <header className="bg-white">
+          <div className="flex h-[75px] items-center justify-between border-b border-[#E1E2E0] px-4 sm:px-8 lg:px-12">
+            <div className="flex items-center gap-8 sm:gap-12">
+              <button
+                type="button"
+                onClick={openMyTasks}
+                className="text-[26px] font-extrabold tracking-tight text-[#15181E]"
+                aria-label="DUIT home"
+              >
+                DUIT<span className="text-indigo-500">.</span>
+              </button>
 
-                <div className="flex min-w-0 items-center gap-1 rounded-xl bg-white/80 p-1 ring-1 ring-slate-200/70">
-                  <button
-                    type="button"
-                    onClick={openMyTasks}
-                    aria-pressed={!isCollab}
-                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold transition sm:px-3 ${
-                      !isCollab
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <InboxIcon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">My task</span>
-                  </button>
-
-                  <div
-                    className={`flex items-center rounded-lg transition ${
-                      isCollab ? 'bg-white shadow-sm' : ''
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={openCollaborate}
-                      aria-pressed={isCollab}
-                      className={`flex items-center gap-1.5 rounded-lg py-1.5 pr-1 pl-2.5 text-sm font-semibold transition sm:pl-3 ${
-                        isCollab
-                          ? 'text-slate-900'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <UsersIcon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">Collaborate</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTeamModal({ teamId: null })}
-                      className={`mr-1 rounded-md p-1 transition ${
-                        isCollab
-                          ? 'text-indigo-600 hover:bg-white'
-                          : 'text-slate-500 hover:bg-white hover:text-slate-800'
-                      }`}
-                      aria-label="Create a team"
-                      title="Create a team"
-                    >
-                      <PlusIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="ml-auto flex shrink-0 items-center gap-1">
-                  <InstallButton />
-                  <AccountMenu
-                    email={data.user.email}
-                    onOpenSettings={() => setSettingsOpen(true)}
-                    onLogout={handleLogout}
-                  />
-                </div>
-              </div>
-
-              {isCollab && (
-                <div className="mt-2.5">
-                  <TeamBar
-                    teams={data.teams}
-                    activeTeamId={currentTeam?.id ?? null}
-                    counts={openCounts.perTeam}
-                    onSelect={openTeam}
-                    onManage={(teamId) => setTeamModal({ teamId })}
-                    onNewTeam={() => setTeamModal({ teamId: null })}
-                  />
-                </div>
-              )}
-
-              <div className="mt-3 flex items-center gap-3">
-                {currentTeam ? (
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white shadow-sm">
-                    {currentTeam.name.slice(0, 1).toUpperCase()}
-                  </span>
-                ) : (
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-500">
-                    {isCollab ? (
-                      <UsersIcon className="h-5 w-5" />
-                    ) : (
-                      <CheckIcon className="h-5 w-5" strokeWidth={2.5} />
-                    )}
-                  </span>
-                )}
-
-                <div className="min-w-0 flex-1">
-                  <h1 className="truncate text-xl font-bold tracking-tight">{title}</h1>
-                  <p className="truncate text-xs text-slate-500">
-                    {subtitle}
-                    <span className="hidden sm:inline">
-                      {' '}
-                      ·{' '}
-                      {new Date().toLocaleDateString(undefined, {
-                        weekday: 'long',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
-                    </span>
-                  </p>
-                </div>
-
-                {currentTeam && (
-                  <div className="hidden items-center md:flex">
-                    <div className="flex -space-x-2">
-                      {currentTeam.members.slice(0, 3).map((member) => (
-                        <Avatar key={member.id} email={member.email} size="sm" />
-                      ))}
-                    </div>
-                    {currentTeam.members.length > 3 && (
-                      <span className="ml-1.5 text-[11px] font-medium text-slate-400">
-                        +{currentTeam.members.length - 3}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+              <nav className="flex items-center gap-1 sm:gap-3" aria-label="Main">
                 <button
                   type="button"
-                  onClick={() => setSelectedDate(todayDateValue())}
-                  aria-pressed={isToday}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                    isToday
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'bg-white text-slate-600 hover:bg-slate-100'
+                  onClick={openMyTasks}
+                  aria-pressed={view.kind === 'my'}
+                  className={`flex h-[34px] items-center rounded-full px-5 text-sm font-semibold transition ${
+                    view.kind === 'my'
+                      ? 'bg-[#15181E] text-white'
+                      : 'text-[#454B58] hover:bg-slate-50 hover:text-[#15181E]'
                   }`}
                 >
-                  <CalendarIcon className="h-3.5 w-3.5" />
-                  Today
+                  My tasks
                 </button>
-
-                <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white/90 px-1 py-0.5 shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
-                      date.setDate(date.getDate() - 1)
-                      setSelectedDate(dateInputValue(date.getTime()))
-                    }}
-                    className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                    aria-label="Previous day"
-                  >
-                    <ChevronRightIcon className="h-3.5 w-3.5 rotate-180" />
-                  </button>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(event) => {
-                      if (event.target.value) setSelectedDate(event.target.value)
-                    }}
-                    aria-label="View tasks for a date"
-                    className="w-[9.5rem] max-w-full cursor-pointer border-0 bg-transparent px-1 py-1 text-center text-base font-semibold text-slate-700 outline-none sm:w-[8.5rem] sm:text-xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
-                      date.setDate(date.getDate() + 1)
-                      setSelectedDate(dateInputValue(date.getTime()))
-                    }}
-                    className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                    aria-label="Next day"
-                  >
-                    <ChevronRightIcon className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-
                 <button
                   type="button"
-                  onClick={() => setComposerOpen((open) => !open)}
-                  aria-expanded={composerOpen}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                    composerOpen
-                      ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                      : 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-500 active:scale-[0.98]'
+                  onClick={openCollaborate}
+                  aria-pressed={isCollab}
+                  className={`flex h-[34px] items-center rounded-full px-4 text-sm font-semibold transition ${
+                    isCollab
+                      ? 'bg-[#15181E] text-white'
+                      : 'text-[#454B58] hover:bg-slate-50 hover:text-[#15181E]'
                   }`}
                 >
-                  {composerOpen ? (
-                    <XIcon className="h-3.5 w-3.5" />
-                  ) : (
-                    <PlusIcon className="h-3.5 w-3.5" />
+                  Teams
+                </button>
+              </nav>
+            </div>
+
+            <AccountMenu
+              name={data.user.name}
+              email={data.user.email}
+              onOpenAccount={() => {
+                setTaskDialogOpen(false)
+                setSelectedId(null)
+                setAccountOpen(true)
+              }}
+              onLogout={handleLogout}
+            />
+          </div>
+
+          <div className="bg-[#F6F6F4]">
+            <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-8 sm:py-8">
+              <div className="flex flex-col gap-4 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-x-3">
+                <div className="min-w-0">
+                  <h1 className="text-[30px] leading-[1.08] font-extrabold tracking-tight text-[#15181E] sm:text-[34px] lg:text-[38px]">
+                    {greetingForHour(currentHour)}, <span>{accountName}</span>
+                  </h1>
+
+                <div className="group mt-3 inline-flex items-center gap-1.5">
+                  {!isCollab && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
+                        date.setDate(date.getDate() - 1)
+                        setSelectedDate(dateInputValue(date.getTime()))
+                      }}
+                      aria-label="Previous day"
+                      className="rounded-md p-1 text-[#92969C] opacity-0 transition hover:bg-black/5 hover:text-[#454B58] focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
+                    >
+                      <ChevronRightIcon className="h-3.5 w-3.5 rotate-180" />
+                    </button>
                   )}
-                  {composerOpen ? 'Close' : 'Add task'}
-                </button>
 
-                <span className="ml-auto flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-                  {formatDateValue(selectedDate)}
-                </span>
-              </div>
+                  {isCollab ? (
+                    <span className="text-sm font-medium text-[#454B58]">{longDateLabel}</span>
+                  ) : (
+                    <label className="group cursor-pointer text-sm font-medium text-[#454B58]">
+                      {longDateLabel}
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(event) => {
+                          if (event.target.value) setSelectedDate(event.target.value)
+                        }}
+                        onClick={(event) => event.currentTarget.showPicker?.()}
+                        aria-label="View tasks for a date"
+                        className="sr-only"
+                      />
+                    </label>
+                  )}
+
+                  {!isCollab && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
+                        date.setDate(date.getDate() + 1)
+                        setSelectedDate(dateInputValue(date.getTime()))
+                      }}
+                      aria-label="Next day"
+                      className="rounded-md p-1 text-[#92969C] opacity-0 transition hover:bg-black/5 hover:text-[#454B58] focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
+                    >
+                      <ChevronRightIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                </div>
+
+                <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-4 sm:shrink">
+                    {isCollab ? (
+                      <>
+                        <div className="hidden sm:block">
+                          <p className="flex items-center gap-1.5 text-2xl font-extrabold tracking-tight text-[#15181E]">
+                            <span aria-hidden="true">🕒</span>
+                            {clockLabel}
+                          </p>
+                        </div>
+
+                        <div className="min-w-[8.75rem]">
+                          <p className="flex items-center gap-2 text-sm font-semibold text-[#15181E]">
+                            <span className="inline-block h-2 w-2 rounded-full bg-[#2E7D32]" />
+                            {teamStats.done} of {teamStats.total} done
+                          </p>
+                          <p className="mt-1 text-xs font-medium text-[#454B58]">
+                            {teamStats.open} open · {currentTeam?.members.length ?? 0} members
+                          </p>
+                          <div className="mt-2 h-2 w-[8.6875rem] overflow-hidden rounded-full bg-[#DDDFE3]">
+                            <div
+                              className="h-full rounded-full bg-[#1F7A4D] transition-[width]"
+                              style={{ width: `${teamStats.percent}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex w-[6.5rem] flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setTeamModal({ teamId: null })}
+                            className="w-full rounded-[12px] bg-[#D9480F] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#C23E0C] active:scale-[0.98]"
+                          >
+                            New team
+                          </button>
+                          {currentTeam && (
+                            <button
+                              type="button"
+                              onClick={() => setTaskDialogOpen(true)}
+                              aria-haspopup="dialog"
+                              className="w-full rounded-[12px] border border-[#D9480F]/30 bg-white px-4 py-3 text-sm font-semibold text-[#D9480F] shadow-sm transition hover:bg-[#FDEDE6] active:scale-[0.98]"
+                            >
+                              Add task
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="hidden sm:block">
+                          <p className="flex items-center gap-1.5 text-2xl font-extrabold tracking-tight text-[#15181E]">
+                            <span aria-hidden="true">🕒</span>
+                            {clockLabel}
+                          </p>
+                        </div>
+
+                        <div className="min-w-[8.75rem]">
+                          <p className="text-sm font-semibold text-[#15181E]">
+                            {doneCount} of {totalCount} done
+                          </p>
+                          <p className="mt-1 text-xs font-medium text-[#454B58]">{remainingLabel}</p>
+                          <div className="mt-2 h-2 w-[8.6875rem] overflow-hidden rounded-full bg-[#DDDFE3]">
+                            <div
+                              className="h-full rounded-full bg-[#1F7A4D] transition-[width]"
+                              style={{ width: `${donePercent}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <InstallButton />
+
+                        <button
+                          type="button"
+                          onClick={() => setTaskDialogOpen(true)}
+                          aria-haspopup="dialog"
+                          className="rounded-[12px] bg-[#D9480F] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#C23E0C] active:scale-[0.98]"
+                        >
+                          Add task
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {isCollab && (
+                  <div className="mt-5">
+                    <TeamBar
+                      teams={data.teams}
+                      activeTeamId={currentTeam?.id ?? null}
+                      counts={openCounts.perTeam}
+                      onSelect={openTeam}
+                      onManage={(teamId) => setTeamModal({ teamId })}
+                    />
+                  </div>
+                )}
             </div>
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div>
           <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-8">
             {data.invites.length > 0 && (
               <div className="mb-4 space-y-2">
@@ -736,38 +836,6 @@ export default function App() {
               </div>
             )}
 
-            {composerOpen && !(view.kind === 'collab' && !currentTeam) && (
-              <div className="animate-in mb-4">
-                <TaskComposer
-                  contextLabel={currentTeam ? currentTeam.name : 'My task'}
-                  teams={data.teams}
-                  showTeamSelect={false}
-                  defaultTeamId={currentTeam?.id ?? null}
-                  defaultDue={selectedDate}
-                  onAdd={async (input) => {
-                    const ok = await addTask(input)
-                    if (ok) setComposerOpen(false)
-                    return ok
-                  }}
-                />
-              </div>
-            )}
-
-            {!isCollab && isToday && dailyStateData && (
-              <div className="mb-4 min-w-0">
-                <DailyStateCard
-                  state={dailyStateData}
-                  checkin={checkinStatus?.checkin ?? null}
-                  checkinState={checkinStatus?.state ?? 'not_asked'}
-                  celebrate={checkinCelebrate}
-                  onCelebrated={() => setCheckinCelebrate(false)}
-                  onEditCheckin={openCheckin}
-                  notify={notify}
-                  onState={setDailyStateData}
-                />
-              </div>
-            )}
-
             {view.kind === 'collab' && !currentTeam ? (
               <div className="animate-in flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 px-6 py-14 text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500">
@@ -779,34 +847,47 @@ export default function App() {
                 <p className="mt-1 max-w-xs text-sm text-slate-500">
                   Create a team to share tasks, assign work, and comment with other people.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setTeamModal({ teamId: null })}
-                  className="btn-primary mt-4"
-                >
-                  <PlusIcon className="h-4 w-4" />
-                  Create a team
-                </button>
               </div>
             ) : (
               <>
                 <div className="mt-4 grid grid-cols-1 items-start gap-5 md:grid-cols-[minmax(0,1fr)_19rem] xl:grid-cols-[minmax(0,1fr)_21rem]">
-                  <StickyBoard
-                    tasks={openTasks}
-                    emptyTitle={emptyCopy.title}
-                    emptyText={emptyCopy.text}
-                    currentUserId={data.user.id}
-                    showOwner={isCollab}
-                    canDelete={canDeleteTask}
-                    onOpen={(task) => setSelectedId(task.id)}
-                    onToggle={toggleTask}
-                    onDelete={deleteTask}
-                    onReorder={reorderTasks}
-                  />
+                  <div className="min-w-0">
+                    <div className="mb-4">
+                      <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">
+                        Tasks and plan
+                      </h2>
+                    </div>
+
+                    <StickyBoard
+                      tasks={openTasks}
+                      emptyTitle={emptyCopy.title}
+                      emptyText={emptyCopy.text}
+                      currentUserId={data.user.id}
+                      showOwner={isCollab}
+                      canDelete={canDeleteTask}
+                      onOpen={(task) => setSelectedId(task.id)}
+                      onToggle={toggleTask}
+                      onDelete={deleteTask}
+                      onReorder={reorderTasks}
+                    />
+                  </div>
 
                   <div className="flex min-w-0 flex-col gap-3">
                     {!isCollab && (
                       <>
+                        {isToday && dailyStateData && (
+                          <DailyStateCard
+                            state={dailyStateData}
+                            checkin={checkinStatus?.checkin ?? null}
+                            checkinState={checkinStatus?.state ?? 'not_asked'}
+                            celebrate={checkinCelebrate}
+                            onCelebrated={() => setCheckinCelebrate(false)}
+                            onEditCheckin={openCheckin}
+                            notify={notify}
+                            onState={setDailyStateData}
+                          />
+                        )}
+
                         <OffDayCard date={selectedDate} notify={notify} onChanged={refresh} />
 
                         {isToday && (
@@ -821,11 +902,41 @@ export default function App() {
                       </>
                     )}
 
+                    {isCollab && currentTeam && (
+                      <>
+                        <TeamMembersCard
+                          team={currentTeam}
+                          currentUserId={data.user.id}
+                          openCounts={memberOpenCounts}
+                          notify={notify}
+                          onChanged={refresh}
+                        />
+                        <TeamInvitationsCard
+                          team={currentTeam}
+                          invites={data.invites}
+                          onAccept={acceptInvite}
+                          onDecline={declineInvite}
+                          notify={notify}
+                          onChanged={refresh}
+                        />
+                      </>
+                    )}
+
                     <CompletedColumn
                       tasks={completedTasks}
                       currentUserId={data.user.id}
                       showOwner={isCollab}
                       canDelete={canDeleteTask}
+                      onOpen={(task) => setSelectedId(task.id)}
+                      onToggle={toggleTask}
+                      onDelete={deleteTask}
+                    />
+
+                    <RepeatingColumn
+                      tasks={repeatingTasks}
+                      currentUserId={data.user.id}
+                      showOwner={isCollab}
+                      canDelete={() => false}
                       onOpen={(task) => setSelectedId(task.id)}
                       onToggle={toggleTask}
                       onDelete={deleteTask}
@@ -843,21 +954,48 @@ export default function App() {
         </div>
       </main>
 
+      <NewTaskDialog
+        open={taskDialogOpen}
+        onClose={() => setTaskDialogOpen(false)}
+        teams={data.teams}
+        defaultTeamId={currentTeam?.id ?? null}
+        defaultDue={selectedDate}
+        onAdd={addTask}
+      />
+
+      <MyAccountDialog
+        open={accountOpen}
+        onClose={() => setAccountOpen(false)}
+        user={data.user}
+        onUserChanged={(nextUser) =>
+          setData((current) => (current ? { ...current, user: nextUser } : current))
+        }
+        onPasswordChanged={async () => {
+          await refresh()
+          notify('Password updated. Other devices were signed out.', 'success')
+        }}
+        onDeleted={handleAccountDeleted}
+        notify={notify}
+      />
+
       {selectedTask && (
         <TaskDetail
           task={selectedTask}
           currentUserId={data.user.id}
           canModerate={canModerate}
-          canDelete={
-            selectedTask.userId === data.user.id ||
-            (selectedTask.teamId !== null &&
-              data.teams.find((team) => team.id === selectedTask.teamId)?.role === 'host')
+          canDelete={canDeleteTask(selectedTask)}
+          members={
+            selectedTask.teamId
+              ? (data.teams.find((team) => team.id === selectedTask.teamId)?.members ?? [])
+              : []
           }
           onClose={closeDetail}
           onUpdate={(patch) => updateTask(selectedTask, patch)}
+          onSetAssignees={(userIds) => setAssignees(selectedTask, userIds)}
           onDelete={() => deleteTask(selectedTask)}
-          onAddSubtask={(text) => addSubtask(selectedTask, text)}
+          onAddSubtask={(text, assigneeId) => addSubtask(selectedTask, text, assigneeId)}
           onToggleSubtask={(subtask) => toggleSubtask(selectedTask, subtask)}
+          onAssignSubtask={(subtask, assigneeId) => assignSubtask(selectedTask, subtask, assigneeId)}
           onDeleteSubtask={(subtask) => deleteSubtask(selectedTask, subtask)}
           onAddComment={(text) => addComment(selectedTask, text)}
           onDeleteComment={(comment) => deleteComment(selectedTask, comment)}
@@ -871,20 +1009,20 @@ export default function App() {
               ? (data.teams.find((team) => team.id === teamModal.teamId) ?? null)
               : null
           }
+          user={data.user}
+          openTaskCount={
+            teamModal.teamId
+              ? data.tasks.filter(
+                  (task) =>
+                    task.teamId === teamModal.teamId &&
+                    !task.done &&
+                    task.recurrence === 'none',
+                ).length
+              : 0
+          }
           onClose={() => setTeamModal(null)}
           onChanged={refresh}
           notify={notify}
-        />
-      )}
-
-      {settingsOpen && (
-        <SettingsModal
-          onClose={() => setSettingsOpen(false)}
-          onPasswordChanged={() => {
-            setSettingsOpen(false)
-            notify('Password updated. Other devices were signed out.', 'success')
-          }}
-          onDeleted={handleAccountDeleted}
         />
       )}
 

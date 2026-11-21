@@ -65,6 +65,7 @@ flexible time categories, and a preferred time is never treated as a deadline.
 - **No real accuracy figure yet.** The dataset is fresh. There is not enough history to train or validate a personal model, so no accuracy number is claimed.
 - **Fresh dataset only.** No historical data was imported, and no training rows are fabricated.
 - **Timing has no registered model.** The recommended window comes from a timing profile, not a trained model, so it is not versioned or gated like completion/target/duration. It is logged with the prediction but is not shown in the current UI.
+- **Nudge is deliberately minimal.** It shows only the completion probability as a percentage beside the task name with a bar below; confidence, target probability and expected duration are still computed and logged, but are not displayed there.
 - **The learning system needs data to personalise.** Stage 1 predictions are starting estimates; personalisation begins only once the stage-2 threshold is met.
 - **Sensitive questions are optional**, so a prediction may run on less context than it could — this widens uncertainty rather than inventing a value.
 

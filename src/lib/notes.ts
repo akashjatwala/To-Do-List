@@ -1,10 +1,9 @@
 /**
  * Small, stable presentation helpers for sticky notes.
  *
- * Both the tilt and the pin colour are derived from a note's id with a simple
- * hash, so a note keeps the same look across reloads and re-renders, and adding
- * a new note never changes another note's tilt or pin. Nothing here touches the
- * note's data, order, dragging or editing.
+ * Tilt is derived from a note's id with a simple hash, so a note keeps the same
+ * lean across reloads and re-renders. Pins are always the same red accent.
+ * Nothing here touches the note's data, order, dragging or editing.
  */
 
 function hashId(id: string): number {
@@ -20,23 +19,20 @@ export function noteTilt(id: string): number {
   return ((hashId(id) % 5) - 2) * 0.9
 }
 
-export const PIN_COLORS = ['rose', 'blue', 'amber', 'emerald'] as const
+export const PIN_COLORS = ['red'] as const
 export type PinColor = (typeof PIN_COLORS)[number]
 
-/** The pin colour for a note, chosen by a stable rule (its id). */
-export function pinColor(id: string): PinColor {
-  return PIN_COLORS[hashId(id) % PIN_COLORS.length]
+/** Every note uses the same red pin. */
+export function pinColor(_id: string): PinColor {
+  return 'red'
 }
 
-/** The Tailwind text colour class for a pin head, keyed by colour name. */
+/** The Tailwind text colour class for the red pin head. */
 export const PIN_CLASS: Record<PinColor, string> = {
-  rose: 'text-rose-500',
-  blue: 'text-sky-500',
-  amber: 'text-amber-500',
-  emerald: 'text-emerald-500',
+  red: 'text-[#D9480F]',
 }
 
 /** The pin colour class for a note id. */
-export function pinClass(id: string): string {
-  return PIN_CLASS[pinColor(id)]
+export function pinClass(_id: string): string {
+  return PIN_CLASS.red
 }

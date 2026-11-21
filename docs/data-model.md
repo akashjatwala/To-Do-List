@@ -24,9 +24,9 @@ The live database currently contains **32 tables**. Two cleanups were made on 20
    `sessions` + `password_resets` → `auth_tokens(kind)`, and
    `state_prefs` + `prediction_settings` → `user_settings`.
 
-Pre-change backups are kept at `server/data/todo.db.bak-20261118144155` and
-`server/data/todo.db.bak-20261118144721` (git-ignored). No check-in, task, prediction or ML
-table was removed, and the model code was left untouched.
+The two pre-change snapshots were moved out of `server/data/` during the 2026-11-21
+stale-file cleanup, so only the live `server/data/todo.db` remains in the project. No
+check-in, task, prediction or ML table was removed, and the model code was left untouched.
 
 ## Table groups
 
@@ -38,8 +38,9 @@ table was removed, and the model code was left untouched.
 | `auth_tokens` | Login sessions and password-reset codes in one table; `kind` distinguishes them. Only token **hashes** are stored |
 | `teams`, `team_members`, `team_invites` | Teams, membership roles, pending invites |
 | `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration, preferred time. `team_id NULL` means a personal task |
-| `subtasks` | Subtasks with position and done |
+| `subtasks` | Subtasks with position, done and an optional assignee (a member of the task's team; `NULL` on personal tasks) |
 | `comments` | Task comments |
+| `task_assignees` | Team tasks assigned to several teammates. The task's `user_id` stays the creator/owner; any team member can edit this list |
 
 ### Check-ins — `server/checkins-store.ts`
 

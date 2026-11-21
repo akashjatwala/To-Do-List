@@ -28,10 +28,25 @@ const KIND_LABELS: Record<OffDayKind, string> = {
   other: 'Other',
 }
 
+/** One distinct, decorative emoji for each reason. Always paired with its label. */
+const KIND_EMOJIS: Record<OffDayKind, string> = {
+  sick: '🤒',
+  travel: '🧳',
+  holiday: '🌴',
+  other: '✨',
+}
+
+const JUST_OFF_EMOJI = '😌'
+const NO_OFF_DAY_EMOJI = '🌤️'
+
 const KIND_ORDER: OffDayKind[] = ['sick', 'travel', 'holiday', 'other']
 
 function kindLabel(kind: OffDayKind | null): string {
   return kind ? KIND_LABELS[kind] : 'Off'
+}
+
+export function offDayEmoji(kind: OffDayKind | null): string {
+  return kind ? KIND_EMOJIS[kind] : JUST_OFF_EMOJI
 }
 
 export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps) {
@@ -119,8 +134,8 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
 
   if (loading) {
     return (
-      <div className="insight-card flex items-center gap-2.5 px-3 py-2.5">
-        <span className="insight-icon h-8 w-8 bg-slate-100 text-slate-400">
+      <div className="flex items-center gap-2.5 rounded-[24px] border border-[#DCE9EE] bg-[#EEF5F8] px-5 py-4">
+        <span className="insight-icon h-8 w-8 bg-white/70 text-[#454B58]">
           <CalendarIcon className="h-4 w-4" />
         </span>
         <p className="insight-title">Checking off days…</p>
@@ -129,44 +144,48 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
   }
 
   return (
-    <section className="insight-card" aria-label="Off days">
-      <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="insight-icon h-8 w-8 bg-indigo-50 text-indigo-500">
-            <CalendarIcon className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="insight-title">{onOffDay ? `Off day · ${kindLabel(offDay?.kind ?? null)}` : 'Off days'}</h2>
-            <p className="insight-subtitle">
-              {onOffDay
-                ? [summary, offDay?.note].filter(Boolean).join(' · ')
-                : 'Time away is never counted as missed.'}
-            </p>
-          </div>
-        </div>
+    <section
+      className="overflow-hidden rounded-[24px] border border-[#DCE9EE] bg-[#EEF5F8] p-5"
+      aria-label="Off Day"
+    >
+      <div className="mb-3">
+        <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Off Day</h2>
+      </div>
+
+      <div className="flex flex-col items-center rounded-2xl bg-white/70 px-4 py-6 text-center shadow-sm ring-1 ring-white/80">
+        <span className="text-3xl" aria-hidden="true">
+          {onOffDay ? offDayEmoji(offDay?.kind ?? null) : NO_OFF_DAY_EMOJI}
+        </span>
+        <p className="mt-2 flex flex-wrap items-baseline justify-center gap-x-1.5 text-sm font-semibold text-slate-700">
+          <span>{onOffDay ? 'Off day' : 'No off day marked'}</span>
+          {onOffDay && (
+            <span className="text-[11px] font-medium text-slate-500">
+              · {kindLabel(offDay?.kind ?? null)}
+            </span>
+          )}
+        </p>
+        <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-500">
+          {onOffDay
+            ? [summary, offDay?.note].filter(Boolean).join(' · ')
+            : 'Off days never count as missed.'}
+        </p>
 
         {!editing && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {onOffDay && (
-              <span className="insight-pill bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Marked off
-              </span>
-            )}
+          <div className="mt-4 flex flex-nowrap items-center justify-center gap-2 whitespace-nowrap">
             <button
               type="button"
               onClick={openForm}
-              className="insight-quiet ring-1 ring-slate-200"
+              className="btn-primary shrink-0 text-xs! px-4! py-2!"
             >
               <PencilIcon className="h-3 w-3" />
-              {onOffDay ? 'Edit' : 'Mark off'}
+              {onOffDay ? 'Edit off day' : 'Mark today off'}
             </button>
             {onOffDay && (
               <button
                 type="button"
                 onClick={remove}
                 disabled={busy}
-                className="insight-quiet text-rose-600 ring-1 ring-rose-100 hover:bg-rose-50"
+                className="btn-ghost shrink-0 px-3! py-2! text-xs! text-rose-600 hover:bg-rose-50"
                 aria-label="Remove off-day record"
               >
                 <TrashIcon className="h-3.5 w-3.5" />
@@ -183,37 +202,37 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
       )}
 
       {editing && (
-        <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4">
+        <div className="border-t border-white/70 bg-white/50 px-4 py-4">
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setKind(null)}
-              className={`insight-pill px-3 py-1.5 text-xs transition ${
+              className={`insight-pill px-2.5 py-1 text-[10px] transition ${
                 kind === null
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
               }`}
             >
-              Just off
+              <span aria-hidden="true">{JUST_OFF_EMOJI}</span> Just off
             </button>
             {KIND_ORDER.map((option) => (
               <button
                 key={option}
                 type="button"
                 onClick={() => setKind(option)}
-                className={`insight-pill px-3 py-1.5 text-xs transition ${
+                className={`insight-pill px-2.5 py-1 text-[10px] transition ${
                   kind === option
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
                 }`}
               >
-                {KIND_LABELS[option]}
+                <span aria-hidden="true">{KIND_EMOJIS[option]}</span> {KIND_LABELS[option]}
               </button>
             ))}
           </div>
 
           <div className="mt-4 flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+            <label className="flex flex-col gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">
               From
               <input
                 type="date"
@@ -222,17 +241,17 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
                   setStartDate(event.target.value)
                   if (endDate < event.target.value) setEndDate(event.target.value)
                 }}
-                className="field w-auto! px-2.5! py-1.5! text-base! font-normal normal-case tracking-normal! sm:text-xs!"
+                className="field w-auto! px-2.5! py-1.5! text-xs! font-normal normal-case tracking-normal!"
               />
             </label>
-            <label className="flex flex-col gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+            <label className="flex flex-col gap-1 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500">
               To
               <input
                 type="date"
                 value={endDate}
                 min={startDate}
                 onChange={(event) => setEndDate(event.target.value)}
-                className="field w-auto! px-2.5! py-1.5! text-base! font-normal normal-case tracking-normal! sm:text-xs!"
+                className="field w-auto! px-2.5! py-1.5! text-xs! font-normal normal-case tracking-normal!"
               />
             </label>
             <span className="insight-hint pb-1.5">Leave the same date for a single day.</span>

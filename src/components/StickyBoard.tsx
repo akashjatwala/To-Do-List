@@ -3,15 +3,16 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type DragEvent,
   type PointerEvent,
 } from 'react'
 import type { Task } from '@/types'
-import { formatDuration, PRIORITY_META, STICKY_META, recurrenceShort } from '@/lib/taskmeta'
+import { formatDuration, STICKY_META, recurrenceShort } from '@/lib/taskmeta'
 import { noteTilt, pinClass } from '@/lib/notes'
+import { useConfirm } from './ui'
 import {
   CheckIcon,
   ClockIcon,
+  GaugeIcon,
   GripIcon,
   ListChecksIcon,
   MessageIcon,
@@ -29,10 +30,24 @@ interface BoardProps {
   onDelete: (task: Task) => void
 }
 
+/** The small time label on a note, matching the sticky-note reference layout. */
+function noteTime(task: Task): string {
+  if (task.preferredTime) return task.preferredTime
+  if (task.due !== null) {
+    const label = new Date(task.due).toLocaleDateString(undefined, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    })
+    return `@ ${label}`
+  }
+  return 'Anytime'
+}
+
 /**
  * A decorative push-pin, centred on a note's top edge. It is not interactive
  * (the note still opens on tap and drags from the grip) and is hidden from screen
- * readers; the colour is chosen by a stable rule so a note keeps its pin.
+ * readers; every pin uses the same red accent.
  */
 function PushPin({ taskId }: { taskId: string }) {
   return (
@@ -70,6 +85,23 @@ export function StickyBoard({
   const dragId = useRef<string | null>(null)
   // Pointer events batch state updates, so keep the live drop target in a ref too.
   const dropRef = useRef<{ id: string; side: 'before' | 'after' } | null>(null)
+  // A floating copy follows the pointer with transform-only updates; React only
+  // re-renders when the drop target actually changes.
+  const ghostRef = useRef<HTMLElement | null>(null)
+  const frameRef = useRef<number | null>(null)
+  const pointerRef = useRef({ x: 0, y: 0 })
+  const offsetRef = useRef({ x: 0, y: 0 })
+  const tiltRef = useRef(0)
+  // A press on the note body waits for a small movement before it becomes a
+  // drag, so an ordinary click still opens the task.
+  const pendingRef = useRef<{
+    task: Task
+    pointerId: number
+    startX: number
+    startY: number
+  } | null>(null)
+  const suppressClickUntilRef = useRef(0)
+  const { confirm, dialog } = useConfirm()
 
   useEffect(() => {
     setOrdered(tasks)
@@ -101,13 +133,26 @@ export function StickyBoard({
   useEffect(
     () => () => {
       for (const timer of pressTimers.current) window.clearTimeout(timer)
+      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current)
+      ghostRef.current?.remove()
     },
     [],
   )
 
+  const removeGhost = () => {
+    if (frameRef.current !== null) {
+      window.cancelAnimationFrame(frameRef.current)
+      frameRef.current = null
+    }
+    ghostRef.current?.remove()
+    ghostRef.current = null
+  }
+
   const clearDrag = () => {
     dragId.current = null
+    pendingRef.current = null
     dropRef.current = null
+    removeGhost()
     setDraggingId(null)
     setDropTarget(null)
   }
@@ -131,87 +176,150 @@ export function StickyBoard({
     onReorder(next.map((item) => item.id))
   }
 
-  const handleDragStart = (event: DragEvent<HTMLElement>, task: Task) => {
-    dragId.current = task.id
-    setDraggingId(task.id)
-    setDropTarget(null)
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', task.id)
+  /** Keep the floating copy exactly under the pointer, without layout reads. */
+  const positionGhost = () => {
+    const ghost = ghostRef.current
+    if (!ghost) return
+    const { x, y } = pointerRef.current
+    const offset = offsetRef.current
+    ghost.style.transform =
+      `translate3d(${x - offset.x}px, ${y - offset.y}px, 0) ` +
+      `rotate(${tiltRef.current}deg) scale(1.03)`
   }
 
-  const handleDragOver = (event: DragEvent<HTMLElement>, task: Task) => {
-    if (!dragId.current || dragId.current === task.id) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-    const rect = event.currentTarget.getBoundingClientRect()
-    const side = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
-    markDropTarget(task.id, side)
+  /** Reorder preview is computed once per animation frame, not per pointer event. */
+  const scheduleDragFrame = () => {
+    if (frameRef.current !== null) return
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null
+      positionGhost()
+      const sourceId = dragId.current
+      if (!sourceId) return
+      const target = document
+        .elementFromPoint(pointerRef.current.x, pointerRef.current.y)
+        ?.closest('[data-note-id]') as HTMLElement | null
+      const targetId = target?.dataset.noteId
+      if (!targetId || targetId === sourceId) {
+        if (dropRef.current) {
+          dropRef.current = null
+          setDropTarget(null)
+        }
+        return
+      }
+      const rect = target.getBoundingClientRect()
+      const side = pointerRef.current.x < rect.left + rect.width / 2 ? 'before' : 'after'
+      markDropTarget(targetId, side)
+    })
   }
 
-  const handleDragLeave = (event: DragEvent<HTMLElement>, task: Task) => {
-    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-    if (dropRef.current?.id === task.id) {
-      dropRef.current = null
-      setDropTarget(null)
-    }
-  }
-
-  const handleDrop = (event: DragEvent<HTMLElement>, task: Task) => {
-    event.preventDefault()
-    const sourceId = dragId.current
-    if (!sourceId || sourceId === task.id) {
-      clearDrag()
-      return
-    }
-
-    const rect = event.currentTarget.getBoundingClientRect()
-    const side = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
-    clearDrag()
-    moveNote(sourceId, task.id, side)
-  }
-
-  // Touch devices have no HTML5 drag-and-drop, so the grip uses pointer events.
-  const handleGripDown = (event: PointerEvent<HTMLButtonElement>, task: Task) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return
-    // Stop the browser's native HTML5 drag from competing with the pointer drag.
-    event.preventDefault()
+  /** Capture the pointer so moving outside the note still drags it. */
+  const capturePointer = (element: HTMLElement, pointerId: number) => {
     try {
-      event.currentTarget.setPointerCapture(event.pointerId)
+      element.setPointerCapture(pointerId)
     } catch {
       // Synthetic or cancelled pointers cannot be captured; dragging still works.
     }
+  }
+
+  /**
+   * Starts the visual drag. `grabX/grabY` is where the pointer first touched the
+   * note, so the floating copy keeps the same grip point even after the small
+   * movement threshold that distinguishes a drag from a click.
+   */
+  const beginDrag = (
+    event: PointerEvent<HTMLElement>,
+    task: Task,
+    note: HTMLElement,
+    grabX = event.clientX,
+    grabY = event.clientY,
+  ) => {
+    const rect = note.getBoundingClientRect()
+    pointerRef.current = { x: event.clientX, y: event.clientY }
+    offsetRef.current = { x: grabX - rect.left, y: grabY - rect.top }
+    tiltRef.current = noteTilt(task.id)
+
+    const ghost = note.cloneNode(true) as HTMLElement
+    ghost.removeAttribute('data-note-id')
+    ghost.setAttribute('aria-hidden', 'true')
+    ghost.classList.add('drag-ghost')
+    ghost.style.width = `${rect.width}px`
+    ghost.style.height = `${rect.height}px`
+    document.body.appendChild(ghost)
+    ghostRef.current = ghost
+    positionGhost()
+
     dragId.current = task.id
     setDraggingId(task.id)
     dropRef.current = null
     setDropTarget(null)
   }
 
-  const handleGripMove = (event: PointerEvent<HTMLButtonElement>) => {
-    const sourceId = dragId.current
-    if (!sourceId) return
-    const target = document
-      .elementFromPoint(event.clientX, event.clientY)
-      ?.closest('[data-note-id]') as HTMLElement | null
-    const targetId = target?.dataset.noteId
-    if (!targetId || targetId === sourceId) {
-      dropRef.current = null
-      setDropTarget(null)
-      return
-    }
-    const rect = target.getBoundingClientRect()
-    const side = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
-    markDropTarget(targetId, side)
+  /** The grip starts a drag immediately and works for mouse and touch. */
+  const handleGripDown = (event: PointerEvent<HTMLButtonElement>, task: Task) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    capturePointer(event.currentTarget, event.pointerId)
+    const note = event.currentTarget.closest('[data-note-id]') as HTMLElement | null
+    if (note) beginDrag(event, task, note)
   }
 
-  const handleGripUp = (event: PointerEvent<HTMLButtonElement>) => {
+  /**
+   * A press anywhere on the note body arms a drag. It only becomes a drag after
+   * a 6px movement so clicking a note still opens its details.
+   */
+  const handleNoteDown = (event: PointerEvent<HTMLElement>, task: Task) => {
+    if (event.pointerType !== 'mouse' || event.button !== 0) return
+    if ((event.target as HTMLElement).closest('[data-note-action]')) return
+    suppressClickUntilRef.current = 0
+    pendingRef.current = {
+      task,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+    }
+    capturePointer(event.currentTarget, event.pointerId)
+  }
+
+  const handleNoteMove = (event: PointerEvent<HTMLElement>) => {
+    const pending = pendingRef.current
+    if (pending && !dragId.current && pending.pointerId === event.pointerId) {
+      if (Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY) < 6) return
+      pendingRef.current = null
+      beginDrag(event, pending.task, event.currentTarget, pending.startX, pending.startY)
+    }
+    if (!dragId.current) return
+    pointerRef.current = { x: event.clientX, y: event.clientY }
+    scheduleDragFrame()
+  }
+
+  const finishDrag = (event: PointerEvent<HTMLElement>) => {
+    if (!dragId.current) {
+      pendingRef.current = null
+      return
+    }
     const sourceId = dragId.current
     const target = dropRef.current
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }
+    } catch {
+      // Capture may already have been released by the browser.
     }
     clearDrag()
+    // A drag must not also open the task when the click event follows pointerup.
+    suppressClickUntilRef.current = performance.now() + 350
     if (sourceId && target) moveNote(sourceId, target.id, target.side)
   }
+
+  const handleGripMove = (event: PointerEvent<HTMLButtonElement>) => {
+    if (!dragId.current) return
+    pointerRef.current = { x: event.clientX, y: event.clientY }
+    scheduleDragFrame()
+  }
+
+  const handleGripUp = (event: PointerEvent<HTMLButtonElement>) => finishDrag(event)
 
   if (ordered.length === 0) {
     return (
@@ -239,20 +347,20 @@ export function StickyBoard({
         const meta = STICKY_META[task.priority]
         const doneSubtasks = task.subtasks.filter((subtask) => subtask.done).length
         const repeat = recurrenceShort(task.recurrence, task.recurrenceConfig)
+        const duration = task.duration !== null ? formatDuration(task.duration) : '—'
         const isDragging = draggingId === task.id
         const isDropTarget = dropTarget?.id === task.id
         const isNew = pressing.has(task.id)
         return (
           <article
             key={task.id}
-            draggable
-            onDragStart={(event) => handleDragStart(event, task)}
-            onDragEnd={clearDrag}
-            onDragOver={(event) => handleDragOver(event, task)}
-            onDragLeave={(event) => handleDragLeave(event, task)}
-            onDrop={(event) => handleDrop(event, task)}
             data-note-id={task.id}
+            onPointerDown={(event) => handleNoteDown(event, task)}
+            onPointerMove={handleNoteMove}
+            onPointerUp={finishDrag}
+            onPointerCancel={clearDrag}
             onClick={(event) => {
+              if (performance.now() < suppressClickUntilRef.current) return
               if ((event.target as HTMLElement).closest('[data-note-action]')) return
               onOpen(task)
             }}
@@ -261,9 +369,9 @@ export function StickyBoard({
               onOpen(task)
             }}
             style={{ '--tilt': `${noteTilt(task.id)}deg` } as CSSProperties}
-            title="Tap to open · drag the grip to rearrange"
-            className={`sticky-note group relative flex min-h-[10rem] cursor-grab flex-col border-2 px-4 pt-7 pb-4 active:cursor-grabbing ${meta.note} ${
-              isDragging ? 'opacity-40' : ''
+            title="Click to open · drag to rearrange"
+            className={`sticky-note group relative flex min-h-[10rem] cursor-default select-none flex-col px-4 pt-7 pb-4 ${meta.note} ${
+              isDragging ? 'sticky-note-dragging opacity-40' : ''
             } ${isNew ? 'sticky-pin-new' : ''}`}
           >
             <PushPin taskId={task.id} />
@@ -309,7 +417,7 @@ export function StickyBoard({
                 onPointerMove={handleGripMove}
                 onPointerUp={handleGripUp}
                 onPointerCancel={clearDrag}
-                className={`mt-0.5 inline-flex shrink-0 touch-none rounded-md p-1 opacity-40 transition hover:opacity-90 sm:opacity-25 sm:group-hover:opacity-60 ${meta.muted}`}
+                className={`mt-0.5 inline-flex shrink-0 cursor-default touch-none rounded-md p-1 opacity-40 transition hover:opacity-90 sm:opacity-25 sm:group-hover:opacity-60 ${meta.muted}`}
               >
                 <GripIcon className="h-3.5 w-3.5" />
               </button>
@@ -318,8 +426,16 @@ export function StickyBoard({
                 <button
                   type="button"
                   data-note-action
-                  onClick={() => {
-                    if (window.confirm(`Delete “${task.text}”?`)) onDelete(task)
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: 'Delete task?',
+                        description: `“${task.text}” will be removed from your list.`,
+                        confirmLabel: 'Delete task',
+                      })
+                    ) {
+                      onDelete(task)
+                    }
                   }}
                   className={`-mt-1 -mr-1.5 rounded-lg p-1 opacity-60 transition hover:opacity-100 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-60 ${meta.muted}`}
                   aria-label="Delete task"
@@ -330,18 +446,38 @@ export function StickyBoard({
               )}
             </div>
 
-            <div
-              className={`mt-auto flex flex-wrap items-center gap-1.5 pt-3 text-[11px] font-semibold ${meta.muted}`}
-            >
-              {task.duration !== null && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {task.tags.slice(0, 2).map((tag) => (
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 ${meta.chip}`}
-                  title="Ideal duration"
+                  key={tag}
+                  className={`max-w-[9rem] truncate rounded-full px-1.5 py-0.5 text-[10px] font-bold ${meta.chip}`}
                 >
-                  <ClockIcon className="h-3.5 w-3.5" />
-                  {formatDuration(task.duration)}
+                  #{tag}
+                </span>
+              ))}
+              {task.tags.length > 2 && (
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${meta.chip}`}>
+                  +{task.tags.length - 2}
                 </span>
               )}
+            </div>
+
+            <span className="sticky-tear mt-auto block" />
+
+            <div
+              className={`mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] font-bold ${meta.muted}`}
+            >
+              <span className="inline-flex items-center gap-1" title="Planned time">
+                <ClockIcon className="h-3.5 w-3.5" />
+                {noteTime(task)}
+              </span>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 ${meta.chip}`}
+                title="Ideal duration"
+              >
+                <GaugeIcon className="h-3.5 w-3.5" />
+                {duration}
+              </span>
               {repeat && (
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 ${meta.chip}`}
@@ -349,19 +485,6 @@ export function StickyBoard({
                 >
                   <RepeatIcon className="h-3.5 w-3.5" />
                   {repeat}
-                </span>
-              )}
-              {task.tags.slice(0, 2).map((tag) => (
-                <span
-                  key={tag}
-                  className={`max-w-[9rem] truncate rounded-full px-1.5 py-0.5 ${meta.chip}`}
-                >
-                  #{tag}
-                </span>
-              ))}
-              {task.tags.length > 2 && (
-                <span className={`rounded-full px-1.5 py-0.5 ${meta.chip}`}>
-                  +{task.tags.length - 2}
                 </span>
               )}
               {task.subtasks.length > 0 && (
@@ -389,6 +512,7 @@ export function StickyBoard({
           </article>
         )
       })}
+      {dialog}
     </div>
   )
 }
@@ -402,99 +526,162 @@ export function CompletedColumn({
   onToggle,
   onDelete,
 }: BoardProps) {
-  return (
-    <aside className="lg:sticky lg:top-5">
-      <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-3 shadow-sm backdrop-blur">
-        <div className="mb-2 flex items-center gap-2 px-1">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-            <CheckIcon className="h-3 w-3" strokeWidth={3} />
-          </span>
-          <h2 className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
-            Completed
-          </h2>
-          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
-            {tasks.length}
-          </span>
-        </div>
+  const { confirm, dialog } = useConfirm()
 
-        {tasks.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-[11px] leading-relaxed text-slate-400">
+  return (
+    <section className="overflow-hidden rounded-[24px] bg-[#DCEBDF] p-5" aria-label="Completed">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Completed</h2>
+        <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold text-[#2F4A37]">
+          {tasks.length}
+        </span>
+      </div>
+
+      {tasks.length === 0 ? (
+        <div className="flex flex-col items-center rounded-2xl bg-white/55 px-4 py-6 text-center shadow-sm ring-1 ring-[#2F4A37]/10">
+          <span className="text-3xl" aria-hidden="true">
+            ✅
+          </span>
+          <p className="mt-2 text-sm font-semibold text-[#2F4A37]">Nothing finished yet</p>
+          <p className="mt-1 max-w-xs text-xs leading-relaxed text-[#2F4A37]/70">
             Finished tasks for this day will collect here.
           </p>
-        ) : (
-          <ul className="space-y-0.5">
-            {tasks.map((task) => {
-              const doneSubtasks = task.subtasks.filter((subtask) => subtask.done).length
-              return (
-                <li
-                  key={task.id}
-                  className="group flex items-start gap-2 rounded-xl px-1.5 py-2 transition hover:bg-slate-50"
+        </div>
+      ) : (
+        <ul className="space-y-1.5">
+          {tasks.map((task) => {
+            const repeat = recurrenceShort(task.recurrence, task.recurrenceConfig)
+            return (
+              <li
+                key={task.id}
+                className="group flex items-center gap-2 rounded-xl bg-white/55 px-3 py-2 shadow-sm ring-1 ring-[#2F4A37]/10"
+              >
+                <button
+                  type="button"
+                  onClick={() => onToggle(task)}
+                  role="checkbox"
+                  aria-checked
+                  aria-label="Mark as not done"
+                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-[#2F6B45] bg-[#2F6B45] text-white transition hover:bg-[#2F4A37] active:scale-90"
                 >
-                  <button
-                    type="button"
-                    onClick={() => onToggle(task)}
-                    role="checkbox"
-                    aria-checked
-                    aria-label="Mark as not done"
-                    className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-emerald-500 bg-emerald-500 text-white transition hover:bg-emerald-400 active:scale-90"
-                  >
-                    <CheckIcon className="h-2.5 w-2.5" strokeWidth={3.5} />
-                  </button>
+                  <CheckIcon className="h-2.5 w-2.5" strokeWidth={3.5} />
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => onOpen(task)}
-                    className="min-w-0 flex-1 text-left"
-                  >
-                    <p className="text-[13px] leading-snug font-medium break-words text-slate-400 line-through decoration-slate-300">
-                      {task.text}
-                    </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-medium text-slate-400">
-                      {task.duration !== null && (
-                        <span className="inline-flex items-center gap-0.5">
-                          <ClockIcon className="h-3 w-3" />
-                          {formatDuration(task.duration)}
-                        </span>
-                      )}
-                      {task.priority !== 'none' && (
-                        <span className="inline-flex items-center gap-1">
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${PRIORITY_META[task.priority].dot}`}
-                          />
-                          {PRIORITY_META[task.priority].label}
-                        </span>
-                      )}
-                      {task.subtasks.length > 0 && (
-                        <span className="inline-flex items-center gap-0.5">
-                          <ListChecksIcon className="h-3 w-3" />
-                          {doneSubtasks}/{task.subtasks.length}
-                        </span>
-                      )}
-                      {showOwner && task.userId !== currentUserId && (
-                        <span className="truncate">{task.ownerEmail.split('@')[0]}</span>
-                      )}
-                    </div>
-                  </button>
+                <button
+                  type="button"
+                  onClick={() => onOpen(task)}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <p className="truncate text-[13px] font-semibold text-[#2F4A37]">
+                    {task.text}
+                  </p>
+                </button>
 
-                  {canDelete(task) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm(`Delete “${task.text}”?`)) onDelete(task)
-                      }}
-                      className="mt-0.5 rounded p-1 text-slate-300 opacity-70 transition hover:text-rose-500 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                      aria-label="Delete task"
-                      title="Delete task"
-                    >
-                      <TrashIcon className="h-3.5 w-3.5" />
-                    </button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {task.preferredTime && (
+                    <span className="text-[11px] font-semibold text-[#2F4A37]/80">
+                      {task.preferredTime}
+                    </span>
                   )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
+                  {repeat && (
+                    <span className="insight-pill bg-white/70 text-[#2F4A37]">{repeat}</span>
+                  )}
+                  {showOwner && task.userId !== currentUserId && (
+                    <span className="max-w-[8rem] truncate text-[10px] text-[#2F4A37]/70">
+                      {task.ownerEmail.split('@')[0]}
+                    </span>
+                  )}
+                </div>
+
+                {canDelete(task) && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          title: 'Delete task?',
+                          description: `“${task.text}” will be removed from your list.`,
+                          confirmLabel: 'Delete task',
+                        })
+                      ) {
+                        onDelete(task)
+                      }
+                    }}
+                    className="rounded p-1 text-[#2F4A37]/50 opacity-70 transition hover:text-rose-600 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                    aria-label="Delete task"
+                    title="Delete task"
+                  >
+                    <TrashIcon className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {dialog}
+    </section>
+  )
+}
+
+/** Repeating tasks shown below Completed, matching the template's compact card. */
+export function RepeatingColumn({
+  tasks,
+  currentUserId,
+  showOwner,
+  onOpen,
+}: BoardProps) {
+  return (
+    <section className="overflow-hidden rounded-[24px] border border-[#E1E2E0] bg-white p-5" aria-label="Repeating">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Repeating</h2>
+        <span className="rounded-full bg-[#F6F6F4] px-2 py-0.5 text-xs font-bold text-[#454B58]">
+          {tasks.length}
+        </span>
       </div>
-    </aside>
+
+      {tasks.length === 0 ? (
+        <div className="flex flex-col items-center rounded-2xl bg-slate-50 px-4 py-6 text-center shadow-sm ring-1 ring-slate-200/80">
+          <span className="text-3xl" aria-hidden="true">
+            🔁
+          </span>
+          <p className="mt-2 text-sm font-semibold text-slate-700">No repeating tasks</p>
+          <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-500">
+            Tasks that repeat will be listed here.
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-0.5">
+          {tasks.map((task) => {
+            const repeat = recurrenceShort(task.recurrence, task.recurrenceConfig)
+            return (
+              <li
+                key={task.id}
+                className="group flex items-center gap-2 rounded-xl px-1.5 py-2 transition hover:bg-slate-50"
+              >
+                <button
+                  type="button"
+                  onClick={() => onOpen(task)}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <p className="truncate text-[13px] font-semibold text-[#15181E]">{task.text}</p>
+                  {showOwner && task.userId !== currentUserId && (
+                    <p className="truncate text-[10px] text-slate-400">
+                      {task.ownerEmail.split('@')[0]}
+                    </p>
+                  )}
+                </button>
+                {repeat && (
+                  <span className="insight-pill shrink-0 bg-[#F6F6F4] text-[#454B58]">
+                    <RepeatIcon className="h-3 w-3" />
+                    {repeat}
+                  </span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
   )
 }

@@ -30,57 +30,44 @@ export const PRIORITY_META: Record<
     chip: 'bg-rose-50 text-rose-500',
     text: 'text-rose-500',
   },
-  urgent: {
-    label: 'Urgent',
-    dot: 'bg-red-600',
-    chip: 'bg-red-50 text-red-700',
-    text: 'text-red-600',
-  },
 }
 
 /**
- * Sticky-note palette: green for low, yellow for medium, light red for high,
- * deep red for urgent. Bright pastel paper with dark ink and a thick, inked
- * border gives the notes a cartoon sticker feel.
+ * Sticky-note palette: gray for no priority, green for low, yellow for medium,
+ * light red for high. Bright pastel paper with dark ink keeps the notes soft
+ * and readable without an outline.
  */
 export const STICKY_META: Record<
   Priority,
   { note: string; tape: string; chip: string; muted: string; check: string }
 > = {
   none: {
-    note: 'border-[#caa85c]/70 bg-[#fff7d6] text-[#6b4f1d]',
-    tape: 'bg-amber-100/90',
+    note: 'bg-[#E6E8EB] text-[#3A404B]',
+    tape: 'bg-slate-200/90',
     chip: 'bg-white/65 ring-1 ring-black/5',
-    muted: 'text-[#8a6a2f]/85',
-    check: 'border-[#b08a45]/70 text-transparent hover:border-[#8a6a2f] hover:text-[#8a6a2f]',
+    muted: 'text-[#3A404B]/85',
+    check: 'border-[#7B8190] text-transparent hover:border-[#3A404B] hover:text-[#3A404B]',
   },
   low: {
-    note: 'border-[#4aa96c]/70 bg-[#4aa96c]/30 text-[#14532d]',
+    note: 'bg-[#4aa96c]/30 text-[#14532d]',
     tape: 'bg-emerald-100/90',
     chip: 'bg-white/65 ring-1 ring-black/5',
     muted: 'text-[#166534]/85',
     check: 'border-[#4aa96c] text-transparent hover:border-[#166534] hover:text-[#166534]',
   },
   medium: {
-    note: 'border-[#d9c39a]/80 bg-[#fdf5e6] text-[#713f12]',
+    note: 'bg-[#fdf5e6] text-[#713f12]',
     tape: 'bg-[#f3e4c8]/90',
     chip: 'bg-white/65 ring-1 ring-black/5',
     muted: 'text-[#854d0e]/85',
     check: 'border-[#d9a520] text-transparent hover:border-[#854d0e] hover:text-[#854d0e]',
   },
   high: {
-    note: 'border-[#e0716a]/80 bg-[#e0716a]/30 text-[#7f1d1d]',
+    note: 'bg-[#e0716a]/30 text-[#7f1d1d]',
     tape: 'bg-rose-100/90',
     chip: 'bg-white/65 ring-1 ring-black/5',
     muted: 'text-[#991b1b]/85',
     check: 'border-[#e0716a] text-transparent hover:border-[#991b1b] hover:text-[#991b1b]',
-  },
-  urgent: {
-    note: 'border-rose-950/40 bg-[#c81e3f] text-rose-50',
-    tape: 'bg-white/30',
-    chip: 'bg-white/15 ring-1 ring-white/10',
-    muted: 'text-rose-100/80',
-    check: 'border-rose-200/50 text-transparent hover:border-rose-50 hover:text-rose-50',
   },
 }
 

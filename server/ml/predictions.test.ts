@@ -9,7 +9,7 @@ import {
   type CheckinAnswerKey,
 } from '../checkins-store'
 import { createFoundationSchema, createPredictionSchema } from './schema'
-import { recordTaskConfig } from './task-config'
+import { endOfLocalDay, recordTaskConfig } from './task-config'
 import { syncTaskTags } from './tags'
 import { createSession } from './sessions'
 import { setDailyStatus } from './daily-activity'
@@ -116,16 +116,23 @@ function freshDb(): DatabaseSync {
 
 function insertTask(
   db: DatabaseSync,
-  options: { text?: string; duration?: number | null; priority?: string; tagNames?: string[] } = {},
+  options: {
+    text?: string
+    duration?: number | null
+    priority?: string
+    tagNames?: string[]
+    due?: number | null
+  } = {},
 ): string {
   const id = randomUUID()
   const text = options.text ?? 'Read'
   const duration = options.duration === undefined ? 60 : options.duration
   const priority = options.priority ?? 'none'
+  const due = options.due === undefined ? endOfLocalDay(TODAY) : options.due
   db.prepare(
-    `INSERT INTO tasks (id, user_id, text, created_at, priority, tags, recurrence, duration)
-     VALUES (?, ?, ?, 1, ?, '[]', 'none', ?)`,
-  ).run(id, USER, text, priority, duration)
+    `INSERT INTO tasks (id, user_id, text, created_at, due, priority, tags, recurrence, duration)
+     VALUES (?, ?, ?, 1, ?, ?, '[]', 'none', ?)`,
+  ).run(id, USER, text, due, priority, duration)
   const tagIds = options.tagNames ? syncTaskTags(db, USER, id, options.tagNames) : []
   recordTaskConfig(db, taskLike(id, text, priority, duration), tagIds, CONFIG_FROM)
   return id
@@ -582,6 +589,25 @@ test('plan ranking excludes completed and inactive tasks and never forces a choi
     assert.ok(plan.entries[i - 1].rankScore >= plan.entries[i].rankScore)
   }
   assert.match(plan.note, /suggestion only/i)
+})
+
+test('plan only includes tasks due on the selected date', () => {
+  const db = freshDb()
+  const dueToday = insertTask(db, { text: 'Today', duration: 60 })
+  const tomorrow = insertTask(db, {
+    text: 'Tomorrow',
+    duration: 60,
+    due: endOfLocalDay(addDays(TODAY, 1)),
+  })
+  const noDue = insertTask(db, { text: 'No due', duration: 60, due: null })
+
+  const plan = buildPlan(db, USER, TODAY, TODAY, 480, 'completed')
+  assert.deepEqual(
+    plan.entries.map((entry) => entry.taskId),
+    [dueToday],
+  )
+  assert.equal(plan.suggestions.some((entry) => entry.taskId === tomorrow || entry.taskId === noDue), false)
+  db.close()
 })
 
 test('off days suppress the whole plan', () => {

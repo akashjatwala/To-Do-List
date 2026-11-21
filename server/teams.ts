@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { Router } from 'express'
-import { db, type TeamRow } from './db'
+import { clearTeamAssignees, db, type TeamRow } from './db'
 import { teamsFor, invitesFor, type MemberDTO } from './data'
 import { getUserByEmail, getUserById, validEmail } from './auth'
 import {
@@ -84,6 +84,7 @@ router.delete('/:teamId/leave', (req: AuthedRequest, res) => {
     return badRequest(res, 'Hosts cannot leave their own team. Delete it instead.')
   }
   db.prepare('DELETE FROM team_members WHERE team_id = ? AND user_id = ?').run(teamId, userId)
+  clearTeamAssignees(teamId, userId)
   res.json({ ok: true })
 })
 
@@ -96,6 +97,7 @@ router.delete('/:teamId/members/:memberId', (req: AuthedRequest, res) => {
   if (memberId === userId) return badRequest(res, 'You cannot remove yourself.')
   if (!membership(teamId, memberId)) return notFound(res, 'That person is not on the team.')
   db.prepare('DELETE FROM team_members WHERE team_id = ? AND user_id = ?').run(teamId, memberId)
+  clearTeamAssignees(teamId, memberId)
   res.json({ ok: true })
 })
 
