@@ -20,7 +20,7 @@
 
 | Number | Shown as | Meaning | Absent when |
 | --- | --- | --- | --- |
-| Completion probability | Nudge: "Chance of finishing today" subtitle, then task name + percentage with a bar below; task detail: "Chance of finishing today" | How likely you are to finish the task that day | Never (always a number) |
+| Completion probability | Nudge: "Chance of finishing today" subtitle, then task name + percentage with a bar below | How likely you are to finish the task that day | Never (always a number) |
 | Target probability | Not shown in the current UI | How likely you are to reach the task's full time target | The task has no target duration |
 | Expected duration | Not shown in the current UI | Roughly how long it usually takes | Not enough duration history |
 | Confidence | Not shown in the current UI | How much personal history backs the number | Never |
@@ -36,7 +36,10 @@ The card is headed **Nudge** with the subtitle **Chance of finishing today** und
 header has no decorative icon. For each open personal task due on the selected date it shows the
 task name, the completion probability as a percentage beside it, and a bar underneath. It does
 not show a confidence label, target probability, estimated time, suggested window or progress
-wording. The check-in gate and the off-day message still appear when relevant.
+wording. Nudge needs no check-in: today's tasks show a percentage straight away. When a check-in
+*is* answered, those answers feed the predictor and Nudge refreshes with the updated value; no
+answer simply means that input is missing. Only the off-day message still appears when relevant.
+Nudge appears only on the My tasks board — Task Detail has no Nudge section.
 
 Everything is a **suggestion**. A preferred time, where one is set, is an initial hint
 only — never a deadline.
@@ -83,9 +86,10 @@ sentence about the skip; the uncertainty is still part of the prediction.
 
 See [ml.md](ml.md) for how a champion is trained, promoted and watched.
 
-## Plan, gating and off days
+## Plan and off days
 
-- `GET /api/predictions/plan` is gated on today's check-in. Until it is completed or skipped, the response says `gate: true` and shows no numbers.
+- `GET /api/predictions/plan` always returns a plan for the requested date. An unanswered check-in is just one missing input; the response stays `gate: false` and shows numbers straight away.
+- Predictions are **personal tasks only**. Team tasks are never predicted, never appear in Nudge, and never feed the history, statistics or training data behind a prediction. The single-task and statistics endpoints also refuse team tasks and other users' tasks.
 - An off day returns `offDay: true` with **no** predictions at all.
 - The plan only considers open **personal** tasks due on the requested date; team tasks and tasks due on other dates (or with no due date) are never part of it. It ranks them by probability, priority, what is left of the target and how much time is left. The ranking is a suggestion; it never changes a probability.
 - The same `/plan` response also carries `schedule` (a proposed flow and workload warning) and `reschedules` (ideas for another day). Both are still computed as **display-only** data — nothing is written to a task's date — but the current UI does not show them. An off day suppresses both.
@@ -104,7 +108,7 @@ prediction is **never** written back as an outcome.
 
 ## Related docs
 
-- [checkin-and-energy.md](checkin-and-energy.md) — the check-in that gates the plan
+- [checkin-and-energy.md](checkin-and-energy.md) — the check-in and how it feeds predictions
 - [ml.md](ml.md) — training, promotion, health and drift
 - [data-model.md](data-model.md) — the `predictions` and `prediction_feedback` tables
 - [decisions.md](decisions.md) — why the preferred time is only a hint

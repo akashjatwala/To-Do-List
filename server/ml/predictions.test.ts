@@ -49,6 +49,7 @@ import {
   checkinAdjustment,
   epochAtMinute,
   freeTimeBudget,
+  isPersonalTask,
   predictTask,
   rankScore,
   recommendWindow,
@@ -607,6 +608,48 @@ test('plan only includes tasks due on the selected date', () => {
     [dueToday],
   )
   assert.equal(plan.suggestions.some((entry) => entry.taskId === tomorrow || entry.taskId === noDue), false)
+  db.close()
+})
+
+test('plan never includes team tasks', () => {
+  const db = freshDb()
+  const personal = insertTask(db, { text: 'Personal' })
+  const team = insertTask(db, { text: 'Team' })
+  db.prepare('UPDATE tasks SET team_id = ? WHERE id = ?').run('team-1', team)
+
+  const plan = buildPlan(db, USER, TODAY, TODAY, 480, 'completed')
+  assert.deepEqual(
+    plan.entries.map((entry) => entry.taskId),
+    [personal],
+  )
+  assert.equal(plan.suggestions.some((entry) => entry.taskId === team), false)
+  db.close()
+})
+
+test('predictions are personal-only and check-in answers shift the value', () => {
+  const db = freshDb()
+  const personal = insertTask(db, { text: 'Personal' })
+  const team = insertTask(db, { text: 'Team' })
+  db.prepare('UPDATE tasks SET team_id = ? WHERE id = ?').run('team-1', team)
+  const otherUserTask = randomUUID()
+  db.prepare(
+    `INSERT INTO tasks (id, user_id, text, created_at, due, priority, tags, recurrence, duration)
+     VALUES (?, ?, ?, 1, ?, 'none', '[]', 'none', 60)`,
+  ).run(otherUserTask, USER + 1, 'Other person', endOfLocalDay(TODAY))
+
+  assert.equal(isPersonalTask(db, USER, personal), true)
+  assert.equal(isPersonalTask(db, USER, team), false)
+  assert.equal(isPersonalTask(db, USER, otherUserTask), false)
+  assert.equal(predictTask(db, USER, team, context(db)), null)
+  assert.equal(predictTask(db, USER, otherUserTask, context(db)), null)
+  assert.ok(predictTask(db, USER, personal, context(db)))
+  assert.deepEqual(userTaskIds(db, USER), [personal])
+
+  const noCheckin = predictTask(db, USER, personal, context(db, { checkinState: 'not_asked', answers: null }))!
+  const goodCheckin = predictTask(db, USER, personal, context(db, { checkinState: 'completed', answers: answers(1) }))!
+  const lowCheckin = predictTask(db, USER, personal, context(db, { checkinState: 'completed', answers: answers(5) }))!
+  assert.ok(goodCheckin.completionProbability > noCheckin.completionProbability)
+  assert.ok(lowCheckin.completionProbability < noCheckin.completionProbability)
   db.close()
 })
 

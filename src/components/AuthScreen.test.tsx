@@ -17,7 +17,7 @@ test('the login page follows the reference layout and copy', () => {
   assert.match(html, />Password</)
   assert.doesNotMatch(html, />Show</)
   assert.match(html, /Keep me logged in/)
-  assert.match(html, /Forgot password\?/)
+  assert.doesNotMatch(html, /Forgot password\?/)
   assert.match(html, />Log in</)
   assert.match(html, /bg-\[#F6F6F4\]/)
   assert.match(html, /class="auth-primary"/)
@@ -47,28 +47,6 @@ test('the signup page follows the reference layout and copy', () => {
   assert.match(html, /Create account/)
   assert.match(html, /Start with one task,/)
   assert.match(html, /Your personal list is private\. Team lists are shared with members only\./)
-})
-
-test('the forgot password page uses the simplified password-only layout', () => {
-  const html = renderToStaticMarkup(
-    <AuthScreen onAuthed={async () => {}} initialMode="forgot" />
-  )
-
-  assert.match(html, /Reset your password/)
-  assert.doesNotMatch(html, /Remembered it\?/)
-  assert.doesNotMatch(html, /New here\?/)
-  assert.doesNotMatch(html, /Already have an account\?/)
-  assert.match(html, /Almost there,/)
-  assert.match(html, /Pick a new password and you(?:&#x27;|')re back in\./)
-  assert.match(html, /Choose a new password for your account\./)
-  assert.match(html, />New password</)
-  assert.match(html, /id="new-password"/)
-  assert.match(html, />Confirm password</)
-  assert.match(html, /id="confirm-password"/)
-  assert.doesNotMatch(html, /Reset code/)
-  assert.doesNotMatch(html, /Send again/)
-  assert.doesNotMatch(html, /forgot-email/)
-  assert.doesNotMatch(html, /Do It\./i)
 })
 
 test('the decorative notes keep the app rule that there is no Urgent priority', () => {

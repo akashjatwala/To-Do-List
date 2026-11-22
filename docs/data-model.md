@@ -35,7 +35,7 @@ check-in, task, prediction or ML table was removed, and the model code was left 
 | Table | Holds |
 | --- | --- |
 | `users` | Account email and password hash |
-| `auth_tokens` | Login sessions and password-reset codes in one table; `kind` distinguishes them. Only token **hashes** are stored |
+| `auth_tokens` | Login sessions only. Only token **hashes** are stored; the former reset-code rows were removed by migration 12 |
 | `teams`, `team_members`, `team_invites` | Teams, membership roles, pending invites |
 | `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration, preferred time. `team_id NULL` means a personal task |
 | `subtasks` | Subtasks with position, done and an optional assignee (a member of the task's team; `NULL` on personal tasks) |
@@ -58,7 +58,7 @@ check-in, task, prediction or ML table was removed, and the model code was left 
 | `task_tags` | Current task ↔ tag membership |
 | `task_configs` | **Versioned** task configuration: name, category, priority, frequency, target duration, preferred time, active. A change appends a row; old rows are never overwritten |
 | `task_config_tags` | The tag set as it stood for one config version |
-| `activity_sessions` | Real timed activity: task, local date, start/end, duration, note, source. Several per day allowed |
+| `activity_sessions` | Real timed activity: task, author, local date, start/end, duration, note, source. Several per day and per author allowed. Task Detail shows these as **Task time**: each entry records only a start and completion time and is stored on the task's **due date** (there is no per-entry date field). Teammates see each other's entries on team tasks, but only the author can add or delete their own |
 | `daily_activity_status` | What you explicitly said about a day: `completed` / `partial` / `skipped` / `postponed`, with an optional reason |
 | `context_questions` | Optional extra questions, attached to a task or suggested by a tag |
 | `session_context` | Answers to extra questions, recorded against a session |

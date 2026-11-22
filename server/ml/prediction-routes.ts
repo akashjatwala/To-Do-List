@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { db } from '../db'
 import { answeredValues, checkinState, getCheckin, parseLocalDate } from '../checkins-store'
 import { badRequest, localDateString, notFound, resolveDate, type AuthedRequest } from '../http'
-import { buildPlan, taskContext } from './predictors'
+import { buildPlan, isPersonalTask, taskContext } from './predictors'
 import { livePredictor } from './live-predictor'
 import { getPredictionSettings, offDayContext } from './off-days'
 import { buildDaySchedule } from './day-planner'
@@ -23,10 +23,11 @@ import { driftForTask } from './drift'
  * Prediction interface routes.
  *
  * Predictions are produced and logged **by the server**, never by the client,
- * and never written back as an outcome. The plan endpoint is gated on today's
- * check-in: until it is completed or skipped the client is told to show the
- * the check-in first. An off day returns an explicit "off day" answer with
- * no predictions.
+ * and never written back as an outcome. They are strictly for personal tasks:
+ * team tasks are never predicted, nor used as training/history input. The plan
+ * is available immediately for the selected date — an unanswered check-in is
+ * simply one missing input, not a barrier. An off day returns an explicit
+ * "off day" answer with no predictions.
  */
 const router = Router()
 
@@ -44,12 +45,8 @@ router.get('/plan', (req: AuthedRequest, res) => {
   const row = getCheckin(db, userId, date)
   const state = row ? checkinState(row) : 'not_asked'
 
-  // Gate: the day's context must be captured before predictions are shown.
-  if (state !== 'completed' && state !== 'skipped') {
-    res.json({ gate: true, checkinState: state, offDay: false, plan: null, predictions: [] })
-    return
-  }
-
+  // No check-in gate: today's tasks get a prediction straight away. An
+  // unanswered check-in is handled by the predictor as missing context.
   const plan = buildPlan(db, userId, date, today, nowMinutesFor(date, today), state, {
     predict: livePredictor,
   })
@@ -100,6 +97,7 @@ router.get('/task', (req: AuthedRequest, res) => {
   const userId = req.userId!
   const taskId = typeof req.query.taskId === 'string' ? req.query.taskId : ''
   if (!taskId) return badRequest(res, 'A task is needed.')
+  if (!isPersonalTask(db, userId, taskId)) return notFound(res, 'Predictions are only available for your personal tasks.')
   const task = taskContext(db, taskId, resolveDate(req) ?? localDateString())
   if (!task) return notFound(res, 'Task not found.')
   const date = resolveDate(req) ?? localDateString()
@@ -113,10 +111,7 @@ router.get('/task', (req: AuthedRequest, res) => {
     res.json({ gate: false, checkinState: state, offDay: true, prediction: null })
     return
   }
-  if (state !== 'completed' && state !== 'skipped') {
-    res.json({ gate: true, checkinState: state, offDay: false, prediction: null })
-    return
-  }
+  // An unanswered check-in is one missing input, not a gate: still return a value.
 
   const taskIds = userTaskIds(db, userId)
   const priorRate = userCompletionPrior(db, userId, taskIds, today)
@@ -158,6 +153,7 @@ router.get('/statistics', (req: AuthedRequest, res) => {
   const userId = req.userId!
   const taskId = typeof req.query.taskId === 'string' ? req.query.taskId : ''
   if (!taskId) return badRequest(res, 'A task is needed.')
+  if (!isPersonalTask(db, userId, taskId)) return notFound(res, 'Predictions are only available for your personal tasks.')
   const today = parseLocalDate(req.query.today) ?? localDateString()
   const settings = getPredictionSettings(db, userId)
   const priorRate = userCompletionPrior(db, userId, userTaskIds(db, userId), today)

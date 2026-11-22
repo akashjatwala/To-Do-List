@@ -77,9 +77,6 @@ export const api = {
   login: (email: string, password: string, remember: boolean) =>
     post<{ user: User }>('/api/auth/login', { email, password, remember }),
   logout: () => post<{ ok: true }>('/api/auth/logout'),
-  forgot: (email: string) => post<{ ok: true; resetCode?: string }>('/api/auth/forgot', { email }),
-  reset: (token: string, password: string) =>
-    post<{ ok: true }>('/api/auth/reset', { token, password }),
   changePassword: (currentPassword: string, newPassword: string) =>
     post<{ ok: true }>('/api/auth/password', { currentPassword, newPassword }),
   updateName: (name: string) => patch<{ user: User }>('/api/auth/me', { name }),
@@ -141,6 +138,8 @@ export const api = {
   createTeam: (name: string) => post<{ team: Team }>('/api/teams', { name }),
   renameTeam: (teamId: string, name: string) =>
     patch<{ ok: true }>(`/api/teams/${teamId}`, { name }),
+  transferHost: (teamId: string, memberId: number) =>
+    put<{ ok: true }>(`/api/teams/${teamId}/host`, { memberId }),
   deleteTeam: (teamId: string) => del<{ ok: true }>(`/api/teams/${teamId}`),
   leaveTeam: (teamId: string) => del<{ ok: true }>(`/api/teams/${teamId}/leave`),
   removeMember: (teamId: string, memberId: number) =>
@@ -166,9 +165,11 @@ export const api = {
 
   // ---- Activity sessions, daily records, tags and config history ----
 
-  listSessions: (taskId: string, limit = 50) =>
+  listSessions: (taskId: string, limit = 50, shared = false) =>
     request<{ items: ActivitySession[] }>(
-      `/api/activity/sessions?taskId=${encodeURIComponent(taskId)}&limit=${limit}`,
+      `/api/activity/sessions?taskId=${encodeURIComponent(taskId)}&limit=${limit}${
+        shared ? '&shared=true' : ''
+      }`,
     ),
   createSession: (input: {
     taskId: string

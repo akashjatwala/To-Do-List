@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createCheckinSchema } from './checkins-store'
+import { runMigrations } from './migrations'
 import { createFoundationSchema, createMlSchema, createPredictionSchema, createStateSchema } from './ml/schema'
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), 'data')
@@ -10,6 +11,9 @@ mkdirSync(DATA_DIR, { recursive: true })
 
 export const db = new DatabaseSync(join(DATA_DIR, 'todo.db'))
 db.exec('PRAGMA foreign_keys = ON')
+db.exec('PRAGMA journal_mode = WAL')
+db.exec('PRAGMA synchronous = NORMAL')
+db.exec('PRAGMA busy_timeout = 5000')
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -20,12 +24,12 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
 
-  -- Login sessions and password-reset codes share one shape: a hashed token,
-  -- an owner and an expiry. The kind column keeps their behaviour separate.
+  -- Login sessions are stored as hashes; the raw token only exists in the
+  -- browser cookie, so a leaked database cannot be replayed as a session.
   CREATE TABLE IF NOT EXISTS auth_tokens (
     token_hash TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('session', 'reset')),
+    kind TEXT NOT NULL CHECK (kind IN ('session')),
     created_at INTEGER NOT NULL,
     expires_at INTEGER NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -137,51 +141,8 @@ createPredictionSchema(db)
 // Machine learning: the model registry, the shadow-mode log and the retrain bookkeeping.
 createMlSchema(db)
 
-// Lightweight migrations for databases created by older versions of the app.
-// Fresh databases already have every column above; these only fill gaps in old files.
-const userColumns = db.prepare('PRAGMA table_info(users)').all() as unknown as Array<{
-  name: string
-}>
-if (!userColumns.some((column) => column.name === 'name')) {
-  db.exec("ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT ''")
-}
-
-const taskColumns = db.prepare('PRAGMA table_info(tasks)').all() as unknown as Array<{
-  name: string
-}>
-const hasTaskColumn = (name: string) => taskColumns.some((column) => column.name === name)
-
-if (!hasTaskColumn('progress')) {
-  db.exec('ALTER TABLE tasks ADD COLUMN progress INTEGER NOT NULL DEFAULT 0')
-  db.prepare('UPDATE tasks SET progress = 100 WHERE done = 1').run()
-}
-if (!hasTaskColumn('priority')) {
-  db.exec("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'none'")
-}
-if (!hasTaskColumn('tags')) {
-  db.exec("ALTER TABLE tasks ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
-}
-if (!hasTaskColumn('recurrence')) {
-  db.exec("ALTER TABLE tasks ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'none'")
-}
-if (!hasTaskColumn('duration')) {
-  db.exec('ALTER TABLE tasks ADD COLUMN duration INTEGER')
-}
-if (!hasTaskColumn('recurrence_config')) {
-  db.exec('ALTER TABLE tasks ADD COLUMN recurrence_config TEXT')
-}
-if (!hasTaskColumn('preferred_time')) {
-  db.exec('ALTER TABLE tasks ADD COLUMN preferred_time TEXT')
-}
-
-const subtaskColumns = db.prepare('PRAGMA table_info(subtasks)').all() as unknown as Array<{
-  name: string
-}>
-if (!subtaskColumns.some((column) => column.name === 'assignee_id')) {
-  db.exec(
-    'ALTER TABLE subtasks ADD COLUMN assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL',
-  )
-}
+// Bring older databases up to the current shape exactly once.
+runMigrations(db)
 
 /** Clear a departing member's assignments on that team's tasks. */
 export function clearTeamAssignees(teamId: string, userId: number) {
@@ -206,7 +167,7 @@ export interface UserRow {
 export interface AuthTokenRow {
   token_hash: string
   user_id: number
-  kind: 'session' | 'reset'
+  kind: 'session'
   created_at: number
   expires_at: number
 }

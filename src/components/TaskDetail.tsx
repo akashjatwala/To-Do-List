@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { api } from '@/api'
 import type {
+  ActivitySession,
   Comment,
   Member,
   Priority,
@@ -30,7 +32,7 @@ import {
   CalendarIcon,
   CheckIcon,
   ChevronDownIcon,
-  GaugeIcon,
+  ClockIcon,
   ListChecksIcon,
   LockIcon,
   MessageIcon,
@@ -45,6 +47,50 @@ const DURATION_MAX = 60 * 24 * 7
 
 const headerChipClass =
   'inline-flex items-center gap-1.5 rounded-full bg-[#F8FBFE]/90 px-2.5 py-1 text-[11px] font-semibold text-[#2E3742] ring-1 ring-white/70'
+
+/** Combine a YYYY-MM-DD date and an HH:mm time into a local epoch timestamp. */
+function entryTimestamp(date: string, time: string): number | null {
+  const [year, month, day] = date.split('-').map(Number)
+  const [hours, minutes] = time.split(':').map(Number)
+  if (
+    !year ||
+    !month ||
+    !day ||
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null
+  }
+  return new Date(year, month - 1, day, hours, minutes, 0, 0).getTime()
+}
+
+function shortEntryDate(date: string): string {
+  const [year, month, day] = date.split('-').map(Number)
+  const value = new Date(year, month - 1, day)
+  const today = new Date()
+  if (value.toDateString() === today.toDateString()) return 'Today'
+  return value.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(value.getFullYear() === today.getFullYear() ? {} : { year: 'numeric' }),
+  })
+}
+
+function clockTime(timestamp: number): string {
+  const date = new Date(timestamp)
+  return `${`${date.getHours()}`.padStart(2, '0')}:${`${date.getMinutes()}`.padStart(2, '0')}`
+}
+
+function durationLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`
+}
 
 interface TaskDetailProps {
   task: Task
@@ -111,13 +157,17 @@ export default function TaskDetail({
   const [subtaskAssignee, setSubtaskAssignee] = useState('')
   const [commentText, setCommentText] = useState('')
   const [commentBusy, setCommentBusy] = useState(false)
-  const [progressValue, setProgressValue] = useState(task.progress ?? 0)
+  const [sessions, setSessions] = useState<ActivitySession[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [entryStart, setEntryStart] = useState('')
+  const [entryEnd, setEntryEnd] = useState('')
+  const [entryBusy, setEntryBusy] = useState(false)
+  const [entryError, setEntryError] = useState('')
   const [tagInput, setTagInput] = useState('')
   const [showTagEditor, setShowTagEditor] = useState(false)
   const [showAssigneePicker, setShowAssigneePicker] = useState(false)
   const [assigneeBusy, setAssigneeBusy] = useState(false)
   const [durationValue, setDurationValue] = useState(task.duration ? String(task.duration) : '')
-  const [preferredTime, setPreferredTime] = useState(task.preferredTime ?? '')
   const [customRepeat, setCustomRepeat] = useState<RecurrenceConfig>(() =>
     task.recurrenceConfig ?? { mode: 'weekly', days: [new Date().getDay()] },
   )
@@ -128,16 +178,28 @@ export default function TaskDetail({
   }, [task.id, task.text])
 
   useEffect(() => {
-    setProgressValue(task.progress ?? 0)
-  }, [task.id, task.progress])
+    let cancelled = false
+    setSessionsLoading(true)
+    setEntryError('')
+    api
+      .listSessions(task.id, 200, Boolean(task.teamId))
+      .then((result) => {
+        if (!cancelled) setSessions(result.items)
+      })
+      .catch(() => {
+        if (!cancelled) setEntryError('Could not load time entries.')
+      })
+      .finally(() => {
+        if (!cancelled) setSessionsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [task.id, task.teamId])
 
   useEffect(() => {
     setDurationValue(task.duration ? String(task.duration) : '')
   }, [task.id, task.duration])
-
-  useEffect(() => {
-    setPreferredTime(task.preferredTime ?? '')
-  }, [task.id, task.preferredTime])
 
   useEffect(() => {
     if (task.recurrenceConfig) setCustomRepeat(task.recurrenceConfig)
@@ -192,13 +254,67 @@ export default function TaskDetail({
   const doneSubtasks = task.subtasks.filter((subtask) => subtask.done).length
   const subtaskPercent = task.subtasks.length ? (doneSubtasks / task.subtasks.length) * 100 : 0
 
-  const commitProgress = (value: number) => {
-    const next = Math.max(0, Math.min(100, Math.round(value)))
-    if (next === (task.progress ?? 0)) return
-    setProgressValue(next)
-    void onUpdate({ progress: next }).then((ok) => {
-      if (!ok) setProgressValue(task.progress ?? 0)
-    })
+  // Time entries always belong to the task's due date. There is no per-entry
+  // date field, so a task without a due date cannot log time.
+  const entryDate = dateInputValue(task.due)
+
+  const submitEntry = async (event: FormEvent) => {
+    event.preventDefault()
+    setEntryError('')
+    if (!entryDate) {
+      setEntryError('Set a due date for this task before adding time.')
+      return
+    }
+    const startedAt = entryTimestamp(entryDate, entryStart)
+    const endedAt = entryTimestamp(entryDate, entryEnd)
+    if (startedAt === null || endedAt === null) {
+      setEntryError('Enter a valid start time and completion time.')
+      return
+    }
+    if (endedAt <= startedAt) {
+      setEntryError('Completion time must be after the start time.')
+      return
+    }
+    if (startedAt > Date.now() || endedAt > Date.now()) {
+      setEntryError('Time entries cannot be in the future.')
+      return
+    }
+    setEntryBusy(true)
+    try {
+      await api.createSession({
+        taskId: task.id,
+        localDate: entryDate,
+        startedAt,
+        endedAt,
+      })
+      // Reload so a new entry has the same author fields as teammates' entries.
+      const result = await api.listSessions(task.id, 200, Boolean(task.teamId))
+      setSessions(result.items)
+      setEntryStart('')
+      setEntryEnd('')
+    } catch (error) {
+      setEntryError(error instanceof Error ? error.message : 'Could not save the time entry.')
+    } finally {
+      setEntryBusy(false)
+    }
+  }
+
+  const deleteEntry = async (session: ActivitySession) => {
+    if (
+      !(await confirm({
+        title: 'Delete time entry?',
+        description: `Remove the entry from ${shortEntryDate(session.date)}, ${clockTime(session.startedAt)}–${clockTime(session.endedAt ?? session.startedAt)}?`,
+        confirmLabel: 'Delete entry',
+      }))
+    ) {
+      return
+    }
+    try {
+      await api.deleteSession(session.id)
+      setSessions((current) => current.filter((item) => item.id !== session.id))
+    } catch {
+      setEntryError('Could not delete the time entry.')
+    }
   }
 
   const commitDuration = () => {
@@ -729,48 +845,111 @@ export default function TaskDetail({
                 <section className="mt-6 rounded-2xl bg-white p-4 ring-1 ring-slate-200/70">
                   <div className="flex items-center justify-between">
                     <h3 className="flex items-center gap-2 text-sm font-bold text-[#15181E]">
-                      <GaugeIcon className="h-4 w-4 text-[#7B8190]" />
-                      Progress
+                      <ClockIcon className="h-4 w-4 text-[#7B8190]" />
+                      Task time
                     </h3>
                     <span className="rounded-full bg-[#F6F6F4] px-2 py-0.5 text-[11px] font-bold text-[#2E3742] tabular-nums">
-                      {progressValue}%
+                      {sessions.length} {sessions.length === 1 ? 'entry' : 'entries'}
                     </span>
                   </div>
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-[#009688] transition-all duration-200"
-                      style={{ width: `${progressValue}%` }}
-                    />
+                  <p className="mt-1 text-[11px] leading-relaxed text-[#7B8190]">
+                    {task.teamId
+                      ? 'Start and completion times are shared with your teammates. Each entry stays owned by the person who logged it.'
+                      : 'Log as many start and completion times as you need for this task.'}
+                  </p>
+
+                  <div className="mt-3 space-y-2">
+                    {sessionsLoading && (
+                      <p className="py-2 text-[11px] text-[#7B8190]">Loading time entries…</p>
+                    )}
+                    {!sessionsLoading && sessions.length === 0 && (
+                      <p className="rounded-xl bg-[#F6F6F4] px-3 py-2.5 text-[11px] text-[#7B8190]">
+                        No time entries yet. Add one below.
+                      </p>
+                    )}
+                    {[...sessions]
+                      .sort((a, b) => b.startedAt - a.startedAt)
+                      .map((session) => {
+                        const mine = !task.teamId || session.userId === currentUserId
+                        return (
+                          <div
+                            key={session.id}
+                            className="flex items-center gap-2 rounded-xl bg-[#F6F6F4] px-3 py-2"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 text-xs font-bold text-[#2E3742] tabular-nums">
+                                <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-semibold text-[#5F6165]">
+                                  {shortEntryDate(session.date)}
+                                </span>
+                                <span>
+                                  {clockTime(session.startedAt)} –{' '}
+                                  {clockTime(session.endedAt ?? session.startedAt)}
+                                </span>
+                                <span className="text-[10px] font-semibold text-[#7B8190]">
+                                  ({durationLabel(session.durationMinutes)})
+                                </span>
+                              </div>
+                              {task.teamId && session.authorEmail && (
+                                <p className="mt-0.5 truncate text-[10px] font-medium text-[#7B8190]">
+                                  {session.authorName || session.authorEmail}
+                                </p>
+                              )}
+                            </div>
+                            {mine && (
+                              <button
+                                type="button"
+                                onClick={() => void deleteEntry(session)}
+                                aria-label="Delete time entry"
+                                className="shrink-0 rounded-lg p-1.5 text-[#7B8190] transition hover:bg-rose-50 hover:text-rose-600"
+                              >
+                                <TrashIcon className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
                   </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={progressValue}
-                    onChange={(event) => setProgressValue(Number(event.target.value))}
-                    onPointerUp={(event) => commitProgress(Number(event.currentTarget.value))}
-                    onKeyUp={(event) => commitProgress(Number(event.currentTarget.value))}
-                    onBlur={(event) => commitProgress(Number(event.currentTarget.value))}
-                    aria-label="Task completion percentage"
-                    className="progress-range mt-2 w-full"
-                  />
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {[0, 25, 50, 75, 100].map((preset) => (
+
+                  <form onSubmit={submitEntry} className="mt-3 border-t border-slate-200/80 pt-3">
+                    <p className="text-[11px] font-bold text-[#5F6165]">Add a time entry</p>
+                    {entryDate ? (
+                      <p className="mt-0.5 text-[10px] font-medium text-[#7B8190]">
+                        Logged for this task's due date · {formatDateValue(entryDate)}
+                      </p>
+                    ) : (
+                      <p className="mt-0.5 text-[10px] font-medium text-rose-600">
+                        Set a due date for this task to add time.
+                      </p>
+                    )}
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                      <input
+                        type="time"
+                        value={entryStart}
+                        onChange={(event) => setEntryStart(event.target.value)}
+                        placeholder="Start"
+                        aria-label="Start time"
+                        className="min-w-0 rounded-lg bg-white px-2 py-1.5 text-[11px] font-semibold text-[#2E3742] ring-1 ring-slate-200 outline-none focus:ring-[#009688]"
+                      />
+                      <input
+                        type="time"
+                        value={entryEnd}
+                        onChange={(event) => setEntryEnd(event.target.value)}
+                        placeholder="Completion"
+                        aria-label="Completion time"
+                        className="min-w-0 rounded-lg bg-white px-2 py-1.5 text-[11px] font-semibold text-[#2E3742] ring-1 ring-slate-200 outline-none focus:ring-[#009688]"
+                      />
                       <button
-                        key={preset}
-                        type="button"
-                        onClick={() => commitProgress(preset)}
-                        className={`rounded-lg px-2 py-1 text-[11px] font-bold transition ${
-                          progressValue === preset
-                            ? 'bg-[#15181E] text-white'
-                            : 'bg-[#F6F6F4] text-[#7B8190] hover:bg-slate-200'
-                        }`}
+                        type="submit"
+                        disabled={entryBusy || !entryStart || !entryEnd || !entryDate}
+                        className="rounded-lg bg-[#15181E] px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-[#2E3742] disabled:opacity-50"
                       >
-                        {preset}%
+                        {entryBusy ? <Spinner className="h-3 w-3" /> : 'Add time'}
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                    {entryError && (
+                      <p className="mt-2 text-[11px] font-semibold text-rose-600">{entryError}</p>
+                    )}
+                  </form>
                 </section>
 
               </div>
@@ -799,29 +978,13 @@ export default function TaskDetail({
                           aria-label="Due date"
                           className="min-w-0 flex-1 bg-transparent text-[11px] font-semibold text-[#2E3742] outline-none"
                         />
-                        <input
-                          type="time"
-                          value={preferredTime}
-                          onChange={(event) => {
-                            setPreferredTime(event.target.value)
-                            void onUpdate({ preferredTime: event.target.value || null })
-                          }}
-                          aria-label="Preferred time of day"
-                          className="w-[62px] shrink-0 bg-transparent text-[11px] font-semibold text-[#2E3742] outline-none"
-                        />
                         <span className="sr-only">{dueLabel}</span>
                       </div>
-                      {(task.due !== null || preferredTime) && (
+                      {task.due !== null && (
                         <button
                           type="button"
-                          onClick={() => {
-                            if (task.due !== null) void onUpdate({ due: null })
-                            if (preferredTime) {
-                              setPreferredTime('')
-                              void onUpdate({ preferredTime: null })
-                            }
-                          }}
-                          aria-label="Clear due date and time"
+                          onClick={() => void onUpdate({ due: null })}
+                          aria-label="Clear due date"
                           className="rounded p-0.5 text-[#7B8190] transition hover:text-[#15181E]"
                         >
                           <XIcon className="h-3.5 w-3.5" />
@@ -872,19 +1035,6 @@ export default function TaskDetail({
                         <RecurrenceEditor config={customRepeat} onChange={changeCustomRepeat} />
                       </div>
                     )}
-                  </div>
-                </section>
-
-                <section className="mt-5 rounded-[20px] bg-[#E7E1F5] p-4 text-[#37344B]">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-bold">Nudge</p>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold">Chance of finishing today</p>
-                    <span className="text-xl leading-none font-extrabold">71%</span>
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/70">
-                    <div className="h-full w-[71%] rounded-full bg-[#37344B]" />
                   </div>
                 </section>
               </aside>

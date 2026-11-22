@@ -25,6 +25,11 @@ flowchart TD
 - The **API** authenticates the session, validates input, and calls the learning modules.
 - The **database** is a single local SQLite file, currently 32 tables after the 2026-11-18 cleanup and table merges described in [data-model.md](data-model.md). The learning system writes only its own tables plus the tables it owns in `server/ml/schema.ts`.
 
+## Board controls
+
+- The greeting row's date is a clickable calendar picker in both **My tasks** and **Teams**, with a **Today** button immediately to its right and hover chevrons to step one day at a time. **Today** is disabled while the selected date is already today; from any other date it returns the board to today. Both boards are scoped to that date, including the progress counter. A repeating task is projected onto each matching future date on either board and also stays in **Repeating**; completing it is one shared edit that rolls the single task forward to the next occurrence (same team, assignees and subtasks). Nudge remains personal-only.
+- Both sidebars have an **Overdue tasks** card, in the same visual family as the Teams **Invitations** card. It lists open tasks whose due date has passed, oldest first, with how long ago they were due and three actions: **Open**, **Done** and **Move to today**. My tasks shows only personal tasks; a team board shows only that selected team's tasks and adds **Assigned to** with the current assignees (or **Unassigned**). These are ordinary task edits — they never touch a prediction or write an outcome.
+
 ## The learning pipeline, as separate modules
 
 Each job lives in its own file, so it can be tested and reasoned about alone.
@@ -89,10 +94,10 @@ sequenceDiagram
   participant R as ml/registry.ts
   participant D as SQLite
   U->>A: GET /api/predictions/plan
-  A->>D: read today's check-in
-  alt check-in not done
-    A-->>U: gate: show the check-in first
-  else check-in done or skipped
+  A->>D: read today's check-in (missing is one input, not a barrier)
+  alt off day
+    A-->>U: offDay: true, no predictions
+  else normal day
     A->>S: serveTask per open personal task due on that date
     S->>R: load champion (if any)
     S->>D: log model vs baseline (health), never as an outcome

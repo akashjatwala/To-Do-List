@@ -714,12 +714,12 @@ export function currentTagIds(db: DatabaseSync, taskId: string, today: string): 
   return config ? configTagIds(db, config.id) : []
 }
 
-/** Every task the user owns, oldest first. */
+/** Every personal task the user owns, oldest first. Team tasks never feed ML. */
 export function userTaskIds(db: DatabaseSync, userId: number): string[] {
   return (
-    db.prepare('SELECT id FROM tasks WHERE user_id = ? ORDER BY created_at').all(userId) as unknown as Array<{
-      id: string
-    }>
+    db
+      .prepare('SELECT id FROM tasks WHERE user_id = ? AND team_id IS NULL ORDER BY created_at')
+      .all(userId) as unknown as Array<{ id: string }>
   ).map((row) => row.id)
 }
 

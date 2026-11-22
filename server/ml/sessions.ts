@@ -151,11 +151,21 @@ export function validateSession(
   return { ok: true, value: { taskId, localDate, startedAt, endedAt, durationMinutes, note } }
 }
 
-/** Every session range already recorded for a task, for overlap checks. */
-export function existingRanges(db: DatabaseSync, taskId: string): SessionRange[] {
-  const rows = db
-    .prepare('SELECT id, started_at, ended_at, duration_minutes FROM activity_sessions WHERE task_id = ?')
-    .all(taskId) as unknown as Array<{
+/**
+ * Session ranges already recorded for a task, for overlap checks.
+ * When `userId` is given, only that author's ranges are considered so two
+ * teammates can independently log overlapping stretches on a shared task.
+ */
+export function existingRanges(db: DatabaseSync, taskId: string, userId?: number): SessionRange[] {
+  const rows = (userId === undefined
+    ? db
+        .prepare('SELECT id, started_at, ended_at, duration_minutes FROM activity_sessions WHERE task_id = ?')
+        .all(taskId)
+    : db
+        .prepare(
+          'SELECT id, started_at, ended_at, duration_minutes FROM activity_sessions WHERE task_id = ? AND user_id = ?',
+        )
+        .all(taskId, userId)) as unknown as Array<{
     id: string
     started_at: number
     ended_at: number | null
@@ -234,6 +244,19 @@ export function listSessions(db: DatabaseSync, userId: number, filter: SessionFi
        ORDER BY local_date DESC, started_at DESC LIMIT ?`,
     )
     .all(...values) as unknown as SessionRow[]
+}
+
+/** Every session logged for a task, with its author, for teammates viewing that task. */
+export function listTaskSessions(db: DatabaseSync, taskId: string): Array<SessionRow & { author_email: string; author_name: string | null }> {
+  return db
+    .prepare(
+      `SELECT s.*, u.email AS author_email, u.name AS author_name
+       FROM activity_sessions s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.task_id = ?
+       ORDER BY s.started_at ASC, s.rowid ASC`,
+    )
+    .all(taskId) as unknown as Array<SessionRow & { author_email: string; author_name: string | null }>
 }
 
 export function deleteSession(db: DatabaseSync, userId: number, id: string): boolean {

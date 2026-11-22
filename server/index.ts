@@ -22,11 +22,13 @@ import learningRoutes from './ml/health-routes'
 import { startRetrainScheduler } from './ml/learning'
 import { db } from './db'
 import { fail, parseCookies, SESSION_COOKIE, unauthorized, type AuthedRequest } from './http'
+import { loginLimiter, passwordLimiter, securityHeaders, signupLimiter } from './security'
 
 const app = express()
 const PORT = Number(process.env.PORT ?? 3001)
 
 app.disable('x-powered-by')
+app.use(securityHeaders)
 app.use(express.json({ limit: '100kb' }))
 
 // ---- Session middleware ----
@@ -50,6 +52,10 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true })
 })
 
+app.use('/api/auth/login', loginLimiter)
+app.use('/api/auth/signup', signupLimiter)
+app.use('/api/auth/password', passwordLimiter)
+app.use('/api/auth/account', passwordLimiter)
 app.use('/api/auth', authRoutes)
 
 app.get('/api/bootstrap', (req: AuthedRequest, res) => {

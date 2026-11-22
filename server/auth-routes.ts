@@ -1,10 +1,7 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import {
-  createPasswordReset,
   createSession,
-  consumePasswordReset,
-  destroyAllSessions,
   destroyOtherSessions,
   destroySession,
   getUserByEmail,
@@ -14,6 +11,7 @@ import {
   validatePassword,
 } from './auth'
 import { db } from './db'
+import { hostedTeamsFor } from './teams'
 import {
   clearSessionCookie,
   fail,
@@ -146,46 +144,20 @@ router.delete('/account', async (req: AuthedRequest, res) => {
   const ok = await bcrypt.compare(password, user.password_hash)
   if (!ok) return fail(res, 400, 'That password is incorrect.')
 
-  // Cascades remove this user's sessions, tasks, memberships and owned teams.
+  // Deleting a host would cascade through every team and take it away from the
+  // remaining members. Require an explicit hand-over first.
+  const hosted = hostedTeamsFor(user.id)
+  if (hosted.length > 0) {
+    res.status(409).json({
+      error: 'Hand over every team you host before deleting your account.',
+      teams: hosted,
+    })
+    return
+  }
+
+  // Cascades remove this user's sessions, tasks and memberships.
   db.prepare('DELETE FROM users WHERE id = ?').run(user.id)
   clearSessionCookie(res)
-  res.json({ ok: true })
-})
-
-router.post('/forgot', (req, res) => {
-  sweepExpired()
-  const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''
-  if (!validEmail(email)) return fail(res, 400, 'Please enter a valid email address.')
-
-  const user = getUserByEmail(email)
-  // Always report success so the endpoint cannot be used to discover accounts.
-  const response: { ok: true; resetCode?: string } = { ok: true }
-  if (user) {
-    const code = createPasswordReset(user.id)
-    // No mail service is configured for this app, so in development the code is
-    // returned to the client and also printed to the server console.
-    if (process.env.NODE_ENV !== 'production') {
-      response.resetCode = code
-      console.log(`\n[todo] Password reset code for ${email}: ${code}\n`)
-    }
-  }
-  res.json(response)
-})
-
-router.post('/reset', async (req, res) => {
-  sweepExpired()
-  const token = typeof req.body?.token === 'string' ? req.body.token.trim() : ''
-  const password = req.body?.password
-  if (!token) return fail(res, 400, 'Enter the reset code from your email.')
-  const passwordError = validatePassword(password)
-  if (passwordError) return fail(res, 400, passwordError)
-
-  const userId = consumePasswordReset(token)
-  if (!userId) return fail(res, 400, 'That reset code is invalid or has expired. Request a new one.')
-
-  const hash = await bcrypt.hash(password, 10)
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, userId)
-  destroyAllSessions(userId)
   res.json({ ok: true })
 })
 

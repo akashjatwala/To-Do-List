@@ -38,6 +38,12 @@ One module builds the vector for **both** training and serving, so a model can n
 something at serve time it did not see while training. Every feature uses only data available
 **before** the prediction time.
 
+Predictions are scoped to **personal tasks only**. `userTaskIds` excludes team tasks, so team
+activity never enters a user's priors, tag/priority statistics, training set or drift checks, and
+every prediction entry point rejects team tasks and another user's tasks. A check-in is an optional
+input: its answers are served to the model when present and are simply missing otherwise — they
+never gate a prediction.
+
 | Group | Examples |
 | --- | --- |
 | History | completion rate, recent rate, recency-decayed rate, consistency, days since last completion, recent misses, weekday rate |

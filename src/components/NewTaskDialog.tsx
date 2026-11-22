@@ -12,7 +12,6 @@ import {
 } from '@/lib/taskmeta'
 import {
   CalendarIcon,
-  ClockIcon,
   PlusIcon,
   RepeatIcon,
   TagIcon,
@@ -54,17 +53,6 @@ const chipClass = (active: boolean) =>
       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
   }`
 
-function addMinutes(time: string, minutes: number): string {
-  const [rawHour, rawMinute] = time.split(':')
-  const hour = Number(rawHour)
-  const minute = Number(rawMinute)
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return time
-  const total = (hour * 60 + minute + minutes) % (24 * 60)
-  const nextHour = Math.floor(total / 60)
-  const nextMinute = total % 60
-  return `${`${nextHour}`.padStart(2, '0')}:${`${nextMinute}`.padStart(2, '0')}`
-}
-
 function previewDate(value: string): string {
   const timestamp = dueFromDateInput(value)
   if (timestamp === null) return 'No date'
@@ -97,7 +85,6 @@ export default function NewTaskDialog({
   const [duration, setDuration] = useState<number | null>(null)
   const [customDuration, setCustomDuration] = useState('')
   const [customOpen, setCustomOpen] = useState(false)
-  const [preferredTime, setPreferredTime] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagDraft, setTagDraft] = useState('')
   const [teamId, setTeamId] = useState<string | null>(defaultTeamId)
@@ -114,7 +101,6 @@ export default function NewTaskDialog({
     setDuration(null)
     setCustomDuration('')
     setCustomOpen(false)
-    setPreferredTime('')
     setTags([])
     setTagDraft('')
     setTeamId(defaultTeamId)
@@ -169,7 +155,7 @@ export default function NewTaskDialog({
       recurrence,
       recurrenceConfig: null,
       duration: minutes,
-      preferredTime: preferredTime || null,
+      preferredTime: null,
       teamId,
     })
     setBusy(false)
@@ -189,10 +175,6 @@ export default function NewTaskDialog({
     (tag) => !COMMON_TAGS.some((common) => common.toLowerCase() === tag.toLowerCase()),
   )
   const selectedDuration = duration ?? (customDuration.trim() ? Number(customDuration) : null)
-  const suggestedTime =
-    preferredTime && selectedDuration
-      ? `${preferredTime}–${addMinutes(preferredTime, selectedDuration)}`
-      : '—'
 
   return (
     <Modal open={open} onClose={onClose} title="New task" width="max-w-5xl">
@@ -248,23 +230,6 @@ export default function NewTaskDialog({
                     onChange={(event) => setDue(event.target.value)}
                     className="field pl-9"
                     aria-label="Due date"
-                  />
-                </label>
-              </section>
-
-              <section>
-                <label className={FIELD_LABEL} htmlFor="new-task-time">
-                  Time (optional)
-                </label>
-                <label className="relative flex items-center">
-                  <ClockIcon className="pointer-events-none absolute left-3 h-4 w-4 text-slate-400" />
-                  <input
-                    id="new-task-time"
-                    type="time"
-                    value={preferredTime}
-                    onChange={(event) => setPreferredTime(event.target.value)}
-                    className="field pl-9"
-                    aria-label="Time (optional)"
                   />
                 </label>
               </section>
@@ -440,22 +405,13 @@ export default function NewTaskDialog({
                 </p>
               )}
               <div className="mt-4 space-y-1.5 text-xs font-medium text-[#6B4F1D]">
-                <p>{previewDate(due)}{preferredTime ? ` · ${preferredTime}` : ''}</p>
+                <p>{previewDate(due)}</p>
                 <p>{selectedDuration ? `${selectedDuration} min` : 'No duration yet'}</p>
                 {recurrence !== 'none' && <p>{RECURRENCE_META[recurrence].label}</p>}
                 <p>
                   {teamId
                     ? teams.find((team) => team.id === teamId)?.name ?? 'Team task'
                     : 'My tasks'}
-                </p>
-              </div>
-              <div className="mt-4 border-t border-[#D9480F]/20 pt-4">
-                <p className="text-[11px] font-bold tracking-wide text-[#8A3B00] normal-case">
-                  Suggested time
-                </p>
-                <p className="mt-1 text-lg font-extrabold">{suggestedTime}</p>
-                <p className="mt-1 text-[11px] leading-snug text-[#8A3B00]/80">
-                  Low confidence until it has more of your history.
                 </p>
               </div>
             </div>

@@ -1,4 +1,53 @@
 import type { Priority, Recurrence, RecurrenceConfig } from '@/types'
+import { dateInputValue } from './date'
+
+/**
+ * Whether a repeating task is scheduled on a given local date (YYYY-MM-DD).
+ * The due date itself always matches; later dates match only when they satisfy
+ * the repeat rule. Past dates never match. This mirrors the server's
+ * `advanceDue` rules for display purposes only — no task rows are created.
+ */
+export function repeatsOnDate(
+  due: number | null,
+  recurrence: Recurrence,
+  config: RecurrenceConfig | null,
+  dateValue: string,
+): boolean {
+  if (due === null || recurrence === 'none' || !dateValue) return false
+  const dueValue = dateInputValue(due)
+  if (dateValue < dueValue) return false
+  if (dateValue === dueValue) return true
+
+  const dueDate = new Date(due)
+  const [year, month, day] = dateValue.split('-').map(Number)
+  const target = new Date(year, month - 1, day)
+
+  switch (recurrence) {
+    case 'daily':
+      return true
+    case 'weekly':
+      return target.getDay() === dueDate.getDay()
+    case 'monthly': {
+      const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+      return target.getDate() === Math.min(dueDate.getDate(), lastDay)
+    }
+    case 'custom': {
+      if (!config) return false
+      if (config.mode === 'weekly') return config.days.includes(target.getDay())
+      if (target.getDay() !== config.weekday) return false
+      const firstOfMonth = new Date(target.getFullYear(), target.getMonth(), 1)
+      const weekdayOffset = (config.weekday - firstOfMonth.getDay() + 7) % 7
+      const nth = Math.floor((target.getDate() - 1 - weekdayOffset) / 7) + 1
+      if (config.nth === 5) {
+        const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+        return target.getDate() + 7 > lastDay
+      }
+      return nth === config.nth
+    }
+    default:
+      return false
+  }
+}
 
 export const PRIORITY_VALUES: Priority[] = ['none', 'low', 'medium', 'high']
 

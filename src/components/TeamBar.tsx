@@ -20,13 +20,11 @@ export function teamTint(id: string): string {
 export default function TeamBar({
   teams,
   activeTeamId,
-  counts,
   onSelect,
   onManage,
 }: {
   teams: Team[]
   activeTeamId: string | null
-  counts: Record<string, number>
   onSelect: (teamId: string) => void
   onManage: (teamId: string) => void
   onNewTeam?: () => void
@@ -56,15 +54,6 @@ export default function TeamBar({
                 {initials(team.name).slice(0, 1)}
               </span>
               <span className="max-w-[10rem] truncate">{team.name}</span>
-              <span
-                className={`rounded px-1 text-[10px] ${
-                  active
-                    ? 'bg-white/70 text-indigo-600'
-                    : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                {counts[team.id] ?? 0}
-              </span>
             </button>
             <button
               type="button"

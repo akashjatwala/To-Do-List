@@ -139,6 +139,10 @@ export interface ActivitySession {
   source: string
   createdAt: number
   updatedAt: number
+  /** Present on shared team listings so teammates can see who logged a stretch. */
+  userId?: number | null
+  authorEmail?: string
+  authorName?: string | null
 }
 
 /** A status the user can state for a day. */

@@ -18,6 +18,7 @@ import {
   createSession,
   existingRanges,
   listSessions,
+  listTaskSessions,
   validateSession,
   type SessionRange,
 } from './sessions'
@@ -456,6 +457,42 @@ test('stored sessions aggregate into a day and never overlap', () => {
   assert.equal(day.status, 'completed')
   assert.equal(day.configVersionId, latestConfig(db, id)!.id)
   assert.equal(listSessions(db, USER, { taskId: id }).length, 2)
+})
+
+test('a team task lists every author\'s time entries while overlap stays per user', () => {
+  const db = freshDb()
+  db.exec("ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+  db.exec("INSERT INTO users (email, name) VALUES ('teammate@example.com', 'Teammate')")
+  const teammate = Number(
+    (db.prepare("SELECT id FROM users WHERE email = 'teammate@example.com'").get() as { id: number }).id,
+  )
+  const id = insertTask(db)
+
+  const mine = validateSession(sessionInput(id, '2026-05-10', 9, 45), {
+    now: at('2026-05-11', 8),
+    existing: existingRanges(db, id, USER),
+  })
+  assert.equal(mine.ok, true)
+  createSession(db, USER, mine.ok ? mine.value : ({} as never))
+
+  // The teammate logs the exact same stretch: allowed because ranges are per author.
+  const theirs = validateSession(sessionInput(id, '2026-05-10', 9, 45), {
+    now: at('2026-05-11', 8),
+    existing: existingRanges(db, id, teammate),
+  })
+  assert.equal(theirs.ok, true)
+  createSession(db, teammate, theirs.ok ? theirs.value : ({} as never))
+
+  assert.equal(listSessions(db, USER, { taskId: id }).length, 1)
+  assert.equal(listSessions(db, teammate, { taskId: id }).length, 1)
+
+  const shared = listTaskSessions(db, id)
+  assert.equal(shared.length, 2)
+  assert.deepEqual(
+    shared.map((row) => row.author_email).sort(),
+    ['me@example.com', 'teammate@example.com'],
+  )
+  assert.equal(shared.find((row) => row.user_id === teammate)?.author_name, 'Teammate')
 })
 
 test('an explicit day status survives and can be cleared', () => {

@@ -64,13 +64,13 @@ test('task details render as a centered two-column dialog', () => {
   assert.match(html, /Details/)
 })
 
-test('task details keep the nudge chance and footer actions', () => {
+test('task details keep the footer actions without the nudge section', () => {
   const html = renderToStaticMarkup(<TaskDetail {...props} />)
 
-  assert.match(html, /Nudge/)
-  assert.match(html, /Chance of finishing today/)
+  assert.doesNotMatch(html, /Nudge/)
+  assert.doesNotMatch(html, /Chance of finishing today/)
+  assert.doesNotMatch(html, /71%/)
   assert.doesNotMatch(html, /Low confidence\. Sample value\./)
-  assert.match(html, /71%/)
   assert.match(html, /Only you can see this task\./)
   assert.match(html, /Delete task/)
   assert.match(html, /Close/)
@@ -84,17 +84,16 @@ test('task details right column follows the reference card layout', () => {
   assert.match(html, /Details[\s\S]*>Due</)
   assert.match(html, /Details[\s\S]*>Duration</)
   assert.match(html, /Details[\s\S]*>Repeats</)
-  assert.match(
-    html,
-    /bg-\[#E7E1F5\][\s\S]*Nudge[\s\S]*Chance of finishing today[\s\S]*71%/,
-  )
+  assert.doesNotMatch(html, /Nudge/)
+  assert.doesNotMatch(html, /Chance of finishing today/)
   assert.doesNotMatch(html, /Low confidence\. Sample value\./)
   assert.doesNotMatch(html, /Suggested time/)
   assert.doesNotMatch(html, /Last 7 days/)
   assert.doesNotMatch(html, /Time spent/)
   assert.doesNotMatch(html, /Start a session/)
   assert.doesNotMatch(html, /Priority/)
-  assert.match(html, /aria-label="Clear due date and time"/)
+  assert.match(html, /aria-label="Clear due date"/)
+  assert.doesNotMatch(html, /aria-label="Clear due date and time"/)
 })
 
 test('task details keep every editable control', () => {
@@ -102,12 +101,27 @@ test('task details keep every editable control', () => {
 
   assert.match(html, /aria-label="Task title"/)
   assert.match(html, /aria-label="Due date"/)
-  assert.match(html, /aria-label="Preferred time of day"/)
+  assert.doesNotMatch(html, /aria-label="Preferred time of day"/)
   assert.match(html, /aria-label="Ideal duration in minutes"/)
   assert.match(html, /aria-label="Repeat rule"/)
   assert.match(html, /aria-label="New subtask"/)
   assert.match(html, /aria-label="New note"/)
-  assert.match(html, /aria-label="Task completion percentage"/)
+  assert.match(html, /Task time/)
+  assert.doesNotMatch(html, /aria-label="Entry date"/)
+  assert.match(html, /aria-label="Start time"/)
+  assert.match(html, /aria-label="Completion time"/)
+  assert.match(html, /Logged for this task/)
+  assert.doesNotMatch(html, /aria-label="Task completion percentage"/)
+})
+
+test('task details replace progress with multiple start and completion times', () => {
+  const html = renderToStaticMarkup(<TaskDetail {...props} />)
+
+  assert.match(html, /Task time/)
+  assert.match(html, /Add a time entry/)
+  assert.match(html, /No time entries yet/)
+  assert.doesNotMatch(html, /Progress/)
+  assert.doesNotMatch(html, /aria-label="Task completion percentage"/)
 })
 
 test('personal tasks do not show team assignment controls', () => {

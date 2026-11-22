@@ -18,7 +18,7 @@
 | `not_asked` is different from `skipped` | "I did not open the app" and "I chose to skip" are different, and conflating them would corrupt the labels |
 | A prediction is never an outcome | Predictions and outcomes live in separate tables; the label columns are filled only from observed activity |
 | Remove unreferenced scaffold tables | Nine planning/target/weekly tables held no rows and had no references in `server/` or `src/`; keeping them made the data model look more complex than the app actually is |
-| Merge identical table shapes | Login sessions and reset codes are both hashed tokens with an owner and expiry, so they share `auth_tokens(kind)`. Display prefs and prediction thresholds are both one row per user, so they share `user_settings`. Fewer tables, no behaviour change |
+| Keep `auth_tokens` session-only | Reset codes were removed entirely rather than exposed by an environment quirk; migration 12 deletes old rows and narrows the `kind` check. Password changes happen in My Account |
 
 ## Modelling
 

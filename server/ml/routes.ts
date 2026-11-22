@@ -10,6 +10,7 @@ import {
   existingRanges,
   getSession,
   listSessions,
+  listTaskSessions,
   validateSession,
   type SessionRow,
 } from './sessions'
@@ -56,7 +57,9 @@ function accessibleTask(taskId: string, userId: number): TaskAccess | null {
   return member ? task : null
 }
 
-function sessionDTO(row: SessionRow) {
+function sessionDTO(
+  row: SessionRow & { author_email?: string; author_name?: string | null; user_id?: number },
+) {
   return {
     id: row.id,
     taskId: row.task_id,
@@ -68,6 +71,13 @@ function sessionDTO(row: SessionRow) {
     source: row.source,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    ...(row.author_email !== undefined
+      ? {
+          userId: row.user_id ?? null,
+          authorEmail: row.author_email,
+          authorName: row.author_name ?? null,
+        }
+      : {}),
   }
 }
 
@@ -96,7 +106,16 @@ export const activityRoutes = Router()
 activityRoutes.get('/sessions', (req: AuthedRequest, res) => {
   const userId = req.userId!
   const taskId = typeof req.query.taskId === 'string' ? req.query.taskId : undefined
-  if (taskId && !accessibleTask(taskId, userId)) return notFound(res, 'Task not found.')
+  const access = taskId ? accessibleTask(taskId, userId) : null
+  if (taskId && !access) return notFound(res, 'Task not found.')
+
+  // Team tasks show everyone's entries (each still owned by its author);
+  // personal tasks stay private to their owner.
+  if (req.query.shared === 'true' && taskId && access?.team_id) {
+    res.json({ items: listTaskSessions(db, taskId).map(sessionDTO) })
+    return
+  }
+
   const from = parseLocalDate(req.query.from) ?? undefined
   const to = parseLocalDate(req.query.to) ?? undefined
   const limit = Number.parseInt(String(req.query.limit ?? '200'), 10)
@@ -117,7 +136,7 @@ activityRoutes.post('/sessions', (req: AuthedRequest, res) => {
 
   const result = validateSession(req.body, {
     now: Date.now(),
-    existing: existingRanges(db, taskId),
+    existing: existingRanges(db, taskId, userId),
   })
   if (!result.ok) return badRequest(res, result.error)
 

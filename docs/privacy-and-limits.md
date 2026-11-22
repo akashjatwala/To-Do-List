@@ -52,8 +52,16 @@ did is yours to keep. `GET /api/ml/privacy` returns counts only (no check-in con
 ## Predictions are never outcomes
 
 - Predictions live in their own tables (`predictions`, `ml_shadow`, `ml_health_predictions`).
+- Predictions are for your personal tasks only. Team tasks are never predicted and never feed the model's training data or statistics.
+- Check-in answers are an optional prediction input: Nudge shows a value without them and refreshes when they are answered.
 - Outcomes come only from your recorded activity (`activity_sessions`, `daily_activity_status`, `activity_outcome_links`).
 - A stored prediction is **never** written back as an observed result. This is enforced in code and checked by the test suite.
+
+## Time entries are yours, and visible to teammates on shared tasks
+
+- Task Detail's **Task time** card stores each start/completion pair as your own activity session.
+- On a personal task only you can see your entries.
+- On a team task every member can see everyone's entries and who logged them, but only the author can delete an entry. Overlap checks are per author, so teammates can work the same stretch independently.
 
 ## Preferred time is a hint only
 

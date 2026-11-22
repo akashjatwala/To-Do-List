@@ -8,7 +8,7 @@
     "dev:api": "tsx watch server/index.ts",
     "dev:web": "vite",
     "build": "tsc -b && vite build",
-    "start": "tsx server/index.ts",
+    "start": "node --import tsx server/start.ts",
     "preview": "vite preview",
     "test": "node --env-file=.env.test --import tsx --test \"server/**/*.test.ts\" \"src/**/*.test.ts\" \"src/**/*.test.tsx\""
   },

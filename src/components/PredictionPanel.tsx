@@ -8,8 +8,8 @@ import { ListChecksIcon, SparklesIcon } from './Icons'
  *
  * The server produces and logs every prediction; this card only displays them
  * and records what the user did with them. The rules it keeps on screen:
- * - The plan is gated on today's check-in. Until that is answered or skipped the
- *   card asks for the check-in first and shows no numbers.
+ * - Today's tasks get a prediction straight away. An unanswered check-in is
+ *   just one missing input, not a barrier.
  * - An off day shows "off day" and no predictions at all.
  * - Everything is a suggestion: nothing here writes an outcome.
  */
@@ -20,8 +20,6 @@ interface PredictionPanelProps {
   /** The user's current local date. */
   today: string
   notify: (message: string, tone?: ToastTone) => void
-  /** Open the check-in when the plan is gated. */
-  onOpenCheckin?: () => void
   /** Changes when the check-in or a task changed, so the plan reloads. */
   refreshKey?: unknown
 }
@@ -34,11 +32,9 @@ export default function PredictionPanel({
   date,
   today,
   notify,
-  onOpenCheckin,
   refreshKey,
 }: PredictionPanelProps) {
   const [loading, setLoading] = useState(true)
-  const [gate, setGate] = useState(false)
   const [offDay, setOffDay] = useState(false)
   const [plan, setPlan] = useState<PredictionPlan | null>(null)
   const [busyTask, setBusyTask] = useState<string | null>(null)
@@ -48,7 +44,6 @@ export default function PredictionPanel({
     setLoading(true)
     try {
       const result = await api.getPlan(date, today)
-      setGate(result.gate)
       setOffDay(result.offDay)
       setPlan(result.plan)
     } catch (error) {
@@ -189,9 +184,29 @@ export default function PredictionPanel({
 
   return (
     <section className="overflow-hidden rounded-[24px] bg-[#E7E1F5] p-5" aria-label="Today's plan">
-      <div className="mb-3">
-        <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Nudge</h2>
-        <p className="mt-1 text-xs font-bold text-[#454B58]">Chance of finishing today</p>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Nudge</h2>
+          <p className="mt-1 text-xs font-bold text-[#454B58]">Chance of finishing today</p>
+        </div>
+        <div className="group relative shrink-0">
+          <button
+            type="button"
+            aria-label="About this prediction"
+            aria-describedby="nudge-prediction-help"
+            className="mt-0.5 rounded-full p-0.5 text-[#7C5BC4] transition hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7C5BC4]"
+          >
+            <SparklesIcon className="h-5 w-5" />
+          </button>
+          <div
+            id="nudge-prediction-help"
+            role="tooltip"
+            className="pointer-events-none absolute top-full right-0 z-30 mt-2 w-64 rounded-xl bg-[#2E2446] px-3 py-2 text-[11px] leading-relaxed text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          >
+            The chance of finishing today is an estimate based on your previously recorded
+            activity and check-ins. It&apos;s a nudge, not a guarantee.
+          </div>
+        </div>
       </div>
 
       {offDay && (
@@ -200,25 +215,7 @@ export default function PredictionPanel({
         </p>
       )}
 
-      {gate && !offDay && (
-        <div className="rounded-2xl bg-white/70 p-4">
-          <p className="text-xs leading-relaxed text-[#454B58]">
-            Answer today&apos;s check-in to see what you&apos;re likely to get done, and when.
-          </p>
-          {onOpenCheckin && (
-            <button
-              type="button"
-              onClick={onOpenCheckin}
-              className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#4A2C8A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5C3BA6] focus-visible:ring-4 focus-visible:ring-[#4A2C8A]/20 focus-visible:outline-none"
-            >
-              <SparklesIcon className="h-3 w-3" />
-              Check in
-            </button>
-          )}
-        </div>
-      )}
-
-      {!gate && !offDay && <div>{mainColumn}</div>}
+      {!offDay && <div>{mainColumn}</div>}
     </section>
   )
 }

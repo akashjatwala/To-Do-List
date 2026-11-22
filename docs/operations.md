@@ -6,6 +6,9 @@
 
 - `package.json` — the npm scripts
 - `server/index.ts` — the server, route mounting and the retrain scheduler
+- `server/security.ts` — security headers and auth rate limits
+- `server/migrations.ts` — versioned schema migrations
+- `server/start.ts` — production entry point that sets `NODE_ENV=production`
 - `server/ml/learning.ts` — the retrain gate, rate limit and scheduler
 - `server/ml/registry.ts` — promotion and rollback
 - `server/ml/health-routes.ts` — the `/api/ml` endpoints
@@ -37,6 +40,7 @@ and `public/sw.js` caches the app shell. Registration only happens in production
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `PORT` | `3001` | The API port |
+| `NODE_ENV` | set to `production` by `npm start` | Marks the production build; session cookies become `Secure` |
 | `ML_DISABLE_MODEL_SERVING` | unset | `1` serves only the baseline predictor, ignoring trained models (read at startup; needs a restart) |
 | `ML_DISABLE_SCHEDULER` | unset | `1` turns off the periodic retraining scheduler |
 | `ML_RETRAIN_EVERY_MS` | `21600000` (6 h) | How often the scheduler asks the retrain gate |
@@ -51,7 +55,7 @@ and `public/sw.js` caches the app shell. Registration only happens in production
 | `npm run dev:api` | API only (port 3001) |
 | `npm run dev:web` | Vite only (port 5173) |
 | `npm run build` | Type-check (`tsc -b`) and build the frontend |
-| `npm start` | Serve the built app and API on port 3001 |
+| `npm start` | Serve the built app and API on port 3001 with `NODE_ENV=production` |
 | `npm test` | Run the whole test suite (server + frontend) |
 
 Server-only type-check (useful when a full build is not wanted):
@@ -67,6 +71,13 @@ command directly, for example:
 node --env-file=.env.test --import tsx --test "server/**/*.test.ts" "src/**/*.test.ts" "src/**/*.test.tsx"
 ```
 
+## Security
+
+- All responses carry `nosniff`, `X-Frame-Options: DENY`, a restrictive Content-Security-Policy, and a no-referrer policy (`server/security.ts`). The CSP still allows the app's Google Fonts stylesheet and the Vite dev WebSocket.
+- Login (10 per 15 min per email/IP), signup (5 per IP) and password confirmation/deletion (10 per IP) are rate limited in memory. Behind a proxy, set Express `trust proxy` so client IPs are seen correctly.
+- Password reset codes and `/api/auth/forgot` / `/api/auth/reset` were removed. Users change passwords from **My Account** while signed in.
+- `npm start` uses `server/start.ts` to set `NODE_ENV=production` before loading the app, making session cookies `Secure`.
+
 ## Database backup
 
 Two pre-change snapshots were archived outside the project during the 2026-11-21
@@ -75,8 +86,14 @@ stale-file cleanup; they are no longer in `server/data/`:
 - `todo.db.bak-20261118144155` — before the scaffold-table removal
 - `todo.db.bak-20261118144721` — before the `auth_tokens` / `user_settings` merges
 
-To restore one, stop the server, copy it over `server/data/todo.db`, then restart. The live file
-was compacted with `VACUUM` after each change and was untouched by the cleanup.
+To restore one, stop the server, copy it over `server/data/todo.db`, then restart. Prefer
+`VACUUM INTO '<backup path>'` from a `DatabaseSync` connection over a raw file copy: the database
+now runs in WAL mode, so `todo.db-wal` and `todo.db-shm` also hold live state until a clean
+checkpoint.
+
+Schema changes are applied by `server/migrations.ts`, which records each version in
+`schema_migrations`. The checks are idempotent, so an older database is baselined safely on first
+start. Migration 12 removes old password-reset rows and narrows `auth_tokens.kind` to `session`.
 
 ## Training instructions
 

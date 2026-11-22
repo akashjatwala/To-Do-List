@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { api, errorMessage } from '@/api'
-import type { User } from '@/types'
+import type { Team, User } from '@/types'
 import { Modal, Spinner } from './ui'
 import { ChangePassword, DeleteAccount } from './AccountForms'
 import { PencilIcon } from './Icons'
@@ -43,40 +43,11 @@ function TextButton({ children, onClick }: { children: ReactNode; onClick: () =>
   )
 }
 
-function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T
-  options: { value: T; label: string }[]
-  onChange: (value: T) => void
-}) {
-  return (
-    <div className="inline-flex rounded-full bg-[#F6F6F4] p-1">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          onClick={() => onChange(option.value)}
-          aria-pressed={value === option.value}
-          className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-            value === option.value
-              ? 'bg-white text-[#15181E] shadow-sm'
-              : 'text-[#6C717A] hover:text-[#15181E]'
-          }`}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 export default function MyAccountDialog({
   open,
   onClose,
   user,
+  teams,
   onUserChanged,
   onPasswordChanged,
   onDeleted,
@@ -85,6 +56,7 @@ export default function MyAccountDialog({
   open: boolean
   onClose: () => void
   user: User
+  teams: Team[]
   onUserChanged: (user: User) => void
   onPasswordChanged: () => void
   onDeleted: () => void
@@ -95,7 +67,6 @@ export default function MyAccountDialog({
   const [nameBusy, setNameBusy] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [timeFormat, setTimeFormat] = useState<'24' | '12'>('24')
 
   const saveName = async (event: FormEvent) => {
     event.preventDefault()
@@ -181,21 +152,8 @@ export default function MyAccountDialog({
             action={<TextButton onClick={() => setPasswordOpen(true)}>Change</TextButton>}
           />
           <SettingRow
-            label="Time format"
-            action={
-              <Segmented
-                value={timeFormat}
-                onChange={setTimeFormat}
-                options={[
-                  { value: '24', label: '24-hour' },
-                  { value: '12', label: '12-hour' },
-                ]}
-              />
-            }
-          />
-          <SettingRow
             label="Delete my account"
-            hint="Removes your tasks, history, and everything the app learned. This can't be undone."
+            hint="Removes your tasks and history. Hand over any teams you host first."
             align="start"
             action={
               <button
@@ -230,6 +188,8 @@ export default function MyAccountDialog({
       {deleteOpen && (
         <Modal open onClose={() => setDeleteOpen(false)} title="Delete account" width="max-w-md">
           <DeleteAccount
+            teams={teams}
+            currentUserId={user.id}
             onDeleted={() => {
               setDeleteOpen(false)
               onDeleted()

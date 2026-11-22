@@ -112,18 +112,6 @@ export function createCheckinSchema(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_checkins_user_date ON checkins(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_checkin_history_user ON checkin_history(user_id, recorded_at);
   `)
-
-  // Older databases predate the `source` column; add it in place.
-  const hasColumn = (table: string) =>
-    (db.prepare(`PRAGMA table_info(${table})`).all() as unknown as Array<{ name: string }>).some(
-      (column) => column.name === 'source',
-    )
-  if (!hasColumn('checkins')) {
-    db.exec("ALTER TABLE checkins ADD COLUMN source TEXT NOT NULL DEFAULT 'user'")
-  }
-  if (!hasColumn('checkin_history')) {
-    db.exec("ALTER TABLE checkin_history ADD COLUMN source TEXT NOT NULL DEFAULT 'user'")
-  }
 }
 
 /** Validate a local calendar date (`YYYY-MM-DD`). Returns null when invalid. */

@@ -309,6 +309,19 @@ export interface TaskContext {
   active: boolean
 }
 
+/**
+ * Predictions are strictly personal: a team task is never predicted, and one
+ * user cannot ask for another user's prediction. This guard is shared by the
+ * baseline, the served champion and the HTTP routes.
+ */
+export function isPersonalTask(db: DatabaseSync, userId: number, taskId: string): boolean {
+  return Boolean(
+    db
+      .prepare('SELECT 1 FROM tasks WHERE id = ? AND user_id = ? AND team_id IS NULL')
+      .get(taskId, userId),
+  )
+}
+
 export function taskContext(db: DatabaseSync, taskId: string, date: string): TaskContext | null {
   const config = configForDate(db, taskId, date)
   if (!config) return null
@@ -342,6 +355,7 @@ export function predictTask(
   context: PredictContext,
   options: PredictOptions = {},
 ): TaskPrediction | null {
+  if (!isPersonalTask(db, userId, taskId)) return null
   const task = taskContext(db, taskId, context.date)
   if (!task) return null
 

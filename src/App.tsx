@@ -18,6 +18,7 @@ import type {
 } from '@/types'
 import { dateInputValue, dueFromDateInput, todayDateValue } from '@/lib/date'
 import { greetingForHour, localDateString } from '@/lib/checkin'
+import { repeatsOnDate } from '@/lib/taskmeta'
 import AuthScreen from './components/AuthScreen'
 import AccountMenu from './components/AccountMenu'
 import InstallButton from './components/InstallButton'
@@ -26,6 +27,7 @@ import CheckinModal from './components/CheckinModal'
 import DailyStateCard from './components/DailyStateCard'
 import OffDayCard from './components/OffDayCard'
 import PredictionPanel from './components/PredictionPanel'
+import OverdueCard from './components/OverdueCard'
 import NewTaskDialog, { type NewTaskInput } from './components/NewTaskDialog'
 import { CompletedColumn, RepeatingColumn, StickyBoard } from './components/StickyBoard'
 import TaskDetail from './components/TaskDetail'
@@ -197,21 +199,18 @@ export default function App() {
 
   const dateTasks = useMemo(
     () =>
-      viewTasks.filter(
-        (task) => task.due !== null && dateInputValue(task.due) === selectedDate,
+      viewTasks.filter((task) =>
+        task.recurrence === 'none'
+          ? task.due !== null && dateInputValue(task.due) === selectedDate
+          : repeatsOnDate(task.due, task.recurrence, task.recurrenceConfig, selectedDate),
       ),
     [viewTasks, selectedDate],
   )
 
-  // A team board shows the whole shared list; a personal board stays date-scoped.
-  // Repeats live in the Repeating card rather than on the board.
-  const boardTasks = useMemo(
-    () =>
-      view.kind === 'collab'
-        ? viewTasks.filter((task) => task.recurrence === 'none')
-        : dateTasks,
-    [view.kind, viewTasks, dateTasks],
-  )
+  // Both boards are date-scoped. A repeat is projected onto every matching
+  // future date (it stays in the Repeating card too); completing it is still a
+  // single shared task, so a team sees the same note on the same day.
+  const boardTasks = dateTasks
   const openTasks = useMemo(() => boardTasks.filter((task) => !task.done), [boardTasks])
   const completedTasks = useMemo(() => boardTasks.filter((task) => task.done), [boardTasks])
   // Repeats are ongoing routines, so they are listed regardless of the chosen day.
@@ -220,18 +219,32 @@ export default function App() {
     [viewTasks],
   )
 
-  const isToday = selectedDate === todayDateValue()
+  const todayValue = todayDateValue()
+  const isToday = selectedDate === todayValue
 
-  const openCounts = useMemo(() => {
-    const perTeam: Record<string, number> = {}
-    let personal = 0
-    for (const task of data?.tasks ?? []) {
-      if (task.done || task.recurrence !== 'none') continue
-      if (task.teamId) perTeam[task.teamId] = (perTeam[task.teamId] ?? 0) + 1
-      else personal += 1
-    }
-    return { personal, perTeam }
-  }, [data])
+  // Open personal tasks whose due date has passed, oldest first.
+  const overdueTasks = useMemo(
+    () =>
+      viewTasks
+        .filter(
+          (task) =>
+            task.teamId === null && !task.done && task.due !== null && dateInputValue(task.due) < todayValue,
+        )
+        .sort((a, b) => a.due! - b.due!),
+    [viewTasks, todayValue],
+  )
+
+  // The same reminder for a team board, limited to the selected team.
+  const teamOverdueTasks = useMemo(
+    () =>
+      viewTasks
+        .filter(
+          (task) =>
+            task.teamId !== null && !task.done && task.due !== null && dateInputValue(task.due) < todayValue,
+        )
+        .sort((a, b) => a.due! - b.due!),
+    [viewTasks, todayValue],
+  )
 
   const memberOpenCounts = useMemo(() => {
     const counts: Record<number, number> = {}
@@ -243,16 +256,15 @@ export default function App() {
   }, [viewTasks])
 
   const teamStats = useMemo(() => {
-    // Repeats are ongoing routines; they belong in Repeating, not the day's counter.
-    const tasks = viewTasks.filter((task) => task.recurrence === 'none')
-    const done = tasks.filter((task) => task.done).length
+    // Match the board: the day's tasks, including repeats due on this date.
+    const done = dateTasks.filter((task) => task.done).length
     return {
-      total: tasks.length,
+      total: dateTasks.length,
       done,
-      open: tasks.length - done,
-      percent: tasks.length === 0 ? 0 : Math.round((done / tasks.length) * 100),
+      open: dateTasks.length - done,
+      percent: dateTasks.length === 0 ? 0 : Math.round((done / dateTasks.length) * 100),
     }
-  }, [viewTasks])
+  }, [dateTasks])
 
   const selectedTask = data?.tasks.find((task) => task.id === selectedId) ?? null
 
@@ -422,6 +434,11 @@ export default function App() {
     }
   }
 
+  const moveOverdueToToday = async (task: Task) => {
+    const moved = await updateTask(task, { due: dueFromDateInput(todayValue) })
+    if (moved) notify(`Moved “${task.text}” to today.`, 'success')
+  }
+
   const setAssignees = async (task: Task, userIds: number[]) => {
     try {
       await api.setTaskAssignees(task.id, userIds)
@@ -569,20 +586,25 @@ export default function App() {
       : data.teams.find((team) => team.id === task.teamId)?.role === 'host'
 
   const emptyCopy =
-    view.kind === 'collab'
+    view.kind === 'collab' && viewTasks.length === 0
       ? {
           title: 'No tasks yet',
           text: 'Add a task to get this team started.',
         }
-      : isToday
+      : view.kind === 'collab'
         ? {
-            title: 'Nothing due today',
-            text: 'Enjoy the breathing room — or add something for today.',
-          }
-        : {
             title: 'Nothing scheduled',
-            text: 'This day is clear. Pick another date, or add a task for it above.',
+            text: 'Nothing is due for this team on this date. Pick another date, or add a task for it above.',
           }
+        : isToday
+          ? {
+              title: 'Nothing due today',
+              text: 'Enjoy the breathing room — or add something for today.',
+            }
+          : {
+              title: 'Nothing scheduled',
+              text: 'This day is clear. Pick another date, or add a task for it above.',
+            }
 
   const closeDetail = () => setSelectedId(null)
 
@@ -650,53 +672,55 @@ export default function App() {
                   </h1>
 
                 <div className="group mt-3 inline-flex items-center gap-1.5">
-                  {!isCollab && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
-                        date.setDate(date.getDate() - 1)
-                        setSelectedDate(dateInputValue(date.getTime()))
-                      }}
-                      aria-label="Previous day"
-                      className="rounded-md p-1 text-[#92969C] opacity-0 transition hover:bg-black/5 hover:text-[#454B58] focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
-                    >
-                      <ChevronRightIcon className="h-3.5 w-3.5 rotate-180" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
+                      date.setDate(date.getDate() - 1)
+                      setSelectedDate(dateInputValue(date.getTime()))
+                    }}
+                    aria-label="Previous day"
+                    className="rounded-md p-1 text-[#92969C] opacity-0 transition hover:bg-black/5 hover:text-[#454B58] focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
+                  >
+                    <ChevronRightIcon className="h-3.5 w-3.5 rotate-180" />
+                  </button>
 
-                  {isCollab ? (
-                    <span className="text-sm font-medium text-[#454B58]">{longDateLabel}</span>
-                  ) : (
-                    <label className="group cursor-pointer text-sm font-medium text-[#454B58]">
-                      {longDateLabel}
-                      <input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(event) => {
-                          if (event.target.value) setSelectedDate(event.target.value)
-                        }}
-                        onClick={(event) => event.currentTarget.showPicker?.()}
-                        aria-label="View tasks for a date"
-                        className="sr-only"
-                      />
-                    </label>
-                  )}
-
-                  {!isCollab && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
-                        date.setDate(date.getDate() + 1)
-                        setSelectedDate(dateInputValue(date.getTime()))
+                  <label className="group cursor-pointer text-sm font-medium text-[#454B58]">
+                    {longDateLabel}
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(event) => {
+                        if (event.target.value) setSelectedDate(event.target.value)
                       }}
-                      aria-label="Next day"
-                      className="rounded-md p-1 text-[#92969C] opacity-0 transition hover:bg-black/5 hover:text-[#454B58] focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
-                    >
-                      <ChevronRightIcon className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                      onClick={(event) => event.currentTarget.showPicker?.()}
+                      aria-label="View tasks for a date"
+                      className="sr-only"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(todayValue)}
+                    disabled={isToday}
+                    aria-label="Go to today"
+                    className="ml-1 rounded-full border border-[#E3E1DC] bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-[#5C4B22] transition hover:bg-white focus-visible:ring-2 focus-visible:ring-[#4A2C8A]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white/70"
+                  >
+                    Today
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
+                      date.setDate(date.getDate() + 1)
+                      setSelectedDate(dateInputValue(date.getTime()))
+                    }}
+                    aria-label="Next day"
+                    className="rounded-md p-1 text-[#92969C] opacity-0 transition hover:bg-black/5 hover:text-[#454B58] focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
+                  >
+                    <ChevronRightIcon className="h-3.5 w-3.5" />
+                  </button>
                 </div>
                 </div>
 
@@ -787,7 +811,6 @@ export default function App() {
                     <TeamBar
                       teams={data.teams}
                       activeTeamId={currentTeam?.id ?? null}
-                      counts={openCounts.perTeam}
                       onSelect={openTeam}
                       onManage={(teamId) => setTeamModal({ teamId })}
                     />
@@ -888,6 +911,14 @@ export default function App() {
                           />
                         )}
 
+                        <OverdueCard
+                          tasks={overdueTasks}
+                          today={todayValue}
+                          onOpen={(task) => setSelectedId(task.id)}
+                          onDone={(task) => void toggleTask(task)}
+                          onMoveToToday={(task) => void moveOverdueToToday(task)}
+                        />
+
                         <OffDayCard date={selectedDate} notify={notify} onChanged={refresh} />
 
                         {isToday && (
@@ -895,7 +926,6 @@ export default function App() {
                             date={selectedDate}
                             today={todayDateValue()}
                             notify={notify}
-                            onOpenCheckin={openCheckin}
                             refreshKey={`${checkinStatus?.checkin?.updatedAt ?? 0}:${data?.tasks.length ?? 0}`}
                           />
                         )}
@@ -918,6 +948,14 @@ export default function App() {
                           onDecline={declineInvite}
                           notify={notify}
                           onChanged={refresh}
+                        />
+                        <OverdueCard
+                          tasks={teamOverdueTasks}
+                          today={todayValue}
+                          showAssignees
+                          onOpen={(task) => setSelectedId(task.id)}
+                          onDone={(task) => void toggleTask(task)}
+                          onMoveToToday={(task) => void moveOverdueToToday(task)}
                         />
                       </>
                     )}
@@ -967,6 +1005,7 @@ export default function App() {
         open={accountOpen}
         onClose={() => setAccountOpen(false)}
         user={data.user}
+        teams={data.teams}
         onUserChanged={(nextUser) =>
           setData((current) => (current ? { ...current, user: nextUser } : current))
         }

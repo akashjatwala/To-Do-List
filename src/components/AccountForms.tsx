@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { api, errorMessage } from '@/api'
+import type { Team } from '@/types'
 import { Spinner } from './ui'
 import { AlertIcon, EyeIcon, EyeOffIcon, LockIcon } from './Icons'
 
@@ -89,12 +90,27 @@ export function ChangePassword({ onDone }: { onDone: () => void }) {
   )
 }
 
-export function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
+export function DeleteAccount({
+  teams,
+  currentUserId,
+  onDeleted,
+}: {
+  teams: Team[]
+  currentUserId: number
+  onDeleted: () => void
+}) {
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [newHosts, setNewHosts] = useState<Record<string, number>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  const hostedTeams = teams.filter((team) => team.role === 'host')
+  const candidates = (team: Team) => team.members.filter((member) => member.id !== currentUserId)
+  const readyToDelete = hostedTeams.every(
+    (team) => newHosts[team.id] && candidates(team).length > 0,
+  )
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -104,8 +120,17 @@ export function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
       setError('Enter your password to confirm.')
       return
     }
+    for (const team of hostedTeams) {
+      if (!newHosts[team.id]) {
+        setError(`Choose a new host for ${team.name}.`)
+        return
+      }
+    }
     setBusy(true)
     try {
+      for (const team of hostedTeams) {
+        await api.transferHost(team.id, newHosts[team.id])
+      }
       await api.deleteAccount(password)
       onDeleted()
     } catch (err) {
@@ -122,8 +147,8 @@ export function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
           Delete account
         </p>
         <p className="mt-1 text-xs leading-relaxed text-rose-600/90">
-          This permanently removes your account, your personal tasks, and any teams you host. This
-          cannot be undone.
+          This permanently removes your account, personal tasks, history and learning data. Teams
+          you host are handed to a member you choose below, not deleted.
         </p>
       </div>
 
@@ -148,6 +173,47 @@ export function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
             autoFocus
           />
 
+          {hostedTeams.length > 0 && (
+            <div className="space-y-3 rounded-xl border border-[#E1E2E0] bg-white p-3.5">
+              <div>
+                <p className="text-xs font-semibold text-[#15181E]">Teams you host</p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-[#7C818A]">
+                  Choose who takes over each team before you can delete your account.
+                </p>
+              </div>
+              {hostedTeams.map((team) => (
+                <label key={team.id} className="block">
+                  <span className="mb-1 block text-[11px] font-semibold text-[#15181E]">
+                    {team.name}
+                  </span>
+                  <select
+                    className="field py-1.5 text-xs"
+                    value={newHosts[team.id] ?? ''}
+                    onChange={(event) =>
+                      setNewHosts((current) => ({
+                        ...current,
+                        [team.id]: Number(event.target.value) || 0,
+                      }))
+                    }
+                    aria-label={`New host for ${team.name}`}
+                  >
+                    <option value="">Choose a new host…</option>
+                    {candidates(team).map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.email.split('@')[0]} ({member.email})
+                      </option>
+                    ))}
+                  </select>
+                  {candidates(team).length === 0 && (
+                    <span className="mt-1 block text-[11px] text-rose-600">
+                      Invite another member to this team first.
+                    </span>
+                  )}
+                </label>
+              ))}
+            </div>
+          )}
+
           {error && (
             <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">
               {error}
@@ -166,7 +232,7 @@ export function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
             >
               Cancel
             </button>
-            <button type="submit" disabled={busy} className="btn-danger">
+            <button type="submit" disabled={busy || !readyToDelete} className="btn-danger">
               {busy && <Spinner className="h-4 w-4" />}
               Permanently delete
             </button>

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import type { DatabaseSync } from 'node:sqlite'
 import { Router } from 'express'
 import { clearTeamAssignees, db, type TeamRow } from './db'
 import { teamsFor, invitesFor, type MemberDTO } from './data'
@@ -34,6 +35,48 @@ function team(teamId: string): TeamRow | undefined {
 
 const isHost = (teamId: string, userId: number) => membership(teamId, userId)?.role === 'host'
 
+/** Teams this user would take down with their account if they are still host. */
+export function hostedTeamsFor(
+  userId: number,
+  database: DatabaseSync = db,
+): Array<{ id: string; name: string }> {
+  return database
+    .prepare(
+      `SELECT t.id, t.name FROM teams t
+       JOIN team_members tm ON tm.team_id = t.id
+       WHERE t.created_by = ? AND tm.user_id = ? AND tm.role = 'host'
+       ORDER BY t.name COLLATE NOCASE`,
+    )
+    .all(userId, userId) as unknown as Array<{ id: string; name: string }>
+}
+
+/** Move host rights, including ownership used by delete cascades, to a member. */
+export function transferHost(
+  db: DatabaseSync,
+  teamId: string,
+  fromUserId: number,
+  toUserId: number,
+): void {
+  db.exec('BEGIN')
+  try {
+    db.prepare('UPDATE teams SET created_by = ? WHERE id = ?').run(toUserId, teamId)
+    db.prepare('UPDATE team_members SET role = ? WHERE team_id = ? AND user_id = ?').run(
+      'member',
+      teamId,
+      fromUserId,
+    )
+    db.prepare('UPDATE team_members SET role = ? WHERE team_id = ? AND user_id = ?').run(
+      'host',
+      teamId,
+      toUserId,
+    )
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
+}
+
 router.post('/', (req: AuthedRequest, res) => {
   const userId = req.userId!
   const name = text(req.body?.name, 60)
@@ -63,6 +106,21 @@ router.patch('/:teamId', (req: AuthedRequest, res) => {
   const name = text(req.body?.name, 60)
   if (!name) return badRequest(res, 'Give your team a name (1–60 characters).')
   db.prepare('UPDATE teams SET name = ? WHERE id = ?').run(name, teamId)
+  res.json({ ok: true })
+})
+
+router.put('/:teamId/host', (req: AuthedRequest, res) => {
+  const userId = req.userId!
+  const teamId = param(req, 'teamId')
+  const memberId = Number(req.body?.memberId)
+  if (!team(teamId)) return notFound(res, 'Team not found.')
+  if (!isHost(teamId, userId)) return forbidden(res, 'Only the team host can hand over the team.')
+  if (!Number.isInteger(memberId) || memberId === userId) {
+    return badRequest(res, 'Choose another team member as the new host.')
+  }
+  if (!membership(teamId, memberId)) return badRequest(res, 'That person is not on this team.')
+
+  transferHost(db, teamId, userId, memberId)
   res.json({ ok: true })
 })
 

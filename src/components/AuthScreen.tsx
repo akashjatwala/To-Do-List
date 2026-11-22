@@ -3,7 +3,7 @@ import { api, errorMessage } from '@/api'
 import { ArrowRightIcon, LockIcon, MailIcon, UsersIcon } from './Icons'
 import { Spinner } from './ui'
 
-type Mode = 'login' | 'signup' | 'forgot'
+type Mode = 'login' | 'signup'
 
 interface AuthScreenProps {
   onAuthed: () => Promise<void> | void
@@ -159,13 +159,9 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const clearMessages = () => {
-    setError(null)
-    setNotice(null)
-  }
+  const clearMessages = () => setError(null)
 
   const switchMode = (next: Mode) => {
     setMode(next)
@@ -201,29 +197,10 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
     }
   }
 
-  const submitReset = (event: FormEvent) => {
-    event.preventDefault()
-    clearMessages()
-    if (password.length < 8) return setError('Password must be at least 8 characters.')
-    if (password !== confirm) return setError('Those passwords do not match.')
-
-    switchMode('login')
-    setNotice('Password updated — sign in with your new password.')
-  }
-
-  const title =
-    mode === 'login'
-      ? 'Welcome back'
-      : mode === 'signup'
-        ? 'Create your account'
-        : 'Reset your password'
+  const title = mode === 'login' ? 'Welcome back' : 'Create your account'
 
   const subtitle =
-    mode === 'login'
-      ? 'Log in to see your day.'
-      : mode === 'signup'
-        ? "Let's get you started."
-        : 'Choose a new password for your account.'
+    mode === 'login' ? 'Log in to see your day.' : "Let's get you started."
 
   const switchPrompt =
     mode === 'login'
@@ -235,18 +212,8 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
   return (
     <div className="auth-page flex min-h-full bg-white lg:flex-row">
       <AuthIllustration
-        headline={
-          mode === 'signup'
-            ? 'Start with one task,'
-            : mode === 'forgot'
-              ? 'Almost there,'
-              : 'Your day, sorted.'
-        }
-        subtitle={
-          mode === 'forgot'
-            ? "Pick a new password and you're back in."
-            : 'Tasks, suggested times, and your teams in one calm place.'
-        }
+        headline={mode === 'signup' ? 'Start with one task,' : 'Your day, sorted.'}
+        subtitle="Tasks, suggested times, and your teams in one calm place."
       />
 
       <main className="auth-main flex min-h-full flex-1 flex-col bg-[#F6F6F4]">
@@ -271,12 +238,6 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
             <h2 className="text-3xl leading-tight font-bold tracking-tight text-[#15181E]">{title}</h2>
             <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
 
-            {notice && (
-              <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-700">
-                {notice}
-              </div>
-            )}
-
             {error && (
               <div
                 role="alert"
@@ -286,42 +247,7 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
               </div>
             )}
 
-            {mode === 'forgot' ? (
-              <form onSubmit={submitReset} className="auth-form mt-7 space-y-4">
-                <PasswordField
-                  id="new-password"
-                  label="New password"
-                  value={password}
-                  onChange={setPassword}
-                  show={showPassword}
-                  onToggleShow={() => setShowPassword((value) => !value)}
-                  autoComplete="new-password"
-                  placeholder="Use at least 8 characters."
-                />
-                <PasswordField
-                  id="confirm-password"
-                  label="Confirm password"
-                  value={confirm}
-                  onChange={setConfirm}
-                  show={showConfirm}
-                  onToggleShow={() => setShowConfirm((value) => !value)}
-                  autoComplete="new-password"
-                  placeholder="Repeat your password"
-                />
-                <button type="submit" className="auth-primary">
-                  <LockIcon className="h-4 w-4" />
-                  Reset password
-                </button>
-                <button
-                  type="button"
-                  className="w-full py-1 text-xs font-semibold text-slate-500 transition hover:text-[#D9480F]"
-                  onClick={() => switchMode('login')}
-                >
-                  Back to log in
-                </button>
-              </form>
-            ) : (
-              <>
+            <>
                 <form onSubmit={submitAuth} className="auth-form mt-7 space-y-4">
                   {mode === 'signup' && (
                     <div>
@@ -387,7 +313,7 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
                     />
                   )}
 
-                  <div className="flex items-center justify-between gap-3 pt-1 text-xs">
+                  <div className="flex items-center pt-1 text-xs">
                     <label className="flex cursor-pointer items-center gap-2 text-slate-600 select-none">
                       <input
                         type="checkbox"
@@ -397,15 +323,6 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
                       />
                       Keep me logged in
                     </label>
-                    {mode === 'login' && (
-                      <button
-                        type="button"
-                        onClick={() => switchMode('forgot')}
-                        className="font-semibold text-[#D9480F] transition hover:text-[#C23E0C]"
-                      >
-                        Forgot password?
-                      </button>
-                    )}
                   </div>
 
                   <button type="submit" className="auth-primary" disabled={busy}>
@@ -419,8 +336,7 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
                     {mode === 'login' ? 'Log in' : 'Create account'}
                   </button>
                 </form>
-              </>
-            )}
+            </>
 
             <p className="auth-footer mt-10 text-center text-[11px] leading-relaxed text-slate-400">
               Your personal list is private. Team lists are shared with members only.

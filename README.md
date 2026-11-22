@@ -13,7 +13,7 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 **Lists and tasks**
 
 - Email + password accounts with "remember me" sessions
-- **My Account** dialog from the account menu: edit your name, change password (other devices get signed out), or delete your account
+- **My Account** dialog from the account menu: edit your name, change password (other devices get signed out), or delete your account after handing over any teams you host
 - Personal to-do lists
 - Shared team lists with host/member roles
 - Email invitations (accept or decline in-app)
@@ -107,8 +107,9 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 
 ## Development notes
 
-- No mail service is configured. In development, password reset codes are shown in the UI and printed to the server console.
-- Session cookies are `httpOnly`; only SHA-256 hashes of session tokens are stored.
+- Password changes are made in **My Account**; there is no mail service or reset-code flow.
+- Session cookies are `httpOnly` and `Secure` in production; only SHA-256 hashes of session tokens are stored.
+- Login, signup and password-confirm endpoints are rate limited, and all responses carry standard security headers.
 - Deleting a task requires being its creator or the team host. Comments can be deleted by their author or the host.
 - The learning system runs locally only. File logging is opt-in with `ML_LOG_FILE`; nothing is uploaded. See [docs/privacy-and-limits.md](docs/privacy-and-limits.md).
 - The retraining scheduler can be turned off with `ML_DISABLE_SCHEDULER=1`, and its interval changed with `ML_RETRAIN_EVERY_MS`. Model serving can be reverted to baseline-only with `ML_DISABLE_MODEL_SERVING=1`. Both are read at startup. See [docs/operations.md](docs/operations.md).
