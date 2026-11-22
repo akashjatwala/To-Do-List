@@ -111,11 +111,11 @@ returns the baseline and says so.
 Both prediction routes (`GET /api/predictions/plan` and `GET /api/predictions/task`) now go
 through one entry point, `server/ml/live-predictor.ts`. For each task it serves the champion
 completion, target and duration numbers when a model is registered, loadable and healthy;
-otherwise it falls back to the baseline predictor. The current Nudge card shows only the
-completion percentage beside each task name, with a bar below. The recommended time window and
-the plain-language explanation still come from the baseline, so timing is unchanged. The window
-is logged with the prediction but is not displayed. With no trained model in the database,
-behaviour is identical to the baseline-only app.
+otherwise it falls back to the baseline predictor. The Nudge card shows the completion
+percentage beside each task name, with a bar below, plus an ideal time when recorded timing
+history exists. The recommended window and the plain-language explanation still come from the
+baseline, so timing is unchanged; the window is logged with the prediction. With no trained
+model in the database, behaviour is identical to the baseline-only app.
 
 To compare the two or disable model serving in an emergency, start the server with
 `ML_DISABLE_MODEL_SERVING=1`. This keeps all baseline-only behaviour without changing or

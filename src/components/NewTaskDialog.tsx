@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import type { Priority, Recurrence, RecurrenceConfig, Team } from '@/types'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import type { Priority, Recurrence, RecurrenceConfig, Task, Team } from '@/types'
 import { dueFromDateInput, formatDateValue } from '@/lib/date'
 import {
   COMMON_TAGS,
@@ -63,10 +63,43 @@ function previewDate(value: string): string {
   })
 }
 
+/** Titles already used in this list, ranked by frequency then recency. */
+export function suggestTaskTitles(
+  tasks: Task[],
+  query: string,
+  teamId: string | null,
+  limit = 5,
+): string[] {
+  const needle = query.trim().replace(/\s+/g, ' ').toLowerCase()
+  const matches = new Map<string, { title: string; count: number; last: number }>()
+
+  for (const task of tasks) {
+    if (task.teamId !== teamId) continue
+    const title = task.text.trim().replace(/\s+/g, ' ')
+    if (!title) continue
+    const key = title.toLowerCase()
+    if (needle && (!key.includes(needle) || key === needle)) continue
+    const last = task.due ?? task.createdAt
+    const current = matches.get(key)
+    if (current) {
+      current.count += 1
+      current.last = Math.max(current.last, last)
+    } else {
+      matches.set(key, { title, count: 1, last })
+    }
+  }
+
+  return [...matches.values()]
+    .sort((a, b) => b.count - a.count || b.last - a.last || a.title.localeCompare(b.title))
+    .slice(0, limit)
+    .map((match) => match.title)
+}
+
 export default function NewTaskDialog({
   open,
   onClose,
   teams,
+  historyTasks = [],
   defaultTeamId,
   defaultDue,
   onAdd,
@@ -74,6 +107,7 @@ export default function NewTaskDialog({
   open: boolean
   onClose: () => void
   teams: Team[]
+  historyTasks?: Task[]
   defaultTeamId: string | null
   defaultDue: string
   onAdd: (input: NewTaskInput) => Promise<boolean>
@@ -90,7 +124,15 @@ export default function NewTaskDialog({
   const [teamId, setTeamId] = useState<string | null>(defaultTeamId)
   const [addAnother, setAddAnother] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [highlight, setHighlight] = useState(-1)
   const textRef = useRef<HTMLInputElement>(null)
+
+  const suggestions = useMemo(
+    () => suggestTaskTitles(historyTasks, text, teamId),
+    [historyTasks, text, teamId],
+  )
+  const showSuggestions = suggestionsOpen && suggestions.length > 0
 
   useEffect(() => {
     if (!open) return
@@ -105,6 +147,8 @@ export default function NewTaskDialog({
     setTagDraft('')
     setTeamId(defaultTeamId)
     setAddAnother(false)
+    setSuggestionsOpen(false)
+    setHighlight(-1)
     const timer = window.setTimeout(() => textRef.current?.focus(), 0)
     return () => window.clearTimeout(timer)
   }, [open, defaultDue, defaultTeamId])
@@ -130,6 +174,31 @@ export default function NewTaskDialog({
     if (event.key === 'Enter' || event.key === ',') {
       event.preventDefault()
       commitDraft()
+    }
+  }
+
+  const chooseSuggestion = (title: string) => {
+    setText(title)
+    setSuggestionsOpen(false)
+    setHighlight(-1)
+    textRef.current?.focus()
+  }
+
+  const onTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setHighlight((current) => (current + 1) % suggestions.length)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setHighlight((current) => (current <= 0 ? suggestions.length - 1 : current - 1))
+    } else if (event.key === 'Enter' && highlight >= 0) {
+      event.preventDefault()
+      chooseSuggestion(suggestions[highlight])
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      setSuggestionsOpen(false)
+      setHighlight(-1)
     }
   }
 
@@ -165,6 +234,8 @@ export default function NewTaskDialog({
       setText('')
       setTags([])
       setTagDraft('')
+      setSuggestionsOpen(false)
+      setHighlight(-1)
       textRef.current?.focus()
     } else {
       onClose()
@@ -181,7 +252,7 @@ export default function NewTaskDialog({
       <form onSubmit={submit}>
         <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_19rem]">
           <div className="min-w-0 space-y-5">
-            <section>
+            <section className="relative">
               <label className={FIELD_LABEL} htmlFor="new-task-title">
                 Task
               </label>
@@ -189,12 +260,61 @@ export default function NewTaskDialog({
                 id="new-task-title"
                 ref={textRef}
                 value={text}
-                onChange={(event) => setText(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setText(value)
+                  setHighlight(-1)
+                  setSuggestionsOpen(value.trim().length > 0)
+                }}
+                onFocus={() => setSuggestionsOpen(text.trim().length > 0)}
+                onBlur={() => {
+                  setSuggestionsOpen(false)
+                  setHighlight(-1)
+                }}
+                onKeyDown={onTitleKeyDown}
                 placeholder="What needs doing?"
                 maxLength={500}
+                autoComplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={showSuggestions}
+                aria-controls="new-task-suggestions"
+                aria-activedescendant={
+                  showSuggestions && highlight >= 0 ? `new-task-suggestion-${highlight}` : undefined
+                }
                 className="field text-base"
                 aria-label="New task"
               />
+              {showSuggestions && (
+                <div
+                  id="new-task-suggestions"
+                  role="listbox"
+                  aria-label="Task suggestions"
+                  className="absolute top-full right-0 left-0 z-30 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+                >
+                  <p className="px-3 pt-2 pb-1 text-[10px] font-bold tracking-wide text-slate-400">
+                    From your history
+                  </p>
+                  {suggestions.map((title, index) => (
+                    <button
+                      key={title}
+                      id={`new-task-suggestion-${index}`}
+                      type="button"
+                      role="option"
+                      aria-selected={index === highlight}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => chooseSuggestion(title)}
+                      className={`block w-full px-3 py-2 text-left text-sm transition ${
+                        index === highlight
+                          ? 'bg-[#FDF3E7] font-semibold text-[#8A3210]'
+                          : 'text-[#3A404B] hover:bg-slate-50'
+                      }`}
+                    >
+                      {title}
+                    </button>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section>

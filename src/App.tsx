@@ -996,6 +996,7 @@ export default function App() {
         open={taskDialogOpen}
         onClose={() => setTaskDialogOpen(false)}
         teams={data.teams}
+        historyTasks={data.tasks}
         defaultTeamId={currentTeam?.id ?? null}
         defaultDue={selectedDate}
         onAdd={addTask}

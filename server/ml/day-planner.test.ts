@@ -56,6 +56,7 @@ function prediction(taskId: string, startMinute: number | null, duration: number
       priorityAdjustment: 0,
       labelledDays: 10,
       peakBin: null,
+      timingSessions: 0,
       offDaysExcluded: 0,
     },
   }

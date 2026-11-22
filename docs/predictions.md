@@ -21,25 +21,31 @@
 | Number | Shown as | Meaning | Absent when |
 | --- | --- | --- | --- |
 | Completion probability | Nudge: "Chance of finishing today" subtitle, then task name + percentage with a bar below | How likely you are to finish the task that day | Never (always a number) |
+| Ideal time | Nudge: "Ideal time: 10:30–11:00" below the bar | A suggested window from recorded start times for the task, or similar tasks when the task has none | No timing history exists |
 | Target probability | Not shown in the current UI | How likely you are to reach the task's full time target | The task has no target duration |
 | Expected duration | Not shown in the current UI | Roughly how long it usually takes | Not enough duration history |
 | Confidence | Not shown in the current UI | How much personal history backs the number | Never |
 | Stage | not shown | 1 (starting estimate) or 2 (personalised) | Never |
 
-The recommended window, proposed flow, workload warning, "better days" ideas, target
-probability and expected duration are still computed, logged and returned by the API, but the
-current UI does not display them in Nudge.
+The recommended window is shown in Nudge as **Ideal time** when recorded timing history exists.
+The proposed flow, workload warning, "better days" ideas, target probability and expected duration
+are still computed, logged and returned by the API, but the current UI does not display them in
+Nudge.
 
 ## What Nudge displays
 
-The card is headed **Nudge** with the subtitle **Chance of finishing today** underneath; the
-header has no decorative icon. For each open personal task due on the selected date it shows the
-task name, the completion probability as a percentage beside it, and a bar underneath. It does
-not show a confidence label, target probability, estimated time, suggested window or progress
-wording. Nudge needs no check-in: today's tasks show a percentage straight away. When a check-in
-*is* answered, those answers feed the predictor and Nudge refreshes with the updated value; no
-answer simply means that input is missing. Only the off-day message still appears when relevant.
-Nudge appears only on the My tasks board — Task Detail has no Nudge section.
+The card is headed **Nudge** with the subtitle **Chance of finishing today** underneath and a
+sparkle button that opens a hover/focus tooltip explaining the estimate. For each open personal
+task due on the selected date it shows the task name, the completion probability as a percentage
+beside it, and a bar underneath. When recorded start times exist it also shows **Ideal time**, a
+suggested window based on that task's history or similar tasks, with a short source line. It does
+not show a confidence label, target probability, estimated duration or progress wording.
+Low-chance, low-priority tasks may also show **Worth a look** suggestions with *Drop it / Move it*
+and *Keep it* actions. Nudge needs no check-in: today's tasks show a percentage straight away.
+When a check-in *is* answered, those answers feed the predictor and Nudge refreshes with the
+updated value; no answer simply means that input is missing. Only the off-day message still
+appears when relevant. Nudge appears only on the My tasks board — Task Detail has no Nudge
+section.
 
 Everything is a **suggestion**. A preferred time, where one is set, is an initial hint
 only — never a deadline.

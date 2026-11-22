@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { renderToStaticMarkup } from 'react-dom/server'
-import NewTaskDialog from './NewTaskDialog'
+import NewTaskDialog, { suggestTaskTitles } from './NewTaskDialog'
+import type { Task } from '@/types'
 
 const props = {
   open: true,
@@ -50,4 +51,61 @@ test('the new task dialog keeps the no-Urgent priority rule', () => {
 test('a closed new task dialog renders nothing', () => {
   const html = renderToStaticMarkup(<NewTaskDialog {...props} open={false} />)
   assert.equal(html, '')
+})
+
+function historicalTask(text: string, due: number, teamId: string | null = null): Task {
+  return {
+    id: text,
+    text,
+    done: true,
+    createdAt: due - 86_400_000,
+    due,
+    progress: 100,
+    priority: 'none',
+    tags: [],
+    recurrence: 'none',
+    recurrenceConfig: null,
+    duration: null,
+    preferredTime: null,
+    teamId,
+    teamName: null,
+    userId: 1,
+    ownerEmail: 'me@example.com',
+    subtasks: [],
+    comments: [],
+    assignees: [],
+  }
+}
+
+test('title suggestions come from the selected list and match the typed text', () => {
+  const history = [
+    historicalTask('Review pricing page', 1795000000000),
+    historicalTask('Review pricing page', 1795200000000),
+    historicalTask('Refresh design tokens', 1795100000000),
+    historicalTask('Go for a run', 1795150000000),
+    historicalTask('Team-only review', 1795300000000, 'team-1'),
+  ]
+
+  assert.deepEqual(suggestTaskTitles(history, 'go for', null), ['Go for a run'])
+  assert.deepEqual(suggestTaskTitles(history, 'review', null), ['Review pricing page'])
+  assert.deepEqual(suggestTaskTitles(history, '', null), [
+    'Review pricing page',
+    'Go for a run',
+    'Refresh design tokens',
+  ])
+  assert.deepEqual(suggestTaskTitles(history, 'review', 'team-1'), ['Team-only review'])
+  assert.deepEqual(suggestTaskTitles(history, 'Review pricing page', null), [])
+})
+
+test('new task title suggestions stay hidden until text is typed', () => {
+  const html = renderToStaticMarkup(
+    <NewTaskDialog
+      {...props}
+      historyTasks={[historicalTask('Review pricing page', 1795000000000, 'team-1')]}
+    />,
+  )
+  assert.doesNotMatch(html, /aria-label="Task suggestions"/)
+  assert.doesNotMatch(html, /From your history/)
+  assert.match(html, /aria-expanded="false"/)
+  assert.doesNotMatch(html, /Time \(optional\)/)
 })

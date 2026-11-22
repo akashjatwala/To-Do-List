@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api, errorMessage } from '@/api'
-import type { PredictionPlan, ToastTone } from '@/types'
+import type { PredictionPlan, TaskPrediction, ToastTone } from '@/types'
 import { ListChecksIcon, SparklesIcon } from './Icons'
 
 /**
@@ -26,6 +26,17 @@ interface PredictionPanelProps {
 
 function percent(value: number): string {
   return `${Math.round(value * 100)}%`
+}
+
+/** Ideal window from recorded start times, only when there is timing history. */
+export function idealTime(prediction: TaskPrediction): string | null {
+  const sessions = Number(prediction.inputs.timingSessions ?? 0)
+  if (sessions <= 0 || prediction.recommendedStart === null || prediction.recommendedEnd === null) {
+    return null
+  }
+  const format = (value: number) =>
+    new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return `${format(prediction.recommendedStart)}–${format(prediction.recommendedEnd)}`
 }
 
 export default function PredictionPanel({
@@ -120,27 +131,38 @@ export default function PredictionPanel({
 
       {plan && plan.entries.length > 0 && (
         <ul className="space-y-1.5">
-          {plan.entries.map((entry) => (
-            <li
-              key={entry.taskId}
-              className="rounded-2xl bg-white/70 px-3 py-2.5 shadow-sm"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="min-w-0 truncate text-sm font-bold text-[#15181E]">
-                  {entry.text}
-                </p>
-                <span className="shrink-0 text-lg leading-none font-extrabold text-[#4A2C8A]">
-                  {percent(entry.prediction.completionProbability)}
-                </span>
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/70">
-                <div
-                  className="h-full rounded-full bg-[#4A2C8A] transition-[width]"
-                  style={{ width: percent(entry.prediction.completionProbability) }}
-                />
-              </div>
-            </li>
-          ))}
+          {plan.entries.map((entry) => {
+            const ideal = idealTime(entry.prediction)
+            return (
+              <li
+                key={entry.taskId}
+                className="rounded-2xl bg-white/70 px-3 py-2.5 shadow-sm"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="min-w-0 truncate text-sm font-bold text-[#15181E]">
+                    {entry.text}
+                  </p>
+                  <span className="shrink-0 text-lg leading-none font-extrabold text-[#4A2C8A]">
+                    {percent(entry.prediction.completionProbability)}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/70">
+                  <div
+                    className="h-full rounded-full bg-[#4A2C8A] transition-[width]"
+                    style={{ width: percent(entry.prediction.completionProbability) }}
+                  />
+                </div>
+                {ideal && (
+                  <p className="mt-1.5 text-[10px] leading-snug text-[#454B58]">
+                    <span className="font-bold">Ideal time:</span> {ideal}
+                    <span className="block text-[#6C717A]">
+                      From recorded start times for this task or similar tasks.
+                    </span>
+                  </p>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
 

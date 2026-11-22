@@ -29,6 +29,7 @@ flowchart TD
 
 - The greeting row's date is a clickable calendar picker in both **My tasks** and **Teams**, with a **Today** button immediately to its right and hover chevrons to step one day at a time. **Today** is disabled while the selected date is already today; from any other date it returns the board to today. Both boards are scoped to that date, including the progress counter. A repeating task is projected onto each matching future date on either board and also stays in **Repeating**; completing it is one shared edit that rolls the single task forward to the next occurrence (same team, assignees and subtasks). Nudge remains personal-only.
 - Both sidebars have an **Overdue tasks** card, in the same visual family as the Teams **Invitations** card. It lists open tasks whose due date has passed, oldest first, with how long ago they were due and three actions: **Open**, **Done** and **Move to today**. My tasks shows only personal tasks; a team board shows only that selected team's tasks and adds **Assigned to** with the current assignees (or **Unassigned**). These are ordinary task edits — they never touch a prediction or write an outcome.
+- The **New task** title field shows autocomplete suggestions only after you start typing, drawn from previously created tasks in the selected list and ranked by frequency then recency. Choosing a suggestion only fills the field; it creates nothing by itself and does not call the prediction model.
 
 ## The learning pipeline, as separate modules
 
@@ -41,7 +42,7 @@ Each job lives in its own file, so it can be tested and reasoned about alone.
 | Feature engineering | `ml/features.ts`, `ml/dataset.ts` | Builds the one feature vector used by both training and serving |
 | Training | `ml/training.ts`, `ml/model/` (`logistic.ts`, `gbm.ts`, `quantile.ts`, `math.ts`), `ml/calibration.ts`, `ml/pipeline.ts` | Trains the candidate models and chooses one |
 | Evaluation | `ml/metrics.ts` | Brier score, calibration, duration error |
-| Prediction (serving) | `ml/predictors.ts` (baseline), `ml/serving.ts` (champion), `ml/estimates.ts`, `ml/cold-start.ts` | Produces the completion, target and duration estimates; the current Nudge UI shows only the completion probability (percentage beside the task, bar below), and the recommended window is computed and logged but not displayed |
+| Prediction (serving) | `ml/predictors.ts` (baseline), `ml/serving.ts` (champion), `ml/estimates.ts`, `ml/cold-start.ts` | Produces the completion, target and duration estimates; Nudge shows the completion probability (percentage beside the task, bar below) and, when timing history exists, an ideal time from recorded start times; target, duration and confidence stay computed and logged but are not displayed |
 | Continuous learning | `ml/learning.ts`, `ml/shadow.ts` | Links recorded activity to outcomes, gates and rate-limits retraining |
 | Model versioning | `ml/registry.ts` | Append-only model rows, promotion, rollback, loading |
 | Live health & drift | `ml/health.ts`, `ml/drift.ts` | Watches the served model and reports change |

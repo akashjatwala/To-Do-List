@@ -65,6 +65,7 @@ export interface PredictionInputs {
   priorityAdjustment: number
   labelledDays: number
   peakBin: number | null
+  timingSessions: number
   offDaysExcluded: number
 }
 
@@ -469,6 +470,7 @@ export function predictTask(
       priorityAdjustment: priorityAdj.value,
       labelledDays: stats.labelledDays,
       peakBin: timing.peakBin,
+      timingSessions: timing.sessions,
       offDaysExcluded: stats.offDays,
     },
   }
