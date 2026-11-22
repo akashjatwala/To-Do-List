@@ -21,7 +21,6 @@ import { greetingForHour, localDateString } from '@/lib/checkin'
 import { repeatsOnDate } from '@/lib/taskmeta'
 import AuthScreen from './components/AuthScreen'
 import AccountMenu from './components/AccountMenu'
-import InstallButton from './components/InstallButton'
 import MyAccountDialog from './components/MyAccountDialog'
 import CheckinModal from './components/CheckinModal'
 import DailyStateCard from './components/DailyStateCard'
@@ -790,8 +789,6 @@ export default function App() {
                             />
                           </div>
                         </div>
-
-                        <InstallButton />
 
                         <button
                           type="button"

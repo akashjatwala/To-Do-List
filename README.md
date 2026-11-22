@@ -32,15 +32,14 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - Subtasks with progress tracking
 - Task comments
 - Light-only interface with a soft cream background (`#F8F1E8`) and no theme toggle
-- Responsive phone layout: the board and completed list stack, notes open on tap, and controls stay reachable on touch
-- Installable PWA: **Add to Home Screen** on iOS, or the **Install** button where supported; the app shell can open offline, while live data still needs the server
+- Adaptive layout: the board and side column reflow by window width, with touch-friendly controls on narrow screens
 
 **Learning system (local, on-device)**
 
 - A daily check-in (nine optional questions) and an optional evening review
 - Activity logging: timed sessions and one-tap per-day statuses (completed / partial / skipped / postponed)
 - Per-activity statistics, a readiness/energy view, and similar-day context
-- Predictions shown as **Will finish**, **Full time goal** and **Est. time**, with a plain-language confidence level and hover explanations for each number
+- Nudge shows each personal task's chance of finishing today, plus an ideal time when recorded timing history exists
 - Off days (just off / sick / travelling / holiday / other), each with its own emoji, that reduce confidence rather than inventing data
 - The **Nudge** card shows only open personal tasks due on the selected day; team tasks and other days are excluded
 - Display-only **Worth a look** suggestions. The server still computes the proposed flow, workload warning and "better days" ideas, but they are no longer shown in the UI; none of them change a task's date

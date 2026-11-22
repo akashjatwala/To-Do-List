@@ -21,20 +21,6 @@
 - **Node.js 22.5+** (the app uses the built-in `node:sqlite` module).
 - No external services. No mail service, no ML service, no database server.
 
-## Installing on a phone (PWA)
-
-The built app is an installable progressive web app. `public/manifest.webmanifest` provides the
-name, standalone display mode, theme colours and 192/512 px icons (including maskable variants),
-and `public/sw.js` caches the app shell. Registration only happens in production builds.
-
-- Run `npm run build`, then `npm start` to serve the built app on port 3001.
-- Open it in a browser on a real phone over **HTTPS** (localhost is exempt). Browsers will not offer
-  installation over plain HTTP on a remote host.
-- On iOS Safari, tap **Share → Add to Home Screen**. In browsers that fire `beforeinstallprompt`,
-  the header's **Install** button offers the native prompt.
-- The service worker caches the app shell (HTML, CSS, JS, manifest and icons). API calls are never
-  cached, so a cold offline launch shows the app shell but not fresh task data.
-
 ## Environment variables
 
 | Variable | Default | Effect |
