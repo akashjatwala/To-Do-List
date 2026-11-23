@@ -35,6 +35,48 @@ type Priority = (typeof PRIORITIES)[number]
 
 const PREFERRED_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
+// Task and subtask routes re-run these lookups on every mutation. Prepare the
+// constant SQL once; each statement is reused with different bound parameters.
+const insertOccurrenceTask = db.prepare(
+  `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, progress, priority, tags, recurrence, duration, recurrence_config, preferred_time)
+      VALUES (?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+)
+const insertTask = db.prepare(
+  `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, priority, tags, recurrence, duration, recurrence_config, preferred_time)
+      VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+)
+const selectTaskById = db.prepare('SELECT * FROM tasks WHERE id = ?')
+const selectSubtasksForTask = db.prepare(
+  'SELECT * FROM subtasks WHERE task_id = ? ORDER BY position ASC, rowid ASC',
+)
+const insertSubtask = db.prepare(
+  'INSERT INTO subtasks (id, task_id, text, done, position, assignee_id) VALUES (?, ?, ?, 0, ?, ?)',
+)
+const selectAssigneeUserIds = db.prepare('SELECT user_id FROM task_assignees WHERE task_id = ?')
+const insertAssignee = db.prepare(
+  'INSERT OR IGNORE INTO task_assignees (task_id, user_id) VALUES (?, ?)',
+)
+const selectTeamRole = db.prepare('SELECT role FROM team_members WHERE team_id = ? AND user_id = ?')
+const selectTeamMembership = db.prepare(
+  'SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?',
+)
+const selectSubtaskByIdAndTask = db.prepare('SELECT * FROM subtasks WHERE id = ? AND task_id = ?')
+const updateTaskPosition = db.prepare('UPDATE tasks SET position = ? WHERE id = ?')
+const clearTaskRecurrence = db.prepare(
+  "UPDATE tasks SET recurrence = 'none', recurrence_config = NULL WHERE id = ?",
+)
+const clearTaskAssignees = db.prepare('DELETE FROM task_assignees WHERE task_id = ?')
+const deleteTaskById = db.prepare('DELETE FROM tasks WHERE id = ?')
+const selectMaxSubtaskPosition = db.prepare(
+  'SELECT COALESCE(MAX(position), 0) AS p FROM subtasks WHERE task_id = ?',
+)
+const deleteSubtaskById = db.prepare('DELETE FROM subtasks WHERE id = ?')
+const insertComment = db.prepare(
+  'INSERT INTO comments (id, task_id, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)',
+)
+const selectCommentByIdAndTask = db.prepare('SELECT * FROM comments WHERE id = ? AND task_id = ?')
+const deleteCommentById = db.prepare('DELETE FROM comments WHERE id = ?')
+
 /** Optional preferred time of day, stored as local "HH:MM". Missing stays missing. */
 function parsePreferredTime(value: unknown): string | null | undefined {
   if (value === undefined || value === null || value === '') return null
@@ -84,10 +126,7 @@ function spawnNextOccurrence(task: TaskRow): string {
   const now = Date.now()
   const config = readRecurrenceConfig(task.recurrence_config)
   const nextDue = advanceDue(task.due ?? now, task.recurrence as Recurrence, config)
-  db.prepare(
-    `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, progress, priority, tags, recurrence, duration, recurrence_config, preferred_time)
-     VALUES (?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
-  ).run(
+  insertOccurrenceTask.run(
     id,
     task.user_id,
     task.team_id,
@@ -103,26 +142,16 @@ function spawnNextOccurrence(task: TaskRow): string {
     task.preferred_time,
   )
 
-  const subtasks = db
-    .prepare('SELECT * FROM subtasks WHERE task_id = ? ORDER BY position ASC, rowid ASC')
-    .all(task.id) as unknown as SubtaskRow[]
-  const insert = db.prepare(
-    'INSERT INTO subtasks (id, task_id, text, done, position, assignee_id) VALUES (?, ?, ?, 0, ?, ?)',
-  )
+  const subtasks = selectSubtasksForTask.all(task.id) as unknown as SubtaskRow[]
   for (const subtask of subtasks) {
-    insert.run(randomUUID(), id, subtask.text, subtask.position, subtask.assignee_id ?? null)
+    insertSubtask.run(randomUUID(), id, subtask.text, subtask.position, subtask.assignee_id ?? null)
   }
 
   // The next occurrence keeps the same team working on it.
-  const assignees = db
-    .prepare('SELECT user_id FROM task_assignees WHERE task_id = ?')
-    .all(task.id) as unknown as Array<{ user_id: number }>
-  const insertAssignee = db.prepare(
-    'INSERT OR IGNORE INTO task_assignees (task_id, user_id) VALUES (?, ?)',
-  )
+  const assignees = selectAssigneeUserIds.all(task.id) as unknown as Array<{ user_id: number }>
   for (const assignee of assignees) insertAssignee.run(id, assignee.user_id)
 
-  syncTaskFoundation(db, db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as unknown as TaskRow)
+  syncTaskFoundation(db, selectTaskById.get(id) as unknown as TaskRow)
 
   return id
 }
@@ -138,16 +167,12 @@ interface LoadedTask {
 
 /** Load a task only if the user may see it (owner of a personal task, or a team member). */
 function loadTask(taskId: string, userId: number): LoadedTask | null {
-  const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as unknown as
-    | TaskRow
-    | undefined
+  const task = selectTaskById.get(taskId) as unknown as TaskRow | undefined
   if (!task) return null
   if (task.team_id === null) {
     return task.user_id === userId ? { task, host: false } : null
   }
-  const member = db
-    .prepare('SELECT role FROM team_members WHERE team_id = ? AND user_id = ?')
-    .get(task.team_id, userId) as unknown as MemberRow | undefined
+  const member = selectTeamRole.get(task.team_id, userId) as unknown as MemberRow | undefined
   if (!member) return null
   return { task, host: member.role === 'host' }
 }
@@ -157,9 +182,7 @@ function canDelete(loaded: LoadedTask, userId: number): boolean {
 }
 
 function loadSubtask(taskId: string, subtaskId: string): SubtaskRow | undefined {
-  return db
-    .prepare('SELECT * FROM subtasks WHERE id = ? AND task_id = ?')
-    .get(subtaskId, taskId) as unknown as SubtaskRow | undefined
+  return selectSubtaskByIdAndTask.get(subtaskId, taskId) as unknown as SubtaskRow | undefined
 }
 
 /** A subtask can only be assigned to a member of the task's team. */
@@ -167,11 +190,7 @@ function parseSubtaskAssignee(value: unknown, loaded: LoadedTask): number | null
   if (value === undefined || value === null || value === '') return null
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) return undefined
   if (!loaded.task.team_id) return undefined
-  return db
-    .prepare('SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?')
-    .get(loaded.task.team_id, value)
-    ? value
-    : undefined
+  return selectTeamMembership.get(loaded.task.team_id, value) ? value : undefined
 }
 
 router.post('/', (req: AuthedRequest, res) => {
@@ -181,9 +200,7 @@ router.post('/', (req: AuthedRequest, res) => {
 
   const teamId = typeof req.body?.teamId === 'string' ? req.body.teamId : null
   if (teamId) {
-    const member = db
-      .prepare('SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?')
-      .get(teamId, userId)
+    const member = selectTeamMembership.get(teamId, userId)
     if (!member) return forbidden(res, 'You are not a member of that team.')
   }
 
@@ -211,10 +228,7 @@ router.post('/', (req: AuthedRequest, res) => {
 
   const id = randomUUID()
   const now = Date.now()
-  db.prepare(
-    `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, priority, tags, recurrence, duration, recurrence_config, preferred_time)
-     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
+  insertTask.run(
     id,
     userId,
     teamId,
@@ -231,7 +245,7 @@ router.post('/', (req: AuthedRequest, res) => {
   )
 
   // Mirror the task's tags and configuration into the learning tables.
-  syncTaskFoundation(db, db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as unknown as TaskRow)
+  syncTaskFoundation(db, selectTaskById.get(id) as unknown as TaskRow)
 
   res.status(201).json({ id })
 })
@@ -258,10 +272,9 @@ router.post('/reorder', (req: AuthedRequest, res) => {
   // Positions sort descending, so the first note in the list gets the
   // highest value and stays at the front of the board.
   const stamp = Date.now()
-  const update = db.prepare('UPDATE tasks SET position = ? WHERE id = ?')
   db.exec('BEGIN')
   try {
-    ids.forEach((id, index) => update.run(stamp + ids.length - index, id))
+    ids.forEach((id, index) => updateTaskPosition.run(stamp + ids.length - index, id))
     db.exec('COMMIT')
   } catch (error) {
     db.exec('ROLLBACK')
@@ -427,13 +440,11 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
   let spawnedId: string | null = null
   if (completing && loaded.task.done === 0 && loaded.task.recurrence !== 'none') {
     spawnedId = spawnNextOccurrence(loaded.task)
-    db.prepare("UPDATE tasks SET recurrence = 'none', recurrence_config = NULL WHERE id = ?").run(
-      loaded.task.id,
-    )
+    clearTaskRecurrence.run(loaded.task.id)
   }
 
   // Keep the learning tables in step with the edited task.
-  syncTaskFoundation(db, db.prepare('SELECT * FROM tasks WHERE id = ?').get(loaded.task.id) as unknown as TaskRow)
+  syncTaskFoundation(db, selectTaskById.get(loaded.task.id) as unknown as TaskRow)
 
   res.json({ ok: true, spawnedId })
 })
@@ -460,19 +471,16 @@ router.put('/:taskId/assignees', (req: AuthedRequest, res) => {
   }
   if (userIds.length > 50) return badRequest(res, 'A task can have at most 50 assignees.')
 
-  const isMember = db.prepare('SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?')
   for (const userId of userIds) {
-    if (!isMember.get(loaded.task.team_id, userId)) {
+    if (!selectTeamMembership.get(loaded.task.team_id, userId)) {
       return badRequest(res, 'Every assignee must be a member of the team.')
     }
   }
 
-  const clear = db.prepare('DELETE FROM task_assignees WHERE task_id = ?')
-  const add = db.prepare('INSERT OR IGNORE INTO task_assignees (task_id, user_id) VALUES (?, ?)')
   db.exec('BEGIN')
   try {
-    clear.run(loaded.task.id)
-    for (const userId of userIds) add.run(loaded.task.id, userId)
+    clearTaskAssignees.run(loaded.task.id)
+    for (const userId of userIds) insertAssignee.run(loaded.task.id, userId)
     db.exec('COMMIT')
   } catch (error) {
     db.exec('ROLLBACK')
@@ -489,7 +497,7 @@ router.delete('/:taskId', (req: AuthedRequest, res) => {
   if (!canDelete(loaded, userId)) {
     return forbidden(res, 'Only the person who added this task or the team host can delete it.')
   }
-  db.prepare('DELETE FROM tasks WHERE id = ?').run(loaded.task.id)
+  deleteTaskById.run(loaded.task.id)
   res.json({ ok: true })
 })
 
@@ -507,12 +515,8 @@ router.post('/:taskId/subtasks', (req: AuthedRequest, res) => {
   }
 
   const id = randomUUID()
-  const max = db
-    .prepare('SELECT COALESCE(MAX(position), 0) AS p FROM subtasks WHERE task_id = ?')
-    .get(loaded.task.id) as unknown as { p: number }
-  db.prepare(
-    'INSERT INTO subtasks (id, task_id, text, done, position, assignee_id) VALUES (?, ?, ?, 0, ?, ?)',
-  ).run(id, loaded.task.id, label, max.p + 1, assigneeId)
+  const max = selectMaxSubtaskPosition.get(loaded.task.id) as unknown as { p: number }
+  insertSubtask.run(id, loaded.task.id, label, max.p + 1, assigneeId)
 
   res.status(201).json({ id })
 })
@@ -557,7 +561,7 @@ router.delete('/:taskId/subtasks/:subtaskId', (req: AuthedRequest, res) => {
   if (!loaded) return notFound(res, 'Task not found.')
   const subtask = loadSubtask(loaded.task.id, param(req, 'subtaskId'))
   if (!subtask) return notFound(res, 'Subtask not found.')
-  db.prepare('DELETE FROM subtasks WHERE id = ?').run(subtask.id)
+  deleteSubtaskById.run(subtask.id)
   res.json({ ok: true })
 })
 
@@ -571,9 +575,7 @@ router.post('/:taskId/comments', (req: AuthedRequest, res) => {
   const body = text(req.body?.text, COMMENT_MAX)
   if (!body) return badRequest(res, `Comments must be 1–${COMMENT_MAX} characters.`)
 
-  db.prepare(
-    'INSERT INTO comments (id, task_id, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)',
-  ).run(randomUUID(), loaded.task.id, userId, body, Date.now())
+  insertComment.run(randomUUID(), loaded.task.id, userId, body, Date.now())
   res.status(201).json({ ok: true })
 })
 
@@ -582,16 +584,14 @@ router.delete('/:taskId/comments/:commentId', (req: AuthedRequest, res) => {
   const loaded = loadTask(param(req, 'taskId'), userId)
   if (!loaded) return notFound(res, 'Task not found.')
 
-  const comment = db
-    .prepare('SELECT * FROM comments WHERE id = ? AND task_id = ?')
-    .get(param(req, 'commentId'), loaded.task.id) as unknown as
+  const comment = selectCommentByIdAndTask.get(param(req, 'commentId'), loaded.task.id) as unknown as
     | { id: string; user_id: number }
     | undefined
   if (!comment) return notFound(res, 'Comment not found.')
   if (comment.user_id !== userId && !loaded.host) {
     return forbidden(res, 'You can only delete your own comments.')
   }
-  db.prepare('DELETE FROM comments WHERE id = ?').run(comment.id)
+  deleteCommentById.run(comment.id)
   res.json({ ok: true })
 })
 

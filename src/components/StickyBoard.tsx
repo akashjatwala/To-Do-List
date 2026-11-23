@@ -1,4 +1,5 @@
 import {
+  memo,
   useEffect,
   useRef,
   useState,
@@ -68,7 +69,7 @@ function PushPin({ taskId }: { taskId: string }) {
   )
 }
 
-export function StickyBoard({
+function StickyBoardComponent({
   tasks,
   emptyTitle,
   emptyText,
@@ -548,6 +549,12 @@ export function StickyBoard({
     </div>
   )
 }
+
+// The board is visually static across unrelated app state (dialogs, check-in
+// panels, toasts). Callers pass stable callbacks so this memo can skip those
+// renders while still updating whenever the task list or view scope changes.
+export const StickyBoard = memo(StickyBoardComponent)
+StickyBoard.displayName = 'StickyBoard'
 
 export function CompletedColumn({
   tasks,

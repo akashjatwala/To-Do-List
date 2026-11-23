@@ -31,6 +31,21 @@ app.disable('x-powered-by')
 app.use(securityHeaders)
 app.use(express.json({ limit: '100kb' }))
 
+// Health checks and static assets do not need a session lookup. Keep these
+// ahead of the session middleware; the SPA fallback still skips /api paths.
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true })
+})
+
+const dist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist')
+if (existsSync(dist)) {
+  app.use(express.static(dist))
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api')) return next()
+    res.sendFile(join(dist, 'index.html'))
+  })
+}
+
 // ---- Session middleware ----
 app.use((req: AuthedRequest, _res, next) => {
   const token = parseCookies(req.headers.cookie)[SESSION_COOKIE]
@@ -48,10 +63,6 @@ function requireUser(req: AuthedRequest, res: Response): number | null {
 }
 
 // ---- API ----
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true })
-})
-
 app.use('/api/auth/login', loginLimiter)
 app.use('/api/auth/signup', signupLimiter)
 app.use('/api/auth/password', passwordLimiter)
@@ -110,16 +121,6 @@ for (const [prefix, router] of [
 app.use('/api', (_req, res) => {
   fail(res, 404, 'API route not found.')
 })
-
-// ---- Production static hosting ----
-const dist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist')
-if (existsSync(dist)) {
-  app.use(express.static(dist))
-  app.use((req, res, next) => {
-    if (req.method !== 'GET' || req.path.startsWith('/api')) return next()
-    res.sendFile(join(dist, 'index.html'))
-  })
-}
 
 // ---- Errors ----
 app.use(

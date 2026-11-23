@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { prepare } from '../statement-cache'
 
 /**
  * Tag store.
@@ -23,12 +24,11 @@ export function normalizeTagName(name: string): string {
 }
 
 function getTag(db: DatabaseSync, tagId: number): TagRow | undefined {
-  return db.prepare('SELECT * FROM tags WHERE id = ?').get(tagId) as unknown as TagRow | undefined
+  return prepare(db, 'SELECT * FROM tags WHERE id = ?').get(tagId) as unknown as TagRow | undefined
 }
 
 function findActiveByName(db: DatabaseSync, userId: number, normalized: string): TagRow | undefined {
-  return db
-    .prepare('SELECT * FROM tags WHERE user_id = ? AND normalized = ? AND merged_into_id IS NULL')
+  return prepare(db, 'SELECT * FROM tags WHERE user_id = ? AND normalized = ? AND merged_into_id IS NULL')
     .get(userId, normalized) as unknown as TagRow | undefined
 }
 
@@ -39,7 +39,7 @@ function recordHistory(
   now: number,
   mergedIntoId: number | null = null,
 ): void {
-  db.prepare(
+  prepare(db,
     `INSERT INTO tag_history (tag_id, user_id, name, normalized, action, merged_into_id, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(tag.id, tag.user_id, tag.name, tag.normalized, action, mergedIntoId, now)
@@ -47,8 +47,7 @@ function recordHistory(
 
 function createTag(db: DatabaseSync, userId: number, name: string, now: number): TagRow {
   const normalized = normalizeTagName(name)
-  const result = db
-    .prepare('INSERT INTO tags (user_id, name, normalized, merged_into_id, created_at) VALUES (?, ?, ?, NULL, ?)')
+  const result = prepare(db, 'INSERT INTO tags (user_id, name, normalized, merged_into_id, created_at) VALUES (?, ?, ?, NULL, ?)')
     .run(userId, name, normalized, now)
   const tag = getTag(db, Number(result.lastInsertRowid))!
   recordHistory(db, tag, 'create', now)
@@ -64,8 +63,7 @@ export function resolveTag(db: DatabaseSync, userId: number, name: string, now =
   const trimmed = name.trim().replace(/\s+/g, ' ')
   if (!trimmed) return null
   const normalized = normalizeTagName(trimmed)
-  const existing = db
-    .prepare(
+  const existing = prepare(db,
       `SELECT * FROM tags WHERE user_id = ? AND normalized = ?
        ORDER BY (merged_into_id IS NULL) DESC, id ASC LIMIT 1`,
     )
@@ -93,8 +91,7 @@ export interface TagSummary {
 
 /** Active tags with how many tasks currently use them. */
 export function listTags(db: DatabaseSync, userId: number): TagSummary[] {
-  return db
-    .prepare(
+  return prepare(db,
       `SELECT t.id AS id, t.name AS name, COUNT(tt.task_id) AS taskCount
        FROM tags t
        LEFT JOIN task_tags tt ON tt.tag_id = t.id
@@ -106,13 +103,13 @@ export function listTags(db: DatabaseSync, userId: number): TagSummary[] {
 }
 
 function moveTaskLinks(db: DatabaseSync, sourceId: number, targetId: number): void {
-  db.prepare(
+  prepare(db,
     `INSERT OR IGNORE INTO task_tags (task_id, tag_id, user_id, created_at)
      SELECT task_id, ?, user_id, created_at FROM task_tags WHERE tag_id = ?`,
   ).run(targetId, sourceId)
-  db.prepare('DELETE FROM task_tags WHERE tag_id = ?').run(sourceId)
+  prepare(db, 'DELETE FROM task_tags WHERE tag_id = ?').run(sourceId)
   // Any context question suggested by the old tag now follows the new one.
-  db.prepare('UPDATE context_questions SET tag_id = ? WHERE tag_id = ?').run(targetId, sourceId)
+  prepare(db, 'UPDATE context_questions SET tag_id = ? WHERE tag_id = ?').run(targetId, sourceId)
 }
 
 /** Merge `sourceId` into `targetId`, keeping both ids resolvable. */
@@ -130,7 +127,7 @@ export function mergeTags(
   if (source.merged_into_id !== null) return resolveTagChain(db, targetId) ?? null
 
   moveTaskLinks(db, sourceId, targetId)
-  db.prepare('UPDATE tags SET merged_into_id = ? WHERE id = ?').run(targetId, sourceId)
+  prepare(db, 'UPDATE tags SET merged_into_id = ? WHERE id = ?').run(targetId, sourceId)
   recordHistory(db, source, 'merge', now, targetId)
   return target
 }
@@ -155,7 +152,7 @@ export function renameTag(
   const clash = findActiveByName(db, userId, normalized)
   if (clash && clash.id !== tag.id) return mergeTags(db, userId, tag.id, clash.id, now)
 
-  db.prepare('UPDATE tags SET name = ?, normalized = ? WHERE id = ?').run(trimmed, normalized, tag.id)
+  prepare(db, 'UPDATE tags SET name = ?, normalized = ? WHERE id = ?').run(trimmed, normalized, tag.id)
   const updated = getTag(db, tag.id)!
   recordHistory(db, updated, 'rename', now)
   return updated
@@ -164,7 +161,7 @@ export function renameTag(
 /** Tag ids currently linked to a task. */
 export function tagIdsForTask(db: DatabaseSync, taskId: string): number[] {
   return (
-    db.prepare('SELECT tag_id FROM task_tags WHERE task_id = ? ORDER BY tag_id').all(taskId) as unknown as Array<{
+    prepare(db, 'SELECT tag_id FROM task_tags WHERE task_id = ? ORDER BY tag_id').all(taskId) as unknown as Array<{
       tag_id: number
     }>
   ).map((row) => row.tag_id)
@@ -190,7 +187,7 @@ export function syncTaskTags(
   const current = new Set(tagIdsForTask(db, taskId))
   for (const id of wanted) {
     if (!current.has(id)) {
-      db.prepare('INSERT OR IGNORE INTO task_tags (task_id, tag_id, user_id, created_at) VALUES (?, ?, ?, ?)').run(
+      prepare(db, 'INSERT OR IGNORE INTO task_tags (task_id, tag_id, user_id, created_at) VALUES (?, ?, ?, ?)').run(
         taskId,
         id,
         userId,
@@ -199,7 +196,7 @@ export function syncTaskTags(
     }
   }
   for (const id of current) {
-    if (!wanted.has(id)) db.prepare('DELETE FROM task_tags WHERE task_id = ? AND tag_id = ?').run(taskId, id)
+    if (!wanted.has(id)) prepare(db, 'DELETE FROM task_tags WHERE task_id = ? AND tag_id = ?').run(taskId, id)
   }
   return [...wanted].sort((a, b) => a - b)
 }

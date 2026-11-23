@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { ModelArtifact, ModelKind } from './training'
+import { prepare } from '../statement-cache'
 import { MAX_ECE } from './training'
 
 /**
@@ -107,7 +108,7 @@ function parseMetrics(row: StoredModelRow): RegistryMetrics | null {
 }
 
 function rowOf(db: DatabaseSync, id: number): StoredModelRow | undefined {
-  return db.prepare('SELECT * FROM ml_models WHERE id = ?').get(id) as unknown as StoredModelRow | undefined
+  return prepare(db, 'SELECT * FROM ml_models WHERE id = ?').get(id) as unknown as StoredModelRow | undefined
 }
 
 export function getStoredModel(db: DatabaseSync, id: number): StoredModelRow | undefined {
@@ -116,14 +117,13 @@ export function getStoredModel(db: DatabaseSync, id: number): StoredModelRow | u
 
 /** The single model currently served for a kind, or undefined. */
 export function championFor(db: DatabaseSync, userId: number, kind: ModelKind): StoredModelRow | undefined {
-  return db
-    .prepare("SELECT * FROM ml_models WHERE user_id = ? AND kind = ? AND status = 'champion' ORDER BY id DESC LIMIT 1")
+  return prepare(db, "SELECT * FROM ml_models WHERE user_id = ? AND kind = ? AND status = 'champion' ORDER BY id DESC LIMIT 1")
     .get(userId, kind) as unknown as StoredModelRow | undefined
 }
 
 /** Register a trained model as a candidate. Append-only; never overwrites. */
 export function registerModel(db: DatabaseSync, userId: number, input: RegisterModelInput, now = Date.now()): StoredModelRow {
-  db.prepare(
+  prepare(db,
     `INSERT INTO ml_models
        (user_id, kind, version, status, train_from, train_to, data_count, labelled_count,
         feature_names, hyperparams, seed, metrics, git_commit, payload, notes, created_at, updated_at)
@@ -159,8 +159,7 @@ export function registerModel(db: DatabaseSync, userId: number, input: RegisterM
     now,
     now,
   )
-  return db
-    .prepare('SELECT * FROM ml_models WHERE user_id = ? AND kind = ? AND version = ?')
+  return prepare(db, 'SELECT * FROM ml_models WHERE user_id = ? AND kind = ? AND version = ?')
     .get(userId, input.kind, input.version) as unknown as StoredModelRow
 }
 
@@ -244,10 +243,10 @@ export function promoteCandidate(db: DatabaseSync, userId: number, candidateId: 
   const now = Date.now()
   let retiredId: number | undefined
   if (champion) {
-    db.prepare("UPDATE ml_models SET status = 'retired', updated_at = ? WHERE id = ?").run(now, champion.id)
+    prepare(db, "UPDATE ml_models SET status = 'retired', updated_at = ? WHERE id = ?").run(now, champion.id)
     retiredId = champion.id
   }
-  db.prepare("UPDATE ml_models SET status = 'champion', updated_at = ? WHERE id = ?").run(now, candidate.id)
+  prepare(db, "UPDATE ml_models SET status = 'champion', updated_at = ? WHERE id = ?").run(now, candidate.id)
   return {
     ok: true,
     reason: champion
@@ -272,11 +271,9 @@ export function rollbackChampion(
   if (!current) return { ok: false, reason: 'There is no champion to roll back from.' }
 
   const target = options.toVersion
-    ? (db
-        .prepare("SELECT * FROM ml_models WHERE user_id = ? AND kind = ? AND version = ? AND id != ?")
+    ? (prepare(db, "SELECT * FROM ml_models WHERE user_id = ? AND kind = ? AND version = ? AND id != ?")
         .get(userId, kind, options.toVersion, current.id) as unknown as StoredModelRow | undefined)
-    : (db
-        .prepare(
+    : (prepare(db,
           `SELECT * FROM ml_models
            WHERE user_id = ? AND kind = ? AND id != ? AND id < ?
            ORDER BY id DESC LIMIT 1`,
@@ -286,8 +283,8 @@ export function rollbackChampion(
   if (!target) return { ok: false, reason: 'No previous version is available to roll back to.' }
 
   const now = Date.now()
-  db.prepare("UPDATE ml_models SET status = 'retired', updated_at = ? WHERE id = ?").run(now, current.id)
-  db.prepare("UPDATE ml_models SET status = 'champion', updated_at = ? WHERE id = ?").run(now, target.id)
+  prepare(db, "UPDATE ml_models SET status = 'retired', updated_at = ? WHERE id = ?").run(now, current.id)
+  prepare(db, "UPDATE ml_models SET status = 'champion', updated_at = ? WHERE id = ?").run(now, target.id)
   return {
     ok: true,
     reason: `Rolled back from ${current.version} to ${target.version}. The newer version is kept as retired.`,
@@ -324,8 +321,7 @@ export function shouldRetrain(
   now = Date.now(),
 ): RetrainDecision {
   const minNew = options.minNewLabelled ?? DEFAULT_MIN_NEW_LABELLED
-  const state = db
-    .prepare('SELECT * FROM ml_retrain_state WHERE user_id = ? AND kind = ?')
+  const state = prepare(db, 'SELECT * FROM ml_retrain_state WHERE user_id = ? AND kind = ?')
     .get(userId, kind) as unknown as { last_trained_at: number; last_labelled_count: number } | undefined
   if (!state) return { should: true, reason: 'No model has been trained for this activity yet.', newLabelled: currentLabelledCount }
 
@@ -344,7 +340,7 @@ export function shouldRetrain(
 
 /** Record that a training run happened, and how much labelled data it saw. */
 export function markTrained(db: DatabaseSync, userId: number, kind: ModelKind, labelledCount: number, now = Date.now()): void {
-  db.prepare(
+  prepare(db,
     `INSERT INTO ml_retrain_state (user_id, kind, last_trained_at, last_labelled_count)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id, kind) DO UPDATE SET
@@ -362,6 +358,31 @@ export interface LoadedArtifact<T extends ModelArtifact = ModelArtifact> {
   artifact: T
 }
 
+// Parsing the same champion payload for every task in a plan is wasted work.
+// Keep parsed artifacts per connection and reuse them while the champion row is
+// unchanged. Model rows are append-only, so a new champion has a new id; the
+// updated_at check also covers administrative edits to an existing row.
+interface CachedArtifact {
+  rowId: number
+  updatedAt: number
+  artifact: ModelArtifact
+}
+
+const championArtifactCache = new WeakMap<DatabaseSync, Map<string, CachedArtifact>>()
+
+function cachedArtifactFor(db: DatabaseSync, userId: number, kind: ModelKind): CachedArtifact | undefined {
+  return championArtifactCache.get(db)?.get(`${userId}:${kind}`)
+}
+
+function rememberArtifact(db: DatabaseSync, userId: number, kind: ModelKind, entry: CachedArtifact): void {
+  let cache = championArtifactCache.get(db)
+  if (!cache) {
+    cache = new Map<string, CachedArtifact>()
+    championArtifactCache.set(db, cache)
+  }
+  cache.set(`${userId}:${kind}`, entry)
+}
+
 /**
  * Load the champion artifact for a kind. Returns null (never throws) when there
  * is no champion or its payload cannot be parsed, so the caller can fall back to
@@ -370,9 +391,16 @@ export interface LoadedArtifact<T extends ModelArtifact = ModelArtifact> {
 export function loadChampionArtifact(db: DatabaseSync, userId: number, kind: ModelKind): LoadedArtifact | null {
   const row = championFor(db, userId, kind)
   if (!row || !row.payload) return null
+
+  const cached = cachedArtifactFor(db, userId, kind)
+  if (cached && cached.rowId === row.id && cached.updatedAt === row.updated_at) {
+    return { row, artifact: cached.artifact }
+  }
+
   try {
     const artifact = JSON.parse(row.payload) as ModelArtifact
     if (!artifact || typeof artifact !== 'object') return null
+    rememberArtifact(db, userId, kind, { rowId: row.id, updatedAt: row.updated_at, artifact })
     return { row, artifact }
   } catch {
     return null

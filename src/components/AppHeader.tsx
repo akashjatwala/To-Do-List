@@ -1,6 +1,7 @@
 import type { Team, User } from '@/types'
 import { dateInputValue, dueFromDateInput } from '@/lib/date'
 import { greetingForHour } from '@/lib/checkin'
+import { useHeaderClock } from '@/hooks/useHeaderClock'
 import AccountMenu from './AccountMenu'
 import TeamBar from './TeamBar'
 import { ChevronRightIcon } from './Icons'
@@ -14,8 +15,6 @@ interface AppHeaderProps {
   selectedDate: string
   todayValue: string
   isToday: boolean
-  currentHour: number
-  clockLabel: string
   doneCount: number
   totalCount: number
   donePercent: number
@@ -41,8 +40,6 @@ export default function AppHeader({
   selectedDate,
   todayValue,
   isToday,
-  currentHour,
-  clockLabel,
   doneCount,
   totalCount,
   donePercent,
@@ -58,6 +55,7 @@ export default function AppHeader({
   onNewTeam,
   onAddTask,
 }: AppHeaderProps) {
+  const { currentHour, clockLabel } = useHeaderClock()
   const accountName =
     user.name.trim() ||
     user.email

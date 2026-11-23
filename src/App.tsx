@@ -3,6 +3,7 @@ import { api } from '@/api'
 import type { BootstrapData, Task } from '@/types'
 import { todayDateValue } from '@/lib/date'
 import { localDateString } from '@/lib/checkin'
+import { RefreshCoalescer } from '@/lib/refreshCoalescer'
 import { canDeleteTaskForUser, selectBoardModel } from '@/lib/taskBoard'
 import AuthScreen from './components/AuthScreen'
 import AppHeader from './components/AppHeader'
@@ -19,7 +20,6 @@ import { Spinner } from './components/ui'
 import { Logo } from './components/Logo'
 import { UsersIcon } from './components/Icons'
 import { useCheckinController } from './hooks/useCheckinController'
-import { useHeaderClock } from './hooks/useHeaderClock'
 import { useTaskMutations } from './hooks/useTaskMutations'
 import { useToasts } from './hooks/useToasts'
 import { useViewNavigation } from './hooks/useViewNavigation'
@@ -33,7 +33,6 @@ export default function App() {
   const [teamModal, setTeamModal] = useState<{ teamId: string | null } | null>(null)
   const [accountOpen, setAccountOpen] = useState(false)
   const { toasts, notify, dismiss: dismissToast } = useToasts()
-  const { currentHour, clockLabel } = useHeaderClock()
   const {
     view,
     setView,
@@ -47,10 +46,15 @@ export default function App() {
     resetViewState,
   } = useViewNavigation(data, setTaskDialogOpen)
 
-  const refresh = useCallback(async (): Promise<void> => {
-    const next = await api.bootstrap()
-    setData(next)
-  }, [])
+  const refreshCoalescer = useMemo(
+    () =>
+      new RefreshCoalescer<BootstrapData>(
+        () => api.bootstrap(),
+        (next) => setData(next),
+      ),
+    [setData],
+  )
+  const refresh = useCallback((): Promise<void> => refreshCoalescer.refresh(), [refreshCoalescer])
 
   useEffect(() => {
     let cancelled = false
@@ -138,6 +142,7 @@ export default function App() {
     : true
 
   const resetSessionState = () => {
+    refreshCoalescer.invalidate()
     setData(null)
     setSelectedId(null)
     setTeamModal(null)
@@ -177,6 +182,14 @@ export default function App() {
     declineInvite,
   } = useTaskMutations({ refresh, notify, todayValue, setData, setSelectedId, setView })
 
+  // Stable identities let the memoized sticky board skip renders caused by
+  // unrelated dialog, check-in or toast state.
+  const openTask = useCallback((task: Task) => setSelectedId(task.id), [])
+  const canDeleteTask = useCallback(
+    (task: Task) => (data ? canDeleteTaskForUser(task, data.user.id, data.teams) : false),
+    [data],
+  )
+
   if (loading) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-canvas">
@@ -207,10 +220,6 @@ export default function App() {
     remainingMinutes < 60
       ? `${remainingMinutes} min left`
       : `${Math.floor(remainingMinutes / 60)} h ${remainingMinutes % 60} min left`
-
-  // Personal notes belong to the signed-in user. Team notes are host-only:
-  // this gates the note's trash icon and the delete button in task detail.
-  const canDeleteTask = (task: Task) => canDeleteTaskForUser(task, data.user.id, data.teams)
 
   const hasTeamTasks =
     view.kind === 'collab' && view.teamId
@@ -251,8 +260,6 @@ export default function App() {
           selectedDate={selectedDate}
           todayValue={todayValue}
           isToday={isToday}
-          currentHour={currentHour}
-          clockLabel={clockLabel}
           doneCount={doneCount}
           totalCount={totalCount}
           donePercent={donePercent}
@@ -341,7 +348,7 @@ export default function App() {
                       currentUserId={data.user.id}
                       showOwner={isCollab}
                       canDelete={canDeleteTask}
-                      onOpen={(task) => setSelectedId(task.id)}
+                      onOpen={openTask}
                       onToggle={toggleTask}
                       onDelete={deleteTask}
                       onReorder={reorderTasks}
@@ -369,7 +376,7 @@ export default function App() {
                     onCelebrated={() => setCheckinCelebrate(false)}
                     onEditCheckin={openCheckin}
                     onRefreshDailyState={refreshDailyState}
-                    onOpenTask={(task) => setSelectedId(task.id)}
+                    onOpenTask={openTask}
                     onToggleTask={(task) => void toggleTask(task)}
                     onDeleteTask={(task) => void deleteTask(task)}
                     onAcceptInvite={acceptInvite}

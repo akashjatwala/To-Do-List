@@ -28,6 +28,11 @@ function percent(value: number): string {
   return `${Math.round(value * 100)}%`
 }
 
+/** Guard against an older plan request finishing after a newer one. */
+export function isCurrentPlanLoad(generation: number, current: number): boolean {
+  return generation === current
+}
+
 /** Ideal window from recorded start times, only when there is timing history. */
 export function idealTime(prediction: TaskPrediction): string | null {
   const sessions = Number(prediction.inputs.timingSessions ?? 0)
@@ -50,17 +55,21 @@ export default function PredictionPanel({
   const [plan, setPlan] = useState<PredictionPlan | null>(null)
   const [busyTask, setBusyTask] = useState<string | null>(null)
   const shownLoggedFor = useRef<string | null>(null)
+  const planGeneration = useRef(0)
 
   const load = useCallback(async () => {
+    const generation = ++planGeneration.current
     setLoading(true)
     try {
       const result = await api.getPlan(date, today)
+      if (!isCurrentPlanLoad(generation, planGeneration.current)) return
       setOffDay(result.offDay)
       setPlan(result.plan)
     } catch (error) {
+      if (!isCurrentPlanLoad(generation, planGeneration.current)) return
       notify(errorMessage(error), 'error')
     } finally {
-      setLoading(false)
+      if (isCurrentPlanLoad(generation, planGeneration.current)) setLoading(false)
     }
   }, [date, today, notify])
 

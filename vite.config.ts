@@ -10,6 +10,17 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Keep React in a separate cacheable chunk so app edits do not
+        // invalidate the framework bytes on every deploy.
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-dom/client', 'react/jsx-runtime'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     open: false,

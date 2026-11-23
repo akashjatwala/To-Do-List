@@ -22,6 +22,7 @@ import { fitCalibrator } from './calibration'
 import {
   championFor,
   getStoredModel,
+  loadChampionArtifact,
   promoteCandidate,
   registerModel,
   rollbackChampion,
@@ -392,6 +393,26 @@ test('model registry: rollback restores the previous version and keeps the newer
 
   db.close()
   lonely.close()
+})
+
+test('model registry: champion artifacts are reused until the champion changes', () => {
+  const db = freshDb()
+  const v1 = reg(db, 'completion', 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 }, { marker: 1 })
+  promoteCandidate(db, USER, v1.id)
+
+  const first = loadChampionArtifact(db, USER, 'completion')
+  const second = loadChampionArtifact(db, USER, 'completion')
+  assert.ok(first && second)
+  assert.strictEqual(first.artifact, second.artifact)
+
+  const v2 = reg(db, 'completion', 'v2', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 }, { marker: 2 })
+  promoteCandidate(db, USER, v2.id)
+
+  const promoted = loadChampionArtifact(db, USER, 'completion')
+  assert.ok(promoted)
+  assert.equal(promoted.row.id, v2.id)
+  assert.notStrictEqual(promoted.artifact, first.artifact)
+  db.close()
 })
 
 // ---------------------------------------------------------------------------

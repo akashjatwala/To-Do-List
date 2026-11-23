@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react'
 
+/** Pure clock derivation shared by the hook and its tests. */
+export function clockParts(now: Date) {
+  return {
+    currentHour: now.getHours(),
+    clockLabel: `${`${now.getHours()}`.padStart(2, '0')}:${`${now.getMinutes()}`.padStart(2, '0')}`,
+  }
+}
+
 /** A ticking clock for the header, independent of render time. */
 export function useHeaderClock() {
   const [now, setNow] = useState(() => new Date())
@@ -9,8 +17,5 @@ export function useHeaderClock() {
     return () => window.clearInterval(timer)
   }, [])
 
-  return {
-    currentHour: now.getHours(),
-    clockLabel: `${`${now.getHours()}`.padStart(2, '0')}:${`${now.getMinutes()}`.padStart(2, '0')}`,
-  }
+  return clockParts(now)
 }

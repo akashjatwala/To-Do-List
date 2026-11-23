@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { idealTime } from './PredictionPanel'
+import { idealTime, isCurrentPlanLoad } from './PredictionPanel'
 import type { TaskPrediction } from '@/types'
 
 const start = new Date(2026, 10, 22, 10, 0).getTime()
@@ -25,4 +25,9 @@ test('ideal time is hidden when the window is missing', () => {
   const prediction = predictionWith(2)
   prediction.recommendedStart = null
   assert.equal(idealTime(prediction), null)
+})
+
+test('only the newest plan request may update the panel', () => {
+  assert.equal(isCurrentPlanLoad(2, 2), true)
+  assert.equal(isCurrentPlanLoad(1, 2), false)
 })

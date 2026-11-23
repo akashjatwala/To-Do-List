@@ -8,6 +8,27 @@ import { db, type AuthTokenRow, type UserRow } from './db'
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex')
 
+// Session and user lookups run on every API request. Prepare them once so the
+// hot path does not recompile identical SQL for each call.
+const deleteExpiredTokens = db.prepare('DELETE FROM auth_tokens WHERE expires_at < ?')
+const insertSession = db.prepare(
+  "INSERT INTO auth_tokens (token_hash, user_id, kind, created_at, expires_at) VALUES (?, ?, 'session', ?, ?)",
+)
+const deleteSessionByHash = db.prepare(
+  "DELETE FROM auth_tokens WHERE token_hash = ? AND kind = 'session'",
+)
+const deleteSessionsForUser = db.prepare(
+  "DELETE FROM auth_tokens WHERE user_id = ? AND kind = 'session'",
+)
+const deleteOtherSessionsForUser = db.prepare(
+  "DELETE FROM auth_tokens WHERE user_id = ? AND kind = 'session' AND token_hash != ?",
+)
+const selectSessionByHash = db.prepare(
+  "SELECT * FROM auth_tokens WHERE token_hash = ? AND kind = 'session'",
+)
+const selectUserById = db.prepare('SELECT * FROM users WHERE id = ?')
+const selectUserByEmail = db.prepare('SELECT * FROM users WHERE email = ?')
+
 export const REMEMBER_TTL_MS = 1000 * 60 * 60 * 24 * 30 // "Remember me": 30 days
 export const SHORT_TTL_MS = 1000 * 60 * 60 * 24 // Otherwise: 1 day
 
@@ -15,7 +36,7 @@ export const SHORT_TTL_MS = 1000 * 60 * 60 * 24 // Otherwise: 1 day
 
 /** Delete expired sessions. Called on auth operations. */
 export function sweepExpired(): void {
-  db.prepare('DELETE FROM auth_tokens WHERE expires_at < ?').run(Date.now())
+  deleteExpiredTokens.run(Date.now())
 }
 
 // ---- Sessions (persisted in SQLite — they survive server restarts) ----
@@ -23,36 +44,30 @@ export function sweepExpired(): void {
 export function createSession(userId: number, remember: boolean): string {
   const token = randomBytes(32).toString('hex')
   const ttl = remember ? REMEMBER_TTL_MS : SHORT_TTL_MS
-  db.prepare(
-    "INSERT INTO auth_tokens (token_hash, user_id, kind, created_at, expires_at) VALUES (?, ?, 'session', ?, ?)",
-  ).run(sha256(token), userId, Date.now(), Date.now() + ttl)
+  insertSession.run(sha256(token), userId, Date.now(), Date.now() + ttl)
   return token
 }
 
 export function destroySession(token: string): void {
-  db.prepare("DELETE FROM auth_tokens WHERE token_hash = ? AND kind = 'session'").run(sha256(token))
+  deleteSessionByHash.run(sha256(token))
 }
 
 /** Invalidate every session for a user, e.g. after a password change. */
 export function destroyAllSessions(userId: number): void {
-  db.prepare("DELETE FROM auth_tokens WHERE user_id = ? AND kind = 'session'").run(userId)
+  deleteSessionsForUser.run(userId)
 }
 
 /** Invalidate every session for a user except the one making the request. */
 export function destroyOtherSessions(userId: number, keepToken: string): void {
-  db.prepare(
-    "DELETE FROM auth_tokens WHERE user_id = ? AND kind = 'session' AND token_hash != ?",
-  ).run(userId, sha256(keepToken))
+  deleteOtherSessionsForUser.run(userId, sha256(keepToken))
 }
 
 export function userIdForToken(token: string | undefined): number | null {
   if (!token) return null
-  const row = db
-    .prepare("SELECT * FROM auth_tokens WHERE token_hash = ? AND kind = 'session'")
-    .get(sha256(token)) as unknown as AuthTokenRow | undefined
+  const row = selectSessionByHash.get(sha256(token)) as unknown as AuthTokenRow | undefined
   if (!row) return null
   if (row.expires_at < Date.now()) {
-    db.prepare("DELETE FROM auth_tokens WHERE token_hash = ? AND kind = 'session'").run(row.token_hash)
+    deleteSessionByHash.run(row.token_hash)
     return null
   }
   return row.user_id
@@ -61,11 +76,11 @@ export function userIdForToken(token: string | undefined): number | null {
 // ---- Users ----
 
 export function getUserById(id: number): UserRow | undefined {
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as unknown as UserRow | undefined
+  return selectUserById.get(id) as unknown as UserRow | undefined
 }
 
 export function getUserByEmail(email: string): UserRow | undefined {
-  return db.prepare('SELECT * FROM users WHERE email = ?').get(email) as unknown as UserRow | undefined
+  return selectUserByEmail.get(email) as unknown as UserRow | undefined
 }
 
 // ---- Validation ----

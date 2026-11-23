@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { prepare } from '../statement-cache'
 
 /**
  * Versioned task configuration.
@@ -106,14 +107,13 @@ function signature(snapshot: ConfigSnapshot): string {
 }
 
 export function latestConfig(db: DatabaseSync, taskId: string): TaskConfigRow | undefined {
-  return db
-    .prepare('SELECT * FROM task_configs WHERE task_id = ? ORDER BY version DESC LIMIT 1')
+  return prepare(db, 'SELECT * FROM task_configs WHERE task_id = ? ORDER BY version DESC LIMIT 1')
     .get(taskId) as unknown as TaskConfigRow | undefined
 }
 
 export function configTagIds(db: DatabaseSync, configId: number): number[] {
   return (
-    db.prepare('SELECT tag_id FROM task_config_tags WHERE config_id = ? ORDER BY tag_id').all(configId) as unknown as Array<{
+    prepare(db, 'SELECT tag_id FROM task_config_tags WHERE config_id = ? ORDER BY tag_id').all(configId) as unknown as Array<{
       tag_id: number
     }>
   ).map((row) => row.tag_id)
@@ -148,8 +148,7 @@ export function recordTaskConfig(
   if (latest && signature(snapshotOfRow(db, latest)) === signature(snapshot)) return latest
 
   const version = (latest?.version ?? 0) + 1
-  const result = db
-    .prepare(
+  const result = prepare(db,
       `INSERT INTO task_configs
          (task_id, user_id, version, effective_from, name, category, priority, frequency,
           frequency_config, target_duration, preferred_time, active, created_at)
@@ -171,15 +170,14 @@ export function recordTaskConfig(
       Date.now(),
     )
   const configId = Number(result.lastInsertRowid)
-  const insertTag = db.prepare('INSERT OR IGNORE INTO task_config_tags (config_id, tag_id) VALUES (?, ?)')
+  const insertTag = prepare(db, 'INSERT OR IGNORE INTO task_config_tags (config_id, tag_id) VALUES (?, ?)')
   for (const tagId of snapshot.tagIds) insertTag.run(configId, tagId)
-  return db.prepare('SELECT * FROM task_configs WHERE id = ?').get(configId) as unknown as TaskConfigRow
+  return prepare(db, 'SELECT * FROM task_configs WHERE id = ?').get(configId) as unknown as TaskConfigRow
 }
 
 /** Every version for a task, newest first. */
 export function listTaskConfigs(db: DatabaseSync, taskId: string): TaskConfigRow[] {
-  return db
-    .prepare('SELECT * FROM task_configs WHERE task_id = ? ORDER BY version DESC')
+  return prepare(db, 'SELECT * FROM task_configs WHERE task_id = ? ORDER BY version DESC')
     .all(taskId) as unknown as TaskConfigRow[]
 }
 
@@ -200,8 +198,7 @@ export function endOfLocalDay(date: string): number {
  * version that had taken effect by the end of that day.
  */
 export function configForDate(db: DatabaseSync, taskId: string, date: string): TaskConfigRow | undefined {
-  return db
-    .prepare(
+  return prepare(db,
       `SELECT * FROM task_configs
        WHERE task_id = ? AND effective_from <= ?
        ORDER BY effective_from DESC, version DESC
