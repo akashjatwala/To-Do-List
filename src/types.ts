@@ -58,6 +58,16 @@ export interface Task {
   assignees: TaskAssignee[]
 }
 
+/** An in-app reminder shown in the Overdue card. No external delivery is involved. */
+export interface Reminder {
+  id: number
+  taskId: string
+  taskText: string
+  senderId: number
+  createdAt: number
+  recipients: TaskAssignee[]
+}
+
 export interface Member {
   id: number
   email: string
@@ -90,6 +100,7 @@ export interface BootstrapData {
   teams: Team[]
   invites: UserInvite[]
   tasks: Task[]
+  reminders?: Reminder[]
 }
 
 export type View =

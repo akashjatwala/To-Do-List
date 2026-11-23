@@ -14,7 +14,8 @@ One SQLite file: `server/data/todo.db` (created on first boot, git-ignored). For
 on. Every schema function is idempotent and safe to run on every boot, so starting the app
 twice changes nothing.
 
-The live database currently contains **32 tables**. Two cleanups were made on 2026-11-18:
+The live database contains 36 tables: the core tables listed below plus two reminder tables added
+for the in-app reminder rows in the Overdue card. Two cleanups were made on 2026-11-18:
 
 1. An unused scaffold of nine planning/target/weekly tables was removed after a code search
    confirmed no module in `server/` or `src/` referenced them: `plan_blocks`,
@@ -36,11 +37,14 @@ check-in, task, prediction or ML table was removed, and the model code was left 
 | --- | --- |
 | `users` | Account email and password hash |
 | `auth_tokens` | Login sessions only. Only token **hashes** are stored; the former reset-code rows were removed by migration 12 |
+| `schema_migrations` | Applied migration versions; migration 13 records the reminder-table addition |
 | `teams`, `team_members`, `team_invites` | Teams, membership roles, pending invites |
 | `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration, preferred time. `team_id NULL` means a personal task |
 | `subtasks` | Subtasks with position, done and an optional assignee (a member of the task's team; `NULL` on personal tasks) |
 | `comments` | Task comments |
 | `task_assignees` | Team tasks assigned to several teammates. The task's `user_id` stays the creator/owner; any team member can edit this list |
+| `task_reminders` | One row per reminder sent from an overdue sticky note: task, sender and timestamp. Deleting the task or sender removes the reminder |
+| `task_reminder_recipients` | Who was notified for a team reminder. Empty for personal reminders; a snapshot of assignees, or all team members when the task has no assignees |
 
 ### Check-ins — `server/checkins-store.ts`
 

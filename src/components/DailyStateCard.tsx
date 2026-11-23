@@ -48,8 +48,9 @@ interface DailyStateCardProps {
   onCelebrated?: () => void
   /** Opens the check-in wizard (prefilled with the current answers). */
   onEditCheckin: () => void
+  /** Refreshes the daily state after suggestion choices. */
+  onRefreshState: () => Promise<void>
   notify: (message: string, tone?: ToastTone) => void
-  onState: (next: DailyState) => void
 }
 
 /** These sections stay in the code but are not shown on this card. */
@@ -83,8 +84,8 @@ export default function DailyStateCard({
   celebrate = false,
   onCelebrated,
   onEditCheckin,
+  onRefreshState,
   notify,
-  onState,
 }: DailyStateCardProps) {
   const [busy, setBusy] = useState(false)
   const [openSub, setOpenSub] = useState<EnergySubScore | null>(null)
@@ -96,7 +97,7 @@ export default function DailyStateCard({
   const readiness = summary.readiness
   const score = readiness.score
   const band = scoreBand(score)
-  const answers = checkin?.answers ?? {}
+  const answers = useMemo(() => checkin?.answers ?? {}, [checkin?.answers])
   const subScores = useMemo(() => displaySubScores(answers), [answers])
 
   const [displayScore, setDisplayScore] = useState<number>(() => score ?? 0)
@@ -139,28 +140,19 @@ export default function DailyStateCard({
     return () => cancelAnimationFrame(frame)
   }, [score, celebrate, reducedMotion, state.date])
 
-  const refresh = useCallback(async () => {
-    try {
-      const next = await api.getState(state.date, state.today)
-      onState(next)
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-    }
-  }, [notify, onState, state.date, state.today])
-
   const chooseSuggestion = useCallback(
     async (key: string, choice: 'accepted' | 'dismissed') => {
       setBusy(true)
       try {
         await api.saveSuggestionChoice(state.date, key, choice)
-        await refresh()
+        await onRefreshState()
       } catch (error) {
         notify(errorMessage(error), 'error')
       } finally {
         setBusy(false)
       }
     },
-    [notify, refresh, state.date],
+    [notify, onRefreshState, state.date],
   )
 
   const openDetail = useCallback(
@@ -219,7 +211,7 @@ export default function DailyStateCard({
             type="button"
             onClick={onEditCheckin}
             aria-label={`Choose mood ${index + 1} of 5`}
-            className="flex h-12 items-center justify-center rounded-xl bg-white text-xl shadow-sm ring-1 ring-white/70 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-4 focus-visible:ring-[#15181E]/10 focus-visible:outline-none"
+            className="flex h-12 items-center justify-center rounded-xl bg-white/55 text-xl shadow-sm ring-1 ring-white/70 transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-4 focus-visible:ring-[#15181E]/10 focus-visible:outline-none"
           >
             <span aria-hidden="true">{emoji}</span>
           </button>
@@ -232,7 +224,7 @@ export default function DailyStateCard({
 
       <div className="space-y-3">
         {noCheckin ? (
-          <div className="flex flex-col items-center rounded-2xl bg-slate-50 px-4 py-6 text-center shadow-sm ring-1 ring-slate-200/80">
+          <div className="flex flex-col items-center rounded-2xl bg-white/50 px-4 py-6 text-center shadow-sm ring-1 ring-[#A67C00]/10">
             <span className="text-3xl" aria-hidden="true">
               🌤️
             </span>
@@ -247,7 +239,7 @@ export default function DailyStateCard({
             </button>
           </div>
         ) : skipped ? (
-          <div className="flex flex-col items-center rounded-2xl bg-slate-50 px-4 py-6 text-center shadow-sm ring-1 ring-slate-200/80">
+          <div className="flex flex-col items-center rounded-2xl bg-white/50 px-4 py-6 text-center shadow-sm ring-1 ring-[#A67C00]/10">
             <span className="text-2xl" aria-hidden="true">
               🍃
             </span>
@@ -259,14 +251,14 @@ export default function DailyStateCard({
             </p>
           </div>
         ) : !hasScore ? (
-          <div className="rounded-2xl bg-slate-50 px-4 py-5 text-center shadow-sm ring-1 ring-slate-200/80">
+          <div className="rounded-2xl bg-white/50 px-4 py-5 text-center shadow-sm ring-1 ring-[#A67C00]/10">
             <p className="text-sm text-slate-600">{readiness.line}</p>
             <p className="mt-1 text-xs text-slate-500">
               A few more answers are needed before a score is shown.
             </p>
           </div>
         ) : (
-          <div className="flex items-center gap-5 rounded-2xl bg-white/60 p-4 shadow-sm ring-1 ring-white/70">
+          <div className="flex items-center gap-5 rounded-2xl bg-white/45 p-4 shadow-sm ring-1 ring-[#A67C00]/10">
             <div className="relative flex h-24 w-24 shrink-0 items-center justify-center">
               <svg viewBox="0 0 80 80" className="h-24 w-24 -rotate-90" aria-hidden="true">
                 <circle
@@ -336,7 +328,7 @@ export default function DailyStateCard({
                 aria-label={`${sub.label}: ${
                   sub.score === null ? 'nothing answered yet' : `${sub.score} out of 100`
                 }. Show what is behind it.`}
-                className="rounded-2xl bg-white/80 px-3 py-2.5 text-left shadow-sm ring-1 ring-white/70 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md disabled:cursor-default disabled:hover:translate-y-0 disabled:hover:bg-white/80 disabled:hover:shadow-sm"
+                className="rounded-2xl bg-white/60 px-3 py-2.5 text-left shadow-sm ring-1 ring-white/70 transition hover:-translate-y-0.5 hover:bg-white/75 hover:shadow-md disabled:cursor-default disabled:hover:translate-y-0 disabled:hover:bg-white/60 disabled:hover:shadow-sm"
               >
                 <div className="flex items-center justify-between gap-1">
                   <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-500">
@@ -417,7 +409,7 @@ export default function DailyStateCard({
         )}
 
         {advanced.lowCapacity.enabled && advanced.lowCapacity.suggestions.length > 0 && (
-          <div className="rounded-2xl border border-indigo-100 bg-white/80 p-3.5 shadow-sm">
+          <div className="rounded-2xl border border-[#A67C00]/15 bg-white/60 p-3.5 shadow-sm">
             <p className="text-[11px] font-semibold text-indigo-700">
               A lighter plan for a low-capacity day
             </p>
@@ -447,7 +439,7 @@ export default function DailyStateCard({
                           type="button"
                           onClick={() => chooseSuggestion(suggestion.key, 'dismissed')}
                           disabled={busy}
-                          className="insight-quiet text-indigo-700 hover:bg-white/80"
+                          className="insight-quiet text-indigo-700 hover:bg-white/75"
                         >
                           Not today
                         </button>

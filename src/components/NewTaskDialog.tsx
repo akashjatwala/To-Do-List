@@ -71,6 +71,7 @@ export function suggestTaskTitles(
   limit = 5,
 ): string[] {
   const needle = query.trim().replace(/\s+/g, ' ').toLowerCase()
+  const tokens = needle ? needle.split(' ').filter(Boolean) : []
   const matches = new Map<string, { title: string; count: number; last: number }>()
 
   for (const task of tasks) {
@@ -78,7 +79,7 @@ export function suggestTaskTitles(
     const title = task.text.trim().replace(/\s+/g, ' ')
     if (!title) continue
     const key = title.toLowerCase()
-    if (needle && (!key.includes(needle) || key === needle)) continue
+    if (tokens.length > 0 && (key === needle || !tokens.every((token) => key.includes(token)))) continue
     const last = task.due ?? task.createdAt
     const current = matches.get(key)
     if (current) {

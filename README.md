@@ -1,12 +1,13 @@
 # DUIT
 
-A focused to-do list app for individuals and small teams, with a private, on-device
-learning system that predicts what you are realistically likely to get done and
-suggests suitable times.
+A focused to-do list app for individuals and small teams, with a private learning
+system that runs entirely on your own machine, uses no third-party services, and
+predicts what you are realistically likely to get done and suggests suitable times.
 
 Personal lists stay private; teams share tasks, subtasks, and comment threads.
 The learning system is a separate layer on top of the existing app: it records what
-you actually do, learns from it locally, and never sends personal data anywhere.
+you actually do, learns from it locally, and sends no personal data to third-party
+services.
 
 ## Features
 
@@ -34,7 +35,7 @@ you actually do, learns from it locally, and never sends personal data anywhere.
 - Light-only interface with a soft cream background (`#F8F1E8`) and no theme toggle
 - Adaptive layout: the board and side column reflow by window width, with touch-friendly controls on narrow screens
 
-**Learning system (local, on-device)**
+**Learning system (local, no third-party services)**
 
 - A daily check-in (nine optional questions) and an optional evening review
 - Activity logging: timed sessions and one-tap per-day statuses (completed / partial / skipped / postponed)
@@ -76,10 +77,10 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 
 ## How it works
 
-- `server/` — Express 5 API. `db.ts` defines a SQLite schema (users, auth tokens, teams, members, invites, tasks, subtasks, comments); `auth.ts` handles hashed session/reset tokens in one `auth_tokens` table; route files expose `/api/auth`, `/api/teams`, `/api/invites`, `/api/tasks` and `/api/checkins`.
+- `server/` — Express 5 API. `db.ts` defines a SQLite schema (users, auth tokens, teams, members, invites, tasks, subtasks, comments); `auth.ts` handles hashed session tokens in the session-only `auth_tokens` table; route files expose `/api/auth`, `/api/teams`, `/api/invites`, `/api/tasks` and `/api/checkins`.
 - `server/ml/` — the learning system: data collection, validation, feature engineering, training, evaluation, prediction, continuous learning, model versioning, drift and privacy. See [docs/architecture.md](docs/architecture.md).
 - `src/` — React 19 + Tailwind CSS 4 frontend. `App.tsx` loads a single `/api/bootstrap` payload and handles mutations; components live in `src/components/`.
-- Data is stored in `server/data/todo.db` (created automatically, git-ignored). The current schema has 32 tables; on 2026-11-18 an unused planning/target/weekly scaffold was removed and two pairs of identical tables were merged into `auth_tokens` and `user_settings` (see [docs/data-model.md](docs/data-model.md)).
+- Data is stored in `server/data/todo.db` (created automatically, git-ignored). The current schema has 36 tables, including the reminder tables; on 2026-11-18 an unused planning/target/weekly scaffold was removed and two pairs of identical tables were merged into `auth_tokens` and `user_settings` (see [docs/data-model.md](docs/data-model.md)).
 
 ## Documentation
 

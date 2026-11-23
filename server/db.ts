@@ -1,15 +1,19 @@
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createCheckinSchema } from './checkins-store'
 import { runMigrations } from './migrations'
 import { createFoundationSchema, createMlSchema, createPredictionSchema, createStateSchema } from './ml/schema'
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), 'data')
-mkdirSync(DATA_DIR, { recursive: true })
+// Tests point this at an isolated file so they never open the live database.
+const DB_PATH = process.env.DUIT_DB_PATH
+  ? resolve(process.cwd(), process.env.DUIT_DB_PATH)
+  : join(DATA_DIR, 'todo.db')
+mkdirSync(dirname(DB_PATH), { recursive: true })
 
-export const db = new DatabaseSync(join(DATA_DIR, 'todo.db'))
+export const db = new DatabaseSync(DB_PATH)
 db.exec('PRAGMA foreign_keys = ON')
 db.exec('PRAGMA journal_mode = WAL')
 db.exec('PRAGMA synchronous = NORMAL')
@@ -114,6 +118,25 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- In-app reminders shown in the Overdue card. Personal reminders have no
+  -- recipient; team broadcasts keep a snapshot of everyone notified at send time.
+  CREATE TABLE IF NOT EXISTS task_reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    sender_id INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS task_reminder_recipients (
+    reminder_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    PRIMARY KEY (reminder_id, user_id),
+    FOREIGN KEY (reminder_id) REFERENCES task_reminders(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_team ON tasks(team_id);
@@ -121,6 +144,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_comments_task ON comments(task_id);
   CREATE INDEX IF NOT EXISTS idx_task_assignees_task ON task_assignees(task_id);
   CREATE INDEX IF NOT EXISTS idx_task_assignees_user ON task_assignees(user_id);
+  CREATE INDEX IF NOT EXISTS idx_task_reminders_task ON task_reminders(task_id);
+  CREATE INDEX IF NOT EXISTS idx_task_reminder_recipients_reminder ON task_reminder_recipients(reminder_id);
   CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id);
   CREATE INDEX IF NOT EXISTS idx_team_invites_email ON team_invites(email);
 `)

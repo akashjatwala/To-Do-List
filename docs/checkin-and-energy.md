@@ -54,7 +54,7 @@ The four states a day can be in are derived, not stored: `not_asked` (no row),
 `src/lib/energy.ts` re-groups the **same answered fields** into four sub-scores for the card
 (physical, mood, focus, capacity) and picks one of four bands: Running low (0–20, `#FFCCBC`),
 Low (21–50, `#FFF9C4`), Good (51–80, `#E0F7FA`) and Strong (81–100, `#DCEDC8`). A withheld
-score (including no check-in) shows as **Steady** on a white card, not a low band. The score
+score (including no check-in) shows as **Steady** on a light butter-tinted card, not a low band. The score
 ring darkens to match each band, using `#009688` for the cyan band. Emoji are decorative and
 always paired with a text label; the palette never uses red.
 

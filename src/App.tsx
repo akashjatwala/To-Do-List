@@ -1,84 +1,51 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, errorMessage } from '@/api'
-import type {
-  BootstrapData,
-  CheckinStatus,
-  Comment,
-  DailyState,
-  Priority,
-  Recurrence,
-  RecurrenceConfig,
-  Subtask,
-  Task,
-  Team,
-  Toast,
-  ToastTone,
-  UserInvite,
-  View,
-} from '@/types'
-import { dateInputValue, dueFromDateInput, todayDateValue } from '@/lib/date'
-import { greetingForHour, localDateString } from '@/lib/checkin'
-import { repeatsOnDate } from '@/lib/taskmeta'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { api } from '@/api'
+import type { BootstrapData, Task } from '@/types'
+import { todayDateValue } from '@/lib/date'
+import { localDateString } from '@/lib/checkin'
+import { canDeleteTaskForUser, selectBoardModel } from '@/lib/taskBoard'
 import AuthScreen from './components/AuthScreen'
-import AccountMenu from './components/AccountMenu'
+import AppHeader from './components/AppHeader'
+import AppSidebar from './components/AppSidebar'
 import MyAccountDialog from './components/MyAccountDialog'
 import CheckinModal from './components/CheckinModal'
-import DailyStateCard from './components/DailyStateCard'
-import OffDayCard from './components/OffDayCard'
-import PredictionPanel from './components/PredictionPanel'
-import OverdueCard from './components/OverdueCard'
-import NewTaskDialog, { type NewTaskInput } from './components/NewTaskDialog'
-import { CompletedColumn, RepeatingColumn, StickyBoard } from './components/StickyBoard'
+import NewTaskDialog from './components/NewTaskDialog'
+import OverdueTasksDialog from './components/OverdueTasksDialog'
+import { StickyBoard } from './components/StickyBoard'
 import TaskDetail from './components/TaskDetail'
-import TeamBar from './components/TeamBar'
 import TeamModal from './components/TeamModal'
-import { TeamInvitationsCard, TeamMembersCard } from './components/TeamSidebarCards'
+import ToastViewport from './components/ToastViewport'
 import { Spinner } from './components/ui'
 import { Logo } from './components/Logo'
-import {
-  CheckIcon,
-  ChevronRightIcon,
-  UsersIcon,
-  XIcon,
-} from './components/Icons'
-
-const TOAST_STYLES: Record<ToastTone, string> = {
-  success:
-    'border-emerald-200 bg-emerald-50 text-emerald-800',
-  error:
-    'border-rose-200 bg-rose-50 text-rose-800',
-  info: 'border-slate-200 bg-white text-slate-700',
-}
+import { UsersIcon } from './components/Icons'
+import { useCheckinController } from './hooks/useCheckinController'
+import { useHeaderClock } from './hooks/useHeaderClock'
+import { useTaskMutations } from './hooks/useTaskMutations'
+import { useToasts } from './hooks/useToasts'
+import { useViewNavigation } from './hooks/useViewNavigation'
 
 export default function App() {
   const [data, setData] = useState<BootstrapData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<View>({ kind: 'my' })
-  const [selectedDate, setSelectedDate] = useState(() => todayDateValue())
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
+  const [overdueOpen, setOverdueOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [teamModal, setTeamModal] = useState<{ teamId: string | null } | null>(null)
   const [accountOpen, setAccountOpen] = useState(false)
-  const [toasts, setToasts] = useState<Toast[]>([])
-  const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null)
-  const [checkinOpen, setCheckinOpen] = useState(false)
-  const [checkinMode, setCheckinMode] = useState<'prompt' | 'edit'>('prompt')
-  const [checkinCelebrate, setCheckinCelebrate] = useState(false)
-  const [dailyStateData, setDailyStateData] = useState<DailyState | null>(null)
-  // The header clock reads from a ticking value, not from render time, so it
-  // keeps up with the system clock while the app stays open.
-  const [now, setNow] = useState(() => new Date())
-  const toastId = useRef(0)
-  const lastTeamId = useRef<string | null>(null)
-  const checkinCheckedFor = useRef<number | null>(null)
-
-  const notify = useCallback((message: string, tone: ToastTone = 'info') => {
-    const id = (toastId.current += 1)
-    setToasts((current) => [...current, { id, message, tone }])
-    window.setTimeout(() => {
-      setToasts((current) => current.filter((toast) => toast.id !== id))
-    }, 4200)
-  }, [])
+  const { toasts, notify, dismiss: dismissToast } = useToasts()
+  const { currentHour, clockLabel } = useHeaderClock()
+  const {
+    view,
+    setView,
+    selectedDate,
+    setSelectedDate,
+    currentTeam,
+    isToday,
+    openMyTasks,
+    openCollaborate,
+    openTeam,
+    resetViewState,
+  } = useViewNavigation(data, setTaskDialogOpen)
 
   const refresh = useCallback(async (): Promise<void> => {
     const next = await api.bootstrap()
@@ -105,44 +72,24 @@ export default function App() {
   }, [notify])
 
   const currentUserId = data?.user.id ?? null
-
-  // Show the check-in first after login, or when the app opens on a new local
-  // day, but only while today's check-in is neither completed nor skipped.
-  // Runs once per signed-in user per app session.
-  useEffect(() => {
-    if (currentUserId === null) return
-    if (checkinCheckedFor.current === currentUserId) return
-    checkinCheckedFor.current = currentUserId
-    let cancelled = false
-    api
-      .getCheckin(localDateString())
-      .then((status) => {
-        if (cancelled) return
-        setCheckinStatus(status)
-        if (status.state === 'not_asked' || status.state === 'partial') {
-          setCheckinMode('prompt')
-          setCheckinOpen(true)
-        }
-      })
-      .catch(() => {
-        /* never block the app because the check-in lookup failed */
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [currentUserId])
-
-  // Keep the current view valid if teams change (including the very first team).
-  useEffect(() => {
-    if (!data || view.kind !== 'collab') return
-    if (view.teamId && data.teams.some((team) => team.id === view.teamId)) {
-      lastTeamId.current = view.teamId
-      return
-    }
-    const fallback = data.teams[0]?.id ?? null
-    lastTeamId.current = fallback
-    if (fallback !== view.teamId) setView({ kind: 'collab', teamId: fallback })
-  }, [data, view])
+  const {
+    checkinStatus,
+    setCheckinStatus,
+    checkinOpen,
+    setCheckinOpen,
+    checkinMode,
+    checkinCelebrate,
+    setCheckinCelebrate,
+    dailyStateData,
+    refreshDailyState,
+    openCheckin,
+    resetCheckinState,
+  } = useCheckinController({
+    currentUserId,
+    selectedDate,
+    viewKind: view.kind,
+    notify,
+  })
 
   // Close the detail panel if its task is gone.
   useEffect(() => {
@@ -151,121 +98,40 @@ export default function App() {
     }
   }, [data, selectedId])
 
-  // Keep the header clock and greeting in step with the system clock.
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 10_000)
-    return () => window.clearInterval(timer)
-  }, [])
-
-  // A different date or team means the dialog's defaults are no longer valid.
-  useEffect(() => {
-    setTaskDialogOpen(false)
-  }, [view, selectedDate])
-
-  // Load the read-only daily state for today (personal view only). It reloads
-  // whenever the check-in changes, so a mid-day edit updates the summary.
-  useEffect(() => {
-    if (currentUserId === null || view.kind !== 'my' || selectedDate !== todayDateValue()) {
-      setDailyStateData(null)
-      return
-    }
-    let cancelled = false
-    api
-      .getState(selectedDate, todayDateValue())
-      .then((next) => {
-        if (!cancelled) setDailyStateData(next)
-      })
-      .catch(() => {
-        if (!cancelled) setDailyStateData(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [currentUserId, selectedDate, view.kind, checkinStatus?.checkin?.updatedAt, checkinStatus?.state])
-
-  const currentTeam: Team | undefined =
-    view.kind === 'collab' && view.teamId
-      ? data?.teams.find((team) => team.id === view.teamId)
-      : undefined
-
-  const viewTasks = useMemo(() => {
-    if (!data) return []
-    // "My task" is the personal list only; shared tasks live behind Collaborate.
-    if (view.kind === 'my') return data.tasks.filter((task) => task.teamId === null)
-    if (view.kind !== 'collab' || !view.teamId) return []
-    return data.tasks.filter((task) => task.teamId === view.teamId)
-  }, [data, view])
-
-  const dateTasks = useMemo(
-    () =>
-      viewTasks.filter((task) =>
-        task.recurrence === 'none'
-          ? task.due !== null && dateInputValue(task.due) === selectedDate
-          : repeatsOnDate(task.due, task.recurrence, task.recurrenceConfig, selectedDate),
-      ),
-    [viewTasks, selectedDate],
-  )
-
-  // Both boards are date-scoped. A repeat is projected onto every matching
-  // future date (it stays in the Repeating card too); completing it is still a
-  // single shared task, so a team sees the same note on the same day.
-  const boardTasks = dateTasks
-  const openTasks = useMemo(() => boardTasks.filter((task) => !task.done), [boardTasks])
-  const completedTasks = useMemo(() => boardTasks.filter((task) => task.done), [boardTasks])
-  // Repeats are ongoing routines, so they are listed regardless of the chosen day.
-  const repeatingTasks = useMemo(
-    () => viewTasks.filter((task) => task.recurrence !== 'none'),
-    [viewTasks],
-  )
-
   const todayValue = todayDateValue()
-  const isToday = selectedDate === todayValue
-
-  // Open personal tasks whose due date has passed, oldest first.
-  const overdueTasks = useMemo(
-    () =>
-      viewTasks
-        .filter(
-          (task) =>
-            task.teamId === null && !task.done && task.due !== null && dateInputValue(task.due) < todayValue,
-        )
-        .sort((a, b) => a.due! - b.due!),
-    [viewTasks, todayValue],
+  const {
+    viewTasks,
+    dateTasks,
+    openTasks,
+    completedTasks,
+    repeatingTasks,
+    overdueTasks,
+    teamOverdueTasks,
+    memberOpenCounts,
+    teamStats,
+  } = useMemo(
+    () => selectBoardModel(data?.tasks ?? [], view, selectedDate),
+    [data, view, selectedDate],
   )
-
-  // The same reminder for a team board, limited to the selected team.
-  const teamOverdueTasks = useMemo(
-    () =>
-      viewTasks
-        .filter(
-          (task) =>
-            task.teamId !== null && !task.done && task.due !== null && dateInputValue(task.due) < todayValue,
-        )
-        .sort((a, b) => a.due! - b.due!),
-    [viewTasks, todayValue],
-  )
-
-  const memberOpenCounts = useMemo(() => {
-    const counts: Record<number, number> = {}
-    for (const task of viewTasks) {
-      if (task.done || task.recurrence !== 'none') continue
-      counts[task.userId] = (counts[task.userId] ?? 0) + 1
-    }
-    return counts
-  }, [viewTasks])
-
-  const teamStats = useMemo(() => {
-    // Match the board: the day's tasks, including repeats due on this date.
-    const done = dateTasks.filter((task) => task.done).length
-    return {
-      total: dateTasks.length,
-      done,
-      open: dateTasks.length - done,
-      percent: dateTasks.length === 0 ? 0 : Math.round((done / dateTasks.length) * 100),
-    }
-  }, [dateTasks])
 
   const selectedTask = data?.tasks.find((task) => task.id === selectedId) ?? null
+
+  const overdueTasksForScope =
+    view.kind === 'collab' ? teamOverdueTasks : overdueTasks
+  const scopedReminders = useMemo(() => {
+    const visibleIds = new Set(viewTasks.map((task) => task.id))
+    return (data?.reminders ?? []).filter((reminder) => visibleIds.has(reminder.taskId)).slice(0, 3)
+  }, [data?.reminders, viewTasks])
+
+  const sendReminder = async (task: Task) => {
+    try {
+      await api.sendReminder(task.id)
+      await refresh()
+      notify('Reminder sent.', 'success')
+    } catch {
+      notify('Could not send the reminder.', 'error')
+    }
+  }
 
   const canModerate = selectedTask?.teamId
     ? data?.teams.find((team) => team.id === selectedTask.teamId)?.role === 'host'
@@ -275,13 +141,10 @@ export default function App() {
     setData(null)
     setSelectedId(null)
     setTeamModal(null)
-    setView({ kind: 'my' })
-    setSelectedDate(todayDateValue())
     setTaskDialogOpen(false)
-    checkinCheckedFor.current = null
-    setCheckinStatus(null)
-    setCheckinOpen(false)
-    setCheckinCelebrate(false)
+    setOverdueOpen(false)
+    resetViewState()
+    resetCheckinState()
   }
 
   const handleLogout = async () => {
@@ -297,238 +160,22 @@ export default function App() {
     resetSessionState()
   }
 
-  const resetDateView = () => {
-    setSelectedDate(todayDateValue())
-  }
-
-  const openCheckin = async () => {
-    const date = localDateString()
-    try {
-      const status = await api.getCheckin(date)
-      setCheckinStatus(status)
-    } catch {
-      /* fall back to whatever state we already hold */
-    }
-    setCheckinMode('edit')
-    setCheckinOpen(true)
-  }
-
-  const openMyTasks = () => {
-    setView({ kind: 'my' })
-    resetDateView()
-  }
-
-  const openCollaborate = () => {
-    const remembered =
-      lastTeamId.current && data?.teams.some((team) => team.id === lastTeamId.current)
-        ? lastTeamId.current
-        : (data?.teams[0]?.id ?? null)
-    setView({ kind: 'collab', teamId: remembered })
-    resetDateView()
-  }
-
-  const openTeam = (teamId: string) => {
-    setView({ kind: 'collab', teamId })
-    resetDateView()
-  }
-
-  const addTask = async (input: NewTaskInput) => {
-    try {
-      await api.createTask({
-        text: input.text,
-        teamId: input.teamId,
-        due: input.due,
-        priority: input.priority,
-        tags: input.tags,
-        recurrence: input.recurrence,
-        recurrenceConfig: input.recurrenceConfig,
-        duration: input.duration,
-        preferredTime: input.preferredTime,
-      })
-      await refresh()
-      return true
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-      return false
-    }
-  }
-
-  const toggleTask = async (task: Task) => {
-    const wasRecurring = !task.done && task.recurrence !== 'none'
-    setData((current) =>
-      current
-        ? {
-            ...current,
-            tasks: current.tasks.map((item) =>
-              item.id === task.id
-                ? {
-                    ...item,
-                    done: !item.done,
-                    // Mirror the API: completing sets 100%, and un-completing a
-                    // fully finished task clears progress back to 0%.
-                    progress: !item.done ? 100 : item.progress === 100 ? 0 : item.progress,
-                  }
-                : item,
-            ),
-          }
-        : current,
-    )
-    try {
-      await api.updateTask(task.id, { done: !task.done })
-      if (wasRecurring) {
-        // Completing a recurring task spawns its next occurrence server-side.
-        await refresh()
-        notify('Done — the next occurrence was added.', 'success')
-      }
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-      await refresh().catch(() => undefined)
-    }
-  }
-
-  const deleteTask = async (task: Task) => {
-    try {
-      await api.deleteTask(task.id)
-      if (selectedId === task.id) setSelectedId(null)
-      await refresh()
-      notify('Task deleted.', 'info')
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-    }
-  }
-
-  const reorderTasks = async (orderedIds: string[]) => {
-    try {
-      await api.reorderTasks(orderedIds)
-      await refresh()
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-      // Put the notes back in the order the server still has.
-      await refresh().catch(() => undefined)
-    }
-  }
-
-  const updateTask = async (
-    task: Task,
-    patch: {
-      text?: string
-      done?: boolean
-      due?: number | null
-      progress?: number
-      priority?: Priority
-      tags?: string[]
-      recurrence?: Recurrence
-      recurrenceConfig?: RecurrenceConfig | null
-      duration?: number | null
-      preferredTime?: string | null
-    },
-  ) => {
-    try {
-      await api.updateTask(task.id, patch)
-      await refresh()
-      return true
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-      return false
-    }
-  }
-
-  const moveOverdueToToday = async (task: Task) => {
-    const moved = await updateTask(task, { due: dueFromDateInput(todayValue) })
-    if (moved) notify(`Moved “${task.text}” to today.`, 'success')
-  }
-
-  const setAssignees = async (task: Task, userIds: number[]) => {
-    try {
-      await api.setTaskAssignees(task.id, userIds)
-      await refresh()
-      return true
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-      return false
-    }
-  }
-
-  const addSubtask = async (task: Task, text: string, assigneeId: number | null) => {
-    try {
-      await api.addSubtask(task.id, text, assigneeId)
-      await refresh()
-      return true
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-      return false
-    }
-  }
-
-  const assignSubtask = async (task: Task, subtask: Subtask, assigneeId: number | null) => {
-    try {
-      await api.updateSubtask(task.id, subtask.id, { assigneeId })
-      await refresh()
-      return true
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-      return false
-    }
-  }
-
-  const toggleSubtask = async (task: Task, subtask: Subtask) => {
-    try {
-      await api.updateSubtask(task.id, subtask.id, { done: !subtask.done })
-      await refresh()
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-    }
-  }
-
-  const deleteSubtask = async (task: Task, subtask: Subtask) => {
-    try {
-      await api.deleteSubtask(task.id, subtask.id)
-      await refresh()
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-    }
-  }
-
-  const addComment = async (task: Task, text: string) => {
-    try {
-      await api.addComment(task.id, text)
-      await refresh()
-      return true
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-      return false
-    }
-  }
-
-  const deleteComment = async (task: Task, comment: Comment) => {
-    try {
-      await api.deleteComment(task.id, comment.id)
-      await refresh()
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-    }
-  }
-
-  const acceptInvite = async (invite: UserInvite) => {
-    try {
-      await api.acceptInvite(invite.teamId)
-      await refresh()
-      setView({ kind: 'collab', teamId: invite.teamId })
-      notify(`You joined ${invite.teamName}.`, 'success')
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-    }
-  }
-
-  const declineInvite = async (invite: UserInvite) => {
-    try {
-      await api.declineInvite(invite.teamId)
-      await refresh()
-      notify('Invitation declined.', 'info')
-    } catch (error) {
-      notify(errorMessage(error), 'error')
-    }
-  }
+  const {
+    addTask,
+    toggleTask,
+    deleteTask,
+    reorderTasks,
+    updateTask,
+    setAssignees,
+    addSubtask,
+    assignSubtask,
+    toggleSubtask,
+    deleteSubtask,
+    addComment,
+    deleteComment,
+    acceptInvite,
+    declineInvite,
+  } = useTaskMutations({ refresh, notify, todayValue, setData, setSelectedId, setView })
 
   if (loading) {
     return (
@@ -552,22 +199,6 @@ export default function App() {
 
   const isCollab = view.kind === 'collab'
 
-  const accountName =
-    data.user.name.trim() ||
-    data.user.email
-      .split('@')[0]
-      .replace(/^./, (char) => char.toUpperCase())
-  const currentHour = now.getHours()
-  const clockLabel = `${`${now.getHours()}`.padStart(2, '0')}:${`${now.getMinutes()}`.padStart(2, '0')}`
-  const longDateLabel = (() => {
-    const timestamp = dueFromDateInput(selectedDate)
-    if (timestamp === null) return ''
-    return new Date(timestamp).toLocaleDateString(undefined, {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-    })
-  })()
   const doneCount = completedTasks.length
   const totalCount = dateTasks.length
   const donePercent = totalCount === 0 ? 0 : Math.round((doneCount / totalCount) * 100)
@@ -579,13 +210,14 @@ export default function App() {
 
   // Personal notes belong to the signed-in user. Team notes are host-only:
   // this gates the note's trash icon and the delete button in task detail.
-  const canDeleteTask = (task: Task) =>
-    task.teamId === null
-      ? task.userId === data.user.id
-      : data.teams.find((team) => team.id === task.teamId)?.role === 'host'
+  const canDeleteTask = (task: Task) => canDeleteTaskForUser(task, data.user.id, data.teams)
 
+  const hasTeamTasks =
+    view.kind === 'collab' && view.teamId
+      ? (data.tasks.some((task) => task.teamId === view.teamId) ?? false)
+      : false
   const emptyCopy =
-    view.kind === 'collab' && viewTasks.length === 0
+    view.kind === 'collab' && !hasTeamTasks
       ? {
           title: 'No tasks yet',
           text: 'Add a task to get this team started.',
@@ -610,212 +242,36 @@ export default function App() {
   return (
     <div className="min-h-full bg-canvas">
       <main className="min-w-0">
-        <header className="bg-white">
-          <div className="flex h-[75px] items-center justify-between border-b border-[#E1E2E0] px-4 sm:px-8 lg:px-12">
-            <div className="flex items-center gap-8 sm:gap-12">
-              <button
-                type="button"
-                onClick={openMyTasks}
-                className="text-[26px] font-extrabold tracking-tight text-[#15181E]"
-                aria-label="DUIT home"
-              >
-                DUIT<span className="text-indigo-500">.</span>
-              </button>
-
-              <nav className="flex items-center gap-1 sm:gap-3" aria-label="Main">
-                <button
-                  type="button"
-                  onClick={openMyTasks}
-                  aria-pressed={view.kind === 'my'}
-                  className={`flex h-[34px] items-center rounded-full px-5 text-sm font-semibold transition ${
-                    view.kind === 'my'
-                      ? 'bg-[#15181E] text-white'
-                      : 'text-[#454B58] hover:bg-slate-50 hover:text-[#15181E]'
-                  }`}
-                >
-                  My tasks
-                </button>
-                <button
-                  type="button"
-                  onClick={openCollaborate}
-                  aria-pressed={isCollab}
-                  className={`flex h-[34px] items-center rounded-full px-4 text-sm font-semibold transition ${
-                    isCollab
-                      ? 'bg-[#15181E] text-white'
-                      : 'text-[#454B58] hover:bg-slate-50 hover:text-[#15181E]'
-                  }`}
-                >
-                  Teams
-                </button>
-              </nav>
-            </div>
-
-            <AccountMenu
-              name={data.user.name}
-              email={data.user.email}
-              onOpenAccount={() => {
-                setTaskDialogOpen(false)
-                setSelectedId(null)
-                setAccountOpen(true)
-              }}
-              onLogout={handleLogout}
-            />
-          </div>
-
-          <div className="bg-[#F6F6F4]">
-            <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-8 sm:py-8">
-              <div className="flex flex-col gap-4 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-x-3">
-                <div className="min-w-0">
-                  <h1 className="text-[30px] leading-[1.08] font-extrabold tracking-tight text-[#15181E] sm:text-[34px] lg:text-[38px]">
-                    {greetingForHour(currentHour)}, <span>{accountName}</span>
-                  </h1>
-
-                <div className="group mt-3 inline-flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
-                      date.setDate(date.getDate() - 1)
-                      setSelectedDate(dateInputValue(date.getTime()))
-                    }}
-                    aria-label="Previous day"
-                    className="rounded-md p-1 text-[#92969C] opacity-0 transition hover:bg-black/5 hover:text-[#454B58] focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
-                  >
-                    <ChevronRightIcon className="h-3.5 w-3.5 rotate-180" />
-                  </button>
-
-                  <label className="group cursor-pointer text-sm font-medium text-[#454B58]">
-                    {longDateLabel}
-                    <input
-                      type="date"
-                      value={selectedDate}
-                      onChange={(event) => {
-                        if (event.target.value) setSelectedDate(event.target.value)
-                      }}
-                      onClick={(event) => event.currentTarget.showPicker?.()}
-                      aria-label="View tasks for a date"
-                      className="sr-only"
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDate(todayValue)}
-                    disabled={isToday}
-                    aria-label="Go to today"
-                    className="ml-1 rounded-full border border-[#E3E1DC] bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-[#5C4B22] transition hover:bg-white focus-visible:ring-2 focus-visible:ring-[#4A2C8A]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white/70"
-                  >
-                    Today
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const date = new Date(dueFromDateInput(selectedDate) ?? Date.now())
-                      date.setDate(date.getDate() + 1)
-                      setSelectedDate(dateInputValue(date.getTime()))
-                    }}
-                    aria-label="Next day"
-                    className="rounded-md p-1 text-[#92969C] opacity-0 transition hover:bg-black/5 hover:text-[#454B58] focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
-                  >
-                    <ChevronRightIcon className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                </div>
-
-                <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-4 sm:shrink">
-                    {isCollab ? (
-                      <>
-                        <div className="hidden sm:block">
-                          <p className="flex items-center gap-1.5 text-2xl font-extrabold tracking-tight text-[#15181E]">
-                            <span aria-hidden="true">🕒</span>
-                            {clockLabel}
-                          </p>
-                        </div>
-
-                        <div className="min-w-[8.75rem]">
-                          <p className="flex items-center gap-2 text-sm font-semibold text-[#15181E]">
-                            <span className="inline-block h-2 w-2 rounded-full bg-[#2E7D32]" />
-                            {teamStats.done} of {teamStats.total} done
-                          </p>
-                          <p className="mt-1 text-xs font-medium text-[#454B58]">
-                            {teamStats.open} open · {currentTeam?.members.length ?? 0} members
-                          </p>
-                          <div className="mt-2 h-2 w-[8.6875rem] overflow-hidden rounded-full bg-[#DDDFE3]">
-                            <div
-                              className="h-full rounded-full bg-[#1F7A4D] transition-[width]"
-                              style={{ width: `${teamStats.percent}%` }}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex w-[6.5rem] flex-col gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setTeamModal({ teamId: null })}
-                            className="w-full rounded-[12px] bg-[#D9480F] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#C23E0C] active:scale-[0.98]"
-                          >
-                            New team
-                          </button>
-                          {currentTeam && (
-                            <button
-                              type="button"
-                              onClick={() => setTaskDialogOpen(true)}
-                              aria-haspopup="dialog"
-                              className="w-full rounded-[12px] border border-[#D9480F]/30 bg-white px-4 py-3 text-sm font-semibold text-[#D9480F] shadow-sm transition hover:bg-[#FDEDE6] active:scale-[0.98]"
-                            >
-                              Add task
-                            </button>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="hidden sm:block">
-                          <p className="flex items-center gap-1.5 text-2xl font-extrabold tracking-tight text-[#15181E]">
-                            <span aria-hidden="true">🕒</span>
-                            {clockLabel}
-                          </p>
-                        </div>
-
-                        <div className="min-w-[8.75rem]">
-                          <p className="text-sm font-semibold text-[#15181E]">
-                            {doneCount} of {totalCount} done
-                          </p>
-                          <p className="mt-1 text-xs font-medium text-[#454B58]">{remainingLabel}</p>
-                          <div className="mt-2 h-2 w-[8.6875rem] overflow-hidden rounded-full bg-[#DDDFE3]">
-                            <div
-                              className="h-full rounded-full bg-[#1F7A4D] transition-[width]"
-                              style={{ width: `${donePercent}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => setTaskDialogOpen(true)}
-                          aria-haspopup="dialog"
-                          className="rounded-[12px] bg-[#D9480F] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#C23E0C] active:scale-[0.98]"
-                        >
-                          Add task
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {isCollab && (
-                  <div className="mt-5">
-                    <TeamBar
-                      teams={data.teams}
-                      activeTeamId={currentTeam?.id ?? null}
-                      onSelect={openTeam}
-                      onManage={(teamId) => setTeamModal({ teamId })}
-                    />
-                  </div>
-                )}
-            </div>
-          </div>
-        </header>
+        <AppHeader
+          user={data.user}
+          teams={data.teams}
+          viewKind={view.kind}
+          isCollab={isCollab}
+          currentTeam={currentTeam}
+          selectedDate={selectedDate}
+          todayValue={todayValue}
+          isToday={isToday}
+          currentHour={currentHour}
+          clockLabel={clockLabel}
+          doneCount={doneCount}
+          totalCount={totalCount}
+          donePercent={donePercent}
+          remainingLabel={remainingLabel}
+          teamStats={teamStats}
+          onOpenMyTasks={openMyTasks}
+          onOpenCollaborate={openCollaborate}
+          onSelectTeam={openTeam}
+          onManageTeam={(teamId) => setTeamModal({ teamId })}
+          onOpenAccount={() => {
+            setTaskDialogOpen(false)
+            setSelectedId(null)
+            setAccountOpen(true)
+          }}
+          onLogout={handleLogout}
+          onSetSelectedDate={setSelectedDate}
+          onNewTeam={() => setTeamModal({ teamId: null })}
+          onAddTask={() => setTaskDialogOpen(true)}
+        />
 
         <div>
           <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-8">
@@ -892,91 +348,35 @@ export default function App() {
                     />
                   </div>
 
-                  <div className="flex min-w-0 flex-col gap-3">
-                    {!isCollab && (
-                      <>
-                        {isToday && dailyStateData && (
-                          <DailyStateCard
-                            state={dailyStateData}
-                            checkin={checkinStatus?.checkin ?? null}
-                            checkinState={checkinStatus?.state ?? 'not_asked'}
-                            celebrate={checkinCelebrate}
-                            onCelebrated={() => setCheckinCelebrate(false)}
-                            onEditCheckin={openCheckin}
-                            notify={notify}
-                            onState={setDailyStateData}
-                          />
-                        )}
-
-                        <OverdueCard
-                          tasks={overdueTasks}
-                          today={todayValue}
-                          onOpen={(task) => setSelectedId(task.id)}
-                          onDone={(task) => void toggleTask(task)}
-                          onMoveToToday={(task) => void moveOverdueToToday(task)}
-                        />
-
-                        <OffDayCard date={selectedDate} notify={notify} onChanged={refresh} />
-
-                        {isToday && (
-                          <PredictionPanel
-                            date={selectedDate}
-                            today={todayDateValue()}
-                            notify={notify}
-                            refreshKey={`${checkinStatus?.checkin?.updatedAt ?? 0}:${data?.tasks.length ?? 0}`}
-                          />
-                        )}
-                      </>
-                    )}
-
-                    {isCollab && currentTeam && (
-                      <>
-                        <TeamMembersCard
-                          team={currentTeam}
-                          currentUserId={data.user.id}
-                          openCounts={memberOpenCounts}
-                          notify={notify}
-                          onChanged={refresh}
-                        />
-                        <TeamInvitationsCard
-                          team={currentTeam}
-                          invites={data.invites}
-                          onAccept={acceptInvite}
-                          onDecline={declineInvite}
-                          notify={notify}
-                          onChanged={refresh}
-                        />
-                        <OverdueCard
-                          tasks={teamOverdueTasks}
-                          today={todayValue}
-                          showAssignees
-                          onOpen={(task) => setSelectedId(task.id)}
-                          onDone={(task) => void toggleTask(task)}
-                          onMoveToToday={(task) => void moveOverdueToToday(task)}
-                        />
-                      </>
-                    )}
-
-                    <CompletedColumn
-                      tasks={completedTasks}
-                      currentUserId={data.user.id}
-                      showOwner={isCollab}
-                      canDelete={canDeleteTask}
-                      onOpen={(task) => setSelectedId(task.id)}
-                      onToggle={toggleTask}
-                      onDelete={deleteTask}
-                    />
-
-                    <RepeatingColumn
-                      tasks={repeatingTasks}
-                      currentUserId={data.user.id}
-                      showOwner={isCollab}
-                      canDelete={() => false}
-                      onOpen={(task) => setSelectedId(task.id)}
-                      onToggle={toggleTask}
-                      onDelete={deleteTask}
-                    />
-                  </div>
+                  <AppSidebar
+                    isCollab={isCollab}
+                    isToday={isToday}
+                    todayValue={todayValue}
+                    selectedDate={selectedDate}
+                    data={data}
+                    currentTeam={currentTeam}
+                    dailyStateData={dailyStateData}
+                    checkinStatus={checkinStatus}
+                    checkinCelebrate={checkinCelebrate}
+                    overdueTasks={overdueTasks}
+                    teamOverdueTasks={teamOverdueTasks}
+                    reminders={scopedReminders}
+                    completedTasks={completedTasks}
+                    repeatingTasks={repeatingTasks}
+                    memberOpenCounts={memberOpenCounts}
+                    notify={notify}
+                    refresh={refresh}
+                    onCelebrated={() => setCheckinCelebrate(false)}
+                    onEditCheckin={openCheckin}
+                    onRefreshDailyState={refreshDailyState}
+                    onOpenTask={(task) => setSelectedId(task.id)}
+                    onToggleTask={(task) => void toggleTask(task)}
+                    onDeleteTask={(task) => void deleteTask(task)}
+                    onAcceptInvite={acceptInvite}
+                    onDeclineInvite={declineInvite}
+                    onViewAllOverdue={() => setOverdueOpen(true)}
+                    canDeleteTask={canDeleteTask}
+                  />
                 </div>
               </>
             )}
@@ -997,6 +397,25 @@ export default function App() {
         defaultTeamId={currentTeam?.id ?? null}
         defaultDue={selectedDate}
         onAdd={addTask}
+      />
+
+      <OverdueTasksDialog
+        open={overdueOpen}
+        tasks={overdueTasksForScope}
+        scopeLabel={
+          isCollab && currentTeam ? `${currentTeam.name} team tasks` : 'Your personal tasks'
+        }
+        currentUserId={data.user.id}
+        showOwner={isCollab}
+        canDelete={canDeleteTask}
+        onClose={() => setOverdueOpen(false)}
+        onOpenTask={(task) => {
+          setOverdueOpen(false)
+          setSelectedId(task.id)
+        }}
+        onToggleTask={(task) => void toggleTask(task)}
+        onDeleteTask={(task) => void deleteTask(task)}
+        onRemind={(task) => void sendReminder(task)}
       />
 
       <MyAccountDialog
@@ -1075,34 +494,7 @@ export default function App() {
         />
       )}
 
-      <div className="pointer-events-none fixed right-4 bottom-4 z-[60] flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-2">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            role="status"
-            className={`animate-in pointer-events-auto flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm shadow-lg backdrop-blur ${TOAST_STYLES[toast.tone]}`}
-          >
-            <span className="mt-0.5 shrink-0">
-              {toast.tone === 'success' ? (
-                <CheckIcon className="h-4 w-4" />
-              ) : toast.tone === 'error' ? (
-                <XIcon className="h-4 w-4" />
-              ) : (
-                <span className="block h-4 w-4 rounded-full border-2 border-current opacity-60" />
-              )}
-            </span>
-            <span className="flex-1 leading-snug">{toast.message}</span>
-            <button
-              type="button"
-              onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))}
-              className="mt-0.5 rounded p-0.5 opacity-50 transition hover:opacity-100"
-              aria-label="Dismiss"
-            >
-              <XIcon className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ))}
-      </div>
+      <ToastViewport toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }

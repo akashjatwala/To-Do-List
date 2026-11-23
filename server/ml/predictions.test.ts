@@ -486,9 +486,20 @@ test('free time and the recommended window never point at the past', () => {
 
   const empty = timingProfile([])
   const window = recommendWindow(empty, TODAY, 600, 30, null)
-  assert.equal(new Date(window.start).getHours(), 10)
-  assert.equal(window.end - window.start, 30 * 60_000)
+  assert.equal(window.start === null ? null : new Date(window.start).getHours(), 10)
+  assert.equal(
+    window.start !== null && window.end !== null ? window.end - window.start : null,
+    30 * 60_000,
+  )
   assert.equal(window.exploratory, false)
+})
+
+test('learned ideal time is hidden once its window has passed', () => {
+  const timing = timingProfile([9 * 60]) // learned morning habit
+  const window = recommendWindow(timing, TODAY, 21 * 60, 30, null)
+  assert.equal(window.start, null)
+  assert.equal(window.end, null)
+  assert.equal(window.peakBin, timing.peakBin)
 })
 
 test('target probability is separate from completion and bounded', () => {

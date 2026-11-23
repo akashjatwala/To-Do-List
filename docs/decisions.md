@@ -19,6 +19,7 @@
 | A prediction is never an outcome | Predictions and outcomes live in separate tables; the label columns are filled only from observed activity |
 | Remove unreferenced scaffold tables | Nine planning/target/weekly tables held no rows and had no references in `server/` or `src/`; keeping them made the data model look more complex than the app actually is |
 | Keep `auth_tokens` session-only | Reset codes were removed entirely rather than exposed by an environment quirk; migration 12 deletes old rows and narrows the `kind` check. Password changes happen in My Account |
+| Reminders are records, not delivery | An in-app reminder is stored locally and shown in the Overdue card; no email, push or webhook is introduced |
 
 ## Modelling
 

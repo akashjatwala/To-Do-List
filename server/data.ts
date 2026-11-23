@@ -1,5 +1,6 @@
 import { db, type TaskRow } from './db'
 import { getUserById } from './auth'
+import { remindersFor } from './reminders'
 import { readRecurrenceConfig, type RecurrenceConfig } from './recurrence'
 
 export interface SubtaskDTO {
@@ -326,6 +327,7 @@ export function bootstrap(userId: number) {
     teams: teamsFor(userId),
     invites: invitesFor(user.email),
     tasks: tasksFor(userId),
+    reminders: remindersFor(userId),
   }
 }
 

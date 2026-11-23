@@ -2,10 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { dueFromDateInput } from '@/lib/date'
-import type { Task } from '@/types'
+import type { Reminder, Task } from '@/types'
 import OverdueCard from './OverdueCard'
-
-const TODAY = '2026-11-22'
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
@@ -32,63 +30,64 @@ function makeTask(overrides: Partial<Task> = {}): Task {
   }
 }
 
-function render(tasks: Task[], showAssignees = false) {
+function render(tasks: Task[] = [], reminders: Reminder[] = []) {
   return renderToStaticMarkup(
-    <OverdueCard
-      tasks={tasks}
-      today={TODAY}
-      showAssignees={showAssignees}
-      onOpen={() => undefined}
-      onDone={() => undefined}
-      onMoveToToday={() => undefined}
-    />,
+    <OverdueCard tasks={tasks} reminders={reminders} onViewAll={() => undefined} />,
   )
 }
 
-test('overdue card lists each task with its due label and actions', () => {
+test('overdue card keeps a count-free header and no inline task list', () => {
   const html = render([
     makeTask(),
     makeTask({ id: 'task-2', text: 'Read product notes', due: dueFromDateInput('2026-11-21') }),
   ])
-  assert.match(html, /Overdue tasks/)
   assert.match(html, /aria-label="Overdue tasks"/)
-  assert.match(html, /Write quarterly report/)
-  assert.match(html, /Read product notes/)
-  assert.match(html, /3 days ago/)
-  assert.match(html, /1 day ago/)
-  assert.match(html, /Move to today/)
-  assert.match(html, />Done</)
-  assert.match(html, />Open</)
-  assert.match(html, /snap-y snap-mandatory overflow-y-auto/)
-  assert.match(html, /h-\[7\.75rem\]/)
-})
-
-test('overdue card has a clear empty state', () => {
-  const html = render([])
-  assert.match(html, /Nothing overdue — you(?:&#x27;|')re all caught up\./)
+  assert.match(html, /bg-\[#EEE7F7\]/)
+  assert.match(html, /Overdue tasks<\/h2>/)
+  assert.doesNotMatch(html, /Overdue tasks<\/h2><span/)
+  assert.doesNotMatch(html, /snap-y snap-mandatory overflow-y-auto/)
+  assert.doesNotMatch(html, /Write quarterly report/)
+  assert.doesNotMatch(html, /Read product notes/)
   assert.doesNotMatch(html, /Move to today/)
+  assert.doesNotMatch(html, />Done</)
+  assert.doesNotMatch(html, />Open</)
 })
 
-test('team overdue card shows assignees and marks unassigned tasks', () => {
-  const assigned = makeTask({
-    id: 'team-1',
-    text: 'Confirm speaker slots',
-    teamId: 'team-1',
-    assignees: [
-      { id: 2, email: 'asha@example.com', name: 'Asha' },
-      { id: 3, email: 'marco@example.com', name: 'Marco' },
-    ],
-  })
-  const unassigned = makeTask({
-    id: 'team-2',
-    text: 'Review pricing page',
-    teamId: 'team-1',
-  })
+test('overdue card always links to the overdue-only modal', () => {
+  const html = render([
+    makeTask(),
+    makeTask({ id: 'task-2', text: 'Read product notes', due: dueFromDateInput('2026-11-21') }),
+  ])
+  assert.match(html, /View all overdue tasks/)
+  assert.match(html, /2 Overdue/)
+  assert.doesNotMatch(html, /View all pending tasks/)
+  assert.match(html, /bg-white\/45/)
+})
 
-  const personal = render([assigned])
-  assert.doesNotMatch(personal, /Assigned to:/)
-
-  const team = render([assigned, unassigned], true)
-  assert.match(team, /Assigned to: Asha, Marco/)
-  assert.match(team, /Assigned to: Unassigned/)
+test('sent reminders appear as compact rows above the link', () => {
+  const html = render([], [
+    {
+      id: 7,
+      taskId: 'team-1',
+      taskText: 'Confirm speaker slots',
+      senderId: 1,
+      createdAt: Date.now() - 60_000,
+      recipients: [
+        { id: 2, email: 'asha@example.com', name: 'Asha' },
+        { id: 3, email: 'marco@example.com', name: 'Marco' },
+      ],
+    },
+    {
+      id: 8,
+      taskId: 'personal',
+      taskText: 'Personal task',
+      senderId: 1,
+      createdAt: Date.now(),
+      recipients: [],
+    },
+  ])
+  assert.match(html, /aria-label="Sent reminders"/)
+  assert.match(html, /Confirm speaker slots/)
+  assert.match(html, /Sent to Asha, Marco\./)
+  assert.match(html, /Reminder saved locally\./)
 })

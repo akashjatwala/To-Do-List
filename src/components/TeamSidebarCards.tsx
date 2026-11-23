@@ -46,14 +46,9 @@ export function TeamMembersCard({
   }
 
   return (
-    <section className="rounded-[24px] border border-[#E1E2E0] bg-white p-5" aria-label="Members">
+    <section className="rounded-[24px] border border-[#DDE3EA] bg-[#EDF0F4] p-5" aria-label="Members">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Members</h2>
-          <span className="rounded-full bg-[#F6F6F4] px-2 py-0.5 text-xs font-bold text-[#454B58]">
-            {team.members.length}
-          </span>
-        </div>
+        <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Members</h2>
         {isHost && (
           <button
             type="button"
@@ -97,27 +92,29 @@ export function TeamMembersCard({
       )}
       {error && <p className="mb-2 text-xs font-medium text-rose-600">{error}</p>}
 
-      <ul className="space-y-0.5">
-        {team.members.map((member) => {
-          const you = member.id === currentUserId
-          const open = openCounts[member.id] ?? 0
-          return (
-            <li key={member.id} className="flex items-center gap-3 rounded-xl px-1 py-2">
-              <Avatar email={member.email} size="sm" />
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#15181E]">
-                {member.email.split('@')[0]}
-                {you && <span className="ml-1 font-medium text-[#92969C]">(you)</span>}
-              </span>
-              <span className="shrink-0 text-[10px] font-bold tracking-wide text-[#92969C]">
-                {member.role === 'host' ? 'Host' : 'Member'}
-              </span>
-              <span className="shrink-0 text-[11px] font-medium text-[#B9BCC1]">
-                {open} open
-              </span>
-            </li>
-          )
-        })}
-      </ul>
+      <div className="rounded-2xl bg-white/55 px-2 py-1.5 shadow-sm ring-1 ring-[#5B6675]/10">
+        <ul className="space-y-0.5">
+          {team.members.map((member) => {
+            const you = member.id === currentUserId
+            const open = openCounts[member.id] ?? 0
+            return (
+              <li key={member.id} className="flex items-center gap-3 rounded-xl px-1 py-2">
+                <Avatar email={member.email} size="sm" />
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#15181E]">
+                  {member.email.split('@')[0]}
+                  {you && <span className="ml-1 font-medium text-[#6B7684]">(you)</span>}
+                </span>
+                <span className="shrink-0 text-[10px] font-bold tracking-wide text-[#5B6675]">
+                  {member.role === 'host' ? 'Host' : 'Member'}
+                </span>
+                <span className="shrink-0 text-[11px] font-medium text-[#7C8794]">
+                  {open} open
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
     </section>
   )
 }
@@ -156,21 +153,18 @@ export function TeamInvitationsCard({
   const sent = team.invites ?? []
 
   return (
-    <section className="rounded-[24px] bg-[#F8E7C4] p-5" aria-label="Invitations">
-      <div className="mb-3 flex items-center gap-2">
+    <section className="rounded-[24px] bg-[#FBE4EC] p-5" aria-label="Invitations">
+      <div className="mb-3">
         <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Invitations</h2>
-        <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold text-[#5C4B22]">
-          {invites.length}
-        </span>
       </div>
 
       {invites.length === 0 && sent.length === 0 ? (
-        <p className="text-xs leading-relaxed text-[#6B5A2E]">No invitations waiting.</p>
+        <p className="text-xs leading-relaxed text-[#8A5A6C]">No invitations waiting.</p>
       ) : (
         <div className="space-y-3">
           {invites.map((invite) => (
             <div key={invite.teamId} className="rounded-2xl bg-white/45 p-3">
-              <p className="flex items-start gap-2 text-xs leading-relaxed text-[#4B3F22]">
+              <p className="flex items-start gap-2 text-xs leading-relaxed text-[#7A4055]">
                 <MailIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70" />
                 <span>
                   <span className="font-bold">{invite.teamName}</span> invited you to join their
@@ -189,7 +183,7 @@ export function TeamInvitationsCard({
                 <button
                   type="button"
                   onClick={() => onDecline(invite)}
-                  className="inline-flex items-center gap-1 rounded-full bg-white/70 px-3 py-1 text-[11px] font-semibold text-[#5C4B22] transition hover:bg-white"
+                  className="inline-flex items-center gap-1 rounded-full bg-white/70 px-3 py-1 text-[11px] font-semibold text-[#7A4055] transition hover:bg-white"
                 >
                   <XIcon className="h-3 w-3" />
                   Decline
@@ -201,7 +195,7 @@ export function TeamInvitationsCard({
           {sent.length > 0 && (
             <div className="space-y-1.5">
               {sent.map((pending) => (
-                <div key={pending.email} className="flex items-center gap-2 text-xs text-[#4B3F22]">
+                <div key={pending.email} className="flex items-center gap-2 text-xs text-[#7A4055]">
                   <UserPlusIcon className="h-3.5 w-3.5 shrink-0 opacity-70" />
                   <span className="min-w-0 flex-1 truncate">
                     Sent by you: <span className="font-semibold">{pending.email}</span>

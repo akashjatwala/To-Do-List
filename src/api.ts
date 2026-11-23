@@ -15,6 +15,7 @@ import type {
   Priority,
   Recurrence,
   RecurrenceConfig,
+  Reminder,
   TaskConfig,
   Team,
   User,
@@ -118,6 +119,7 @@ export const api = {
   reorderTasks: (ids: string[]) => post<{ ok: true }>('/api/tasks/reorder', { ids }),
   setTaskAssignees: (id: string, userIds: number[]) =>
     put<{ ok: true }>(`/api/tasks/${id}/assignees`, { userIds }),
+  sendReminder: (id: string) => post<Reminder>(`/api/tasks/${id}/remind`),
 
   addSubtask: (taskId: string, text: string, assigneeId?: number | null) =>
     post<{ id: string }>(`/api/tasks/${taskId}/subtasks`, { text, assigneeId: assigneeId ?? null }),

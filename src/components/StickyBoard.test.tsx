@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { Task } from '@/types'
-import { StickyBoard } from './StickyBoard'
+import { CompletedColumn, RepeatingColumn, StickyBoard } from './StickyBoard'
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
@@ -29,7 +29,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
   }
 }
 
-function renderBoard(tasks: Task[]) {
+function renderBoard(tasks: Task[], allowReorder = true) {
   return renderToStaticMarkup(
     <StickyBoard
       tasks={tasks}
@@ -42,6 +42,7 @@ function renderBoard(tasks: Task[]) {
       onToggle={() => {}}
       onDelete={() => {}}
       onReorder={() => {}}
+      allowReorder={allowReorder}
     />,
   )
 }
@@ -113,4 +114,38 @@ test('the note content and actions are unchanged', () => {
 test('an empty board shows its empty state', () => {
   const html = renderBoard([])
   assert.match(html, /Nothing here/)
+})
+
+test('an overview board hides the grip and drag affordance', () => {
+  const html = renderBoard([makeTask()], false)
+  assert.doesNotMatch(html, /Drag to reorder/)
+  assert.match(html, /title="Click to open"/)
+  assert.doesNotMatch(html, /Click to open · drag to rearrange/)
+})
+
+const columnProps = {
+  tasks: [makeTask()],
+  currentUserId: 1,
+  showOwner: false,
+  canDelete: () => false,
+  onOpen: () => undefined,
+  onToggle: () => undefined,
+  onDelete: () => undefined,
+  onReorder: () => undefined,
+  allowReorder: false,
+}
+
+test('Completed keeps its green card but drops the header count', () => {
+  const html = renderToStaticMarkup(<CompletedColumn {...columnProps} />)
+  assert.match(html, /bg-\[#DCEBDF\]/)
+  assert.match(html, /Completed<\/h2>/)
+  assert.doesNotMatch(html, /Completed<\/h2><span/)
+})
+
+test('Repeating uses its own light blue card and drops the header count', () => {
+  const html = renderToStaticMarkup(<RepeatingColumn {...columnProps} />)
+  assert.match(html, /bg-\[#E7F0F9\]/)
+  assert.match(html, /Repeating<\/h2>/)
+  assert.doesNotMatch(html, /Repeating<\/h2><span/)
+  assert.match(html, /rounded-2xl bg-white\/55/)
 })

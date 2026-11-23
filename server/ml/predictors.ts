@@ -251,8 +251,8 @@ export function targetAchievementProbability(
 // ---------------------------------------------------------------------------
 
 export interface TimeWindow {
-  start: number
-  end: number
+  start: number | null
+  end: number | null
   exploratory: boolean
   peakBin: number | null
 }
@@ -260,7 +260,9 @@ export interface TimeWindow {
 /**
  * A recommended window from the learned timing profile, kept inside the free
  * time and never in the past. With no timing data it falls back to a sensible
- * next-hour window (low confidence is applied by the caller).
+ * next-hour window (low confidence is applied by the caller). When learned
+ * timing exists but its ideal window has already passed, no window is returned
+ * so the UI does not show a misleading late-evening "ideal time".
  */
 export function recommendWindow(
   timing: TimingProfile,
@@ -284,11 +286,23 @@ export function recommendWindow(
   } else {
     startMinute = Math.ceil(nowMinutes / 60) * 60
   }
-  // Never suggest a time that has already passed.
-  if (startMinute < nowMinutes) startMinute = Math.ceil(nowMinutes / MIN_WINDOW_MINUTES) * MIN_WINDOW_MINUTES
+  const hasLearnedTiming = timing.sessions > 0 && timing.peakBin !== null
+  // Never suggest a time that has already passed. For learned timing, hide the
+  // window instead of clamping it to "now", which would misrepresent the ideal.
+  if (startMinute < nowMinutes) {
+    if (hasLearnedTiming) {
+      return { start: null, end: null, exploratory, peakBin: bin }
+    }
+    startMinute = Math.ceil(nowMinutes / MIN_WINDOW_MINUTES) * MIN_WINDOW_MINUTES
+  }
   const budget = freeTimeMinutes ?? 24 * 60
   const latestStart = Math.max(nowMinutes, 24 * 60 - Math.min(duration, budget))
-  if (startMinute > latestStart) startMinute = Math.round(latestStart)
+  if (startMinute > latestStart) {
+    if (hasLearnedTiming) {
+      return { start: null, end: null, exploratory, peakBin: bin }
+    }
+    startMinute = Math.round(latestStart)
+  }
   return {
     start: epochAtMinute(date, Math.max(0, Math.round(startMinute))),
     end: epochAtMinute(date, Math.max(0, Math.round(startMinute) + duration)),

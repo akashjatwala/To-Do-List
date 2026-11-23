@@ -9,7 +9,7 @@
 - `server/ml/schema.ts` — the learning system's own tables
 - `server/ml/*.ts` — the learning modules (collection, validation, features, training, evaluation, prediction, learning, health, drift, privacy, logging)
 - `server/ml/routes.ts`, `prediction-routes.ts`, `state-routes.ts`, `off-day-routes.ts`, `health-routes.ts` — HTTP endpoints
-- `src/App.tsx`, `src/api.ts`, `src/components/` — the React frontend
+- `src/App.tsx`, `src/api.ts`, `src/components/`, `src/hooks/`, `src/lib/` — the React frontend (UI, state/orchestration hooks, and shared helpers)
 
 ## The three layers
 
@@ -23,12 +23,14 @@ flowchart TD
 
 - The **frontend** renders and sends mutations. It never computes a prediction and never writes an outcome. The header clock is a ticking state value, so it stays in sync with the system clock.
 - The **API** authenticates the session, validates input, and calls the learning modules.
-- The **database** is a single local SQLite file, currently 32 tables after the 2026-11-18 cleanup and table merges described in [data-model.md](data-model.md). The learning system writes only its own tables plus the tables it owns in `server/ml/schema.ts`.
+- The **database** is a single local SQLite file, currently 36 tables after the 2026-11-18 cleanup and the later reminder tables described in [data-model.md](data-model.md). The learning system writes only its own tables plus the tables it owns in `server/ml/schema.ts`.
 
 ## Board controls
 
 - The greeting row's date is a clickable calendar picker in both **My tasks** and **Teams**, with a **Today** button immediately to its right and hover chevrons to step one day at a time. **Today** is disabled while the selected date is already today; from any other date it returns the board to today. Both boards are scoped to that date, including the progress counter. A repeating task is projected onto each matching future date on either board and also stays in **Repeating**; completing it is one shared edit that rolls the single task forward to the next occurrence (same team, assignees and subtasks). Nudge remains personal-only.
-- Both sidebars have an **Overdue tasks** card, in the same visual family as the Teams **Invitations** card. It lists open tasks whose due date has passed, oldest first, with how long ago they were due and three actions: **Open**, **Done** and **Move to today**. My tasks shows only personal tasks; a team board shows only that selected team's tasks and adds **Assigned to** with the current assignees (or **Unassigned**). These are ordinary task edits — they never touch a prediction or write an outcome.
+- Both sidebars have an **Overdue tasks** card, in the same visual family as the Teams **Invitations** card. Its header is count-free and it no longer lists individual overdue tasks or offers inline **Open**, **Done** and **Move to today** actions. Instead it holds a single **View all overdue tasks** row with the overdue count for the current scope. Clicking it opens a modal with only past-due personal tasks, or only past-due tasks for the selected team, rendered as sticky notes; today's pending tasks are not included. Notes open task details, mark a task done, or send a reminder, but reordering stays on the dated board.
+- Sidebar sections use distinct light cards — **Overdue** lavender, **Invitations** blush, **Repeating** powder blue, **Members** soft slate and **Completed** green — with matching tinted inner boxes where their values are stored. None of these headers show numeric badges. The **Energy** card keeps its butter tone and uses light butter-tinted inner surfaces too.
+- Sending a reminder from an overdue sticky note creates an in-app record only — there is no email, push or webhook delivery. The three newest reminders for the current scope appear as compact rows in the Overdue card, above the **View all overdue tasks** row. A personal reminder has no recipient and reads “Reminder saved locally.” A team reminder goes to the task's current assignees; if nobody is assigned, it goes to every member of that team. Reminders are part of `bootstrap`, so they survive a refresh and disappear with their task.
 - The **New task** title field shows autocomplete suggestions only after you start typing, drawn from previously created tasks in the selected list and ranked by frequency then recency. Choosing a suggestion only fills the field; it creates nothing by itself and does not call the prediction model.
 
 ## The learning pipeline, as separate modules

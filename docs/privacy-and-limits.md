@@ -15,6 +15,7 @@
 - All learning runs in this app, on your machine. There is **no** external ML service, no telemetry and no upload path anywhere in the learning code.
 - Every model, statistic and log line is derived from, and written back to, the local SQLite database (`server/data/todo.db`).
 - File logging is opt-in (`ML_LOG_FILE`) and stays local.
+- Reminders are local records in the same database; sending one never delivers an email, push notification or webhook.
 
 ## What is optional
 

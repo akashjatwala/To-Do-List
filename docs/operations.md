@@ -31,6 +31,7 @@
 | `ML_DISABLE_SCHEDULER` | unset | `1` turns off the periodic retraining scheduler |
 | `ML_RETRAIN_EVERY_MS` | `21600000` (6 h) | How often the scheduler asks the retrain gate |
 | `ML_LOG_FILE` | unset | When set, learning log lines are also appended to this file (local only) |
+| `DUIT_DB_PATH` | unset | Optional database path override, resolved from the current working directory; `.env.test` points tests at an isolated file |
 
 ## Commands
 
@@ -59,7 +60,7 @@ node --env-file=.env.test --import tsx --test "server/**/*.test.ts" "src/**/*.te
 
 ## Security
 
-- All responses carry `nosniff`, `X-Frame-Options: DENY`, a restrictive Content-Security-Policy, and a no-referrer policy (`server/security.ts`). The CSP still allows the app's Google Fonts stylesheet and the Vite dev WebSocket.
+- All responses carry `nosniff`, `X-Frame-Options: DENY`, a restrictive Content-Security-Policy, and a no-referrer policy (`server/security.ts`). Fonts are bundled locally via `@fontsource/baloo-2`, so the CSP allows same-origin styles/fonts (`style-src 'self' 'unsafe-inline'`, `font-src 'self' data:`) and keeps `connect-src 'self' ws: wss:` for the Vite dev WebSocket.
 - Login (10 per 15 min per email/IP), signup (5 per IP) and password confirmation/deletion (10 per IP) are rate limited in memory. Behind a proxy, set Express `trust proxy` so client IPs are seen correctly.
 - Password reset codes and `/api/auth/forgot` / `/api/auth/reset` were removed. Users change passwords from **My Account** while signed in.
 - `npm start` uses `server/start.ts` to set `NODE_ENV=production` before loading the app, making session cookies `Secure`.
@@ -79,7 +80,16 @@ checkpoint.
 
 Schema changes are applied by `server/migrations.ts`, which records each version in
 `schema_migrations`. The checks are idempotent, so an older database is baselined safely on first
-start. Migration 12 removes old password-reset rows and narrows `auth_tokens.kind` to `session`.
+start. Migration 12 removes old password-reset rows and narrows `auth_tokens.kind` to `session`;
+migration 13 adds the reminder tables.
+
+## In-app reminders
+
+A pending sticky note in the all-overdue dialog can send a reminder with
+`POST /api/tasks/:taskId/remind`. This creates a local record only: no email, push or webhook is
+sent. Personal reminders have no recipient; team reminders go to the task's current assignees, or
+to every team member when nobody is assigned. The newest scoped reminders are returned in
+`bootstrap` and shown in the Overdue card.
 
 ## Training instructions
 

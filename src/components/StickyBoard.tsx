@@ -10,6 +10,7 @@ import { formatDuration, STICKY_META, recurrenceShort } from '@/lib/taskmeta'
 import { noteTilt, pinClass } from '@/lib/notes'
 import { useConfirm } from './ui'
 import {
+  BellIcon,
   CheckIcon,
   ClockIcon,
   GaugeIcon,
@@ -28,6 +29,8 @@ interface BoardProps {
   onOpen: (task: Task) => void
   onToggle: (task: Task) => void
   onDelete: (task: Task) => void
+  /** Enables the reminder action, used only on the all-pending overview. */
+  onRemind?: (task: Task) => void
 }
 
 /** The small time label on a note, matching the sticky-note reference layout. */
@@ -75,8 +78,16 @@ export function StickyBoard({
   onOpen,
   onToggle,
   onDelete,
+  onRemind,
   onReorder,
-}: BoardProps & { emptyTitle: string; emptyText: string; onReorder: (orderedIds: string[]) => void }) {
+  allowReorder = true,
+}: BoardProps & {
+  emptyTitle: string
+  emptyText: string
+  onReorder: (orderedIds: string[]) => void
+  /** The all-pending dialog reuses the notes but keeps ordering on the main board. */
+  allowReorder?: boolean
+}) {
   // Notes are kept in local order while dragging so the board can preview the
   // new arrangement; the parent persists it and refreshes the real order.
   const [ordered, setOrdered] = useState<Task[]>(tasks)
@@ -256,6 +267,7 @@ export function StickyBoard({
 
   /** The grip starts a drag immediately and works for mouse and touch. */
   const handleGripDown = (event: PointerEvent<HTMLButtonElement>, task: Task) => {
+    if (!allowReorder) return
     if (event.pointerType === 'mouse' && event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
@@ -269,6 +281,7 @@ export function StickyBoard({
    * a 6px movement so clicking a note still opens its details.
    */
   const handleNoteDown = (event: PointerEvent<HTMLElement>, task: Task) => {
+    if (!allowReorder) return
     if (event.pointerType !== 'mouse' || event.button !== 0) return
     if ((event.target as HTMLElement).closest('[data-note-action]')) return
     suppressClickUntilRef.current = 0
@@ -282,6 +295,7 @@ export function StickyBoard({
   }
 
   const handleNoteMove = (event: PointerEvent<HTMLElement>) => {
+    if (!allowReorder) return
     const pending = pendingRef.current
     if (pending && !dragId.current && pending.pointerId === event.pointerId) {
       if (Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY) < 6) return
@@ -294,6 +308,7 @@ export function StickyBoard({
   }
 
   const finishDrag = (event: PointerEvent<HTMLElement>) => {
+    if (!allowReorder) return
     if (!dragId.current) {
       pendingRef.current = null
       return
@@ -314,12 +329,14 @@ export function StickyBoard({
   }
 
   const handleGripMove = (event: PointerEvent<HTMLButtonElement>) => {
-    if (!dragId.current) return
+    if (!allowReorder || !dragId.current) return
     pointerRef.current = { x: event.clientX, y: event.clientY }
     scheduleDragFrame()
   }
 
-  const handleGripUp = (event: PointerEvent<HTMLButtonElement>) => finishDrag(event)
+  const handleGripUp = (event: PointerEvent<HTMLButtonElement>) => {
+    if (allowReorder) finishDrag(event)
+  }
 
   if (ordered.length === 0) {
     return (
@@ -355,10 +372,10 @@ export function StickyBoard({
           <article
             key={task.id}
             data-note-id={task.id}
-            onPointerDown={(event) => handleNoteDown(event, task)}
-            onPointerMove={handleNoteMove}
-            onPointerUp={finishDrag}
-            onPointerCancel={clearDrag}
+            onPointerDown={allowReorder ? (event) => handleNoteDown(event, task) : undefined}
+            onPointerMove={allowReorder ? handleNoteMove : undefined}
+            onPointerUp={allowReorder ? finishDrag : undefined}
+            onPointerCancel={allowReorder ? clearDrag : undefined}
             onClick={(event) => {
               if (performance.now() < suppressClickUntilRef.current) return
               if ((event.target as HTMLElement).closest('[data-note-action]')) return
@@ -369,7 +386,7 @@ export function StickyBoard({
               onOpen(task)
             }}
             style={{ '--tilt': `${noteTilt(task.id)}deg` } as CSSProperties}
-            title="Click to open · drag to rearrange"
+            title={allowReorder ? 'Click to open · drag to rearrange' : 'Click to open'}
             className={`sticky-note group relative flex min-h-[10rem] cursor-default select-none flex-col px-4 pt-7 pb-4 ${meta.note} ${
               isDragging ? 'sticky-note-dragging opacity-40' : ''
             } ${isNew ? 'sticky-pin-new' : ''}`}
@@ -408,19 +425,34 @@ export function StickyBoard({
                 </p>
               </div>
 
-              <button
-                type="button"
-                data-note-action
-                aria-label={`Drag to reorder ${task.text}`}
-                title="Drag to reorder"
-                onPointerDown={(event) => handleGripDown(event, task)}
-                onPointerMove={handleGripMove}
-                onPointerUp={handleGripUp}
-                onPointerCancel={clearDrag}
-                className={`mt-0.5 inline-flex shrink-0 cursor-default touch-none rounded-md p-1 opacity-40 transition hover:opacity-90 sm:opacity-25 sm:group-hover:opacity-60 ${meta.muted}`}
-              >
-                <GripIcon className="h-3.5 w-3.5" />
-              </button>
+              {allowReorder && (
+                <button
+                  type="button"
+                  data-note-action
+                  aria-label={`Drag to reorder ${task.text}`}
+                  title="Drag to reorder"
+                  onPointerDown={(event) => handleGripDown(event, task)}
+                  onPointerMove={handleGripMove}
+                  onPointerUp={handleGripUp}
+                  onPointerCancel={clearDrag}
+                  className={`mt-0.5 inline-flex shrink-0 cursor-default touch-none rounded-md p-1 opacity-40 transition hover:opacity-90 sm:opacity-25 sm:group-hover:opacity-60 ${meta.muted}`}
+                >
+                  <GripIcon className="h-3.5 w-3.5" />
+                </button>
+              )}
+
+              {onRemind && (
+                <button
+                  type="button"
+                  data-note-action
+                  onClick={() => onRemind(task)}
+                  className={`-mr-1 rounded-lg p-1 opacity-60 transition hover:opacity-100 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-60 ${meta.muted}`}
+                  aria-label={`Send reminder for ${task.text}`}
+                  title="Send reminder"
+                >
+                  <BellIcon className="h-3.5 w-3.5" />
+                </button>
+              )}
 
               {canDelete(task) && (
                 <button
@@ -530,11 +562,8 @@ export function CompletedColumn({
 
   return (
     <section className="overflow-hidden rounded-[24px] bg-[#DCEBDF] p-5" aria-label="Completed">
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3">
         <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Completed</h2>
-        <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold text-[#2F4A37]">
-          {tasks.length}
-        </span>
       </div>
 
       {tasks.length === 0 ? (
@@ -632,55 +661,54 @@ export function RepeatingColumn({
   onOpen,
 }: BoardProps) {
   return (
-    <section className="overflow-hidden rounded-[24px] border border-[#E1E2E0] bg-white p-5" aria-label="Repeating">
-      <div className="mb-3 flex items-center justify-between gap-2">
+    <section className="overflow-hidden rounded-[24px] border border-[#D5E3F0] bg-[#E7F0F9] p-5" aria-label="Repeating">
+      <div className="mb-3">
         <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Repeating</h2>
-        <span className="rounded-full bg-[#F6F6F4] px-2 py-0.5 text-xs font-bold text-[#454B58]">
-          {tasks.length}
-        </span>
       </div>
 
       {tasks.length === 0 ? (
-        <div className="flex flex-col items-center rounded-2xl bg-slate-50 px-4 py-6 text-center shadow-sm ring-1 ring-slate-200/80">
+        <div className="flex flex-col items-center rounded-2xl bg-white/55 px-4 py-6 text-center shadow-sm ring-1 ring-[#35506B]/10">
           <span className="text-3xl" aria-hidden="true">
             🔁
           </span>
-          <p className="mt-2 text-sm font-semibold text-slate-700">No repeating tasks</p>
-          <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-500">
+          <p className="mt-2 text-sm font-semibold text-[#35506B]">No repeating tasks</p>
+          <p className="mt-1 max-w-xs text-xs leading-relaxed text-[#35506B]/75">
             Tasks that repeat will be listed here.
           </p>
         </div>
       ) : (
-        <ul className="space-y-0.5">
-          {tasks.map((task) => {
-            const repeat = recurrenceShort(task.recurrence, task.recurrenceConfig)
-            return (
-              <li
-                key={task.id}
-                className="group flex items-center gap-2 rounded-xl px-1.5 py-2 transition hover:bg-slate-50"
-              >
-                <button
-                  type="button"
-                  onClick={() => onOpen(task)}
-                  className="min-w-0 flex-1 text-left"
+        <div className="rounded-2xl bg-white/55 px-2 py-1.5 shadow-sm ring-1 ring-[#35506B]/10">
+          <ul className="space-y-0.5">
+            {tasks.map((task) => {
+              const repeat = recurrenceShort(task.recurrence, task.recurrenceConfig)
+              return (
+                <li
+                  key={task.id}
+                  className="group flex items-center gap-2 rounded-xl px-1.5 py-2 transition hover:bg-white/60"
                 >
-                  <p className="truncate text-[13px] font-semibold text-[#15181E]">{task.text}</p>
-                  {showOwner && task.userId !== currentUserId && (
-                    <p className="truncate text-[10px] text-slate-400">
-                      {task.ownerEmail.split('@')[0]}
-                    </p>
+                  <button
+                    type="button"
+                    onClick={() => onOpen(task)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <p className="truncate text-[13px] font-semibold text-[#15181E]">{task.text}</p>
+                    {showOwner && task.userId !== currentUserId && (
+                      <p className="truncate text-[10px] text-[#35506B]/70">
+                        {task.ownerEmail.split('@')[0]}
+                      </p>
+                    )}
+                  </button>
+                  {repeat && (
+                    <span className="insight-pill shrink-0 bg-white/70 text-[#35506B]">
+                      <RepeatIcon className="h-3 w-3" />
+                      {repeat}
+                    </span>
                   )}
-                </button>
-                {repeat && (
-                  <span className="insight-pill shrink-0 bg-[#F6F6F4] text-[#454B58]">
-                    <RepeatIcon className="h-3 w-3" />
-                    {repeat}
-                  </span>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       )}
     </section>
   )

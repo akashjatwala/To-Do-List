@@ -143,6 +143,33 @@ const migrations: Migration[] = [
       `)
     },
   },
+  {
+    version: 13,
+    name: 'task_reminders',
+    up: (db) => {
+      // The tables are also declared in db.ts; this records the version so an
+      // older database is explicitly brought up to the reminder-enabled shape.
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS task_reminders (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_id TEXT NOT NULL,
+          sender_id INTEGER NOT NULL,
+          created_at INTEGER NOT NULL,
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+          FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS task_reminder_recipients (
+          reminder_id INTEGER NOT NULL,
+          user_id INTEGER NOT NULL,
+          PRIMARY KEY (reminder_id, user_id),
+          FOREIGN KEY (reminder_id) REFERENCES task_reminders(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_task_reminders_task ON task_reminders(task_id);
+        CREATE INDEX IF NOT EXISTS idx_task_reminder_recipients_reminder ON task_reminder_recipients(reminder_id);
+      `)
+    },
+  },
 ]
 
 export function runMigrations(db: DatabaseSync): void {

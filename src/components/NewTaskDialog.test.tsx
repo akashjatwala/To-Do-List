@@ -87,6 +87,8 @@ test('title suggestions come from the selected list and match the typed text', (
   ]
 
   assert.deepEqual(suggestTaskTitles(history, 'go for', null), ['Go for a run'])
+  assert.deepEqual(suggestTaskTitles(history, 'run', null), ['Go for a run'])
+  assert.deepEqual(suggestTaskTitles(history, 'for run', null), ['Go for a run'])
   assert.deepEqual(suggestTaskTitles(history, 'review', null), ['Review pricing page'])
   assert.deepEqual(suggestTaskTitles(history, '', null), [
     'Review pricing page',

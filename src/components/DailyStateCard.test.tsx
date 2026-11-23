@@ -89,8 +89,8 @@ function render(props: {
       checkin={props.checkin ?? null}
       checkinState={props.checkinState ?? 'not_asked'}
       onEditCheckin={() => {}}
+      onRefreshState={async () => {}}
       notify={() => {}}
-      onState={() => {}}
     />,
   )
 }
@@ -100,6 +100,29 @@ test('the card is always visible and titled Energy Level', () => {
   assert.match(html, /Energy Level/)
   // There is no show/hide control and no stored preference toggle.
   assert.doesNotMatch(html, /Hide (summary|estimates)|Show (summary|estimates)/i)
+})
+
+test('energy inner boxes use a light butter tint instead of plain white', () => {
+  const empty = render({ checkinState: 'not_asked' })
+  assert.match(empty, /rounded-2xl bg-white\/50 px-4 py-6/)
+  assert.doesNotMatch(empty, /rounded-2xl bg-slate-50/)
+
+  const scored = render({
+    checkinState: 'completed',
+    checkin: completedCheckin({
+      feeling: 2,
+      energy: 2,
+      motivation: 2,
+      sleep: 2,
+      stress: 2,
+      free_time: 2,
+      focus: 2,
+      body: 2,
+      workload: 2,
+    }),
+  })
+  assert.match(scored, /rounded-2xl bg-white\/45 p-4/)
+  assert.doesNotMatch(scored, /rounded-2xl bg-white\/60 p-4/)
 })
 
 test('with no check-in the card invites one and shows no score', () => {

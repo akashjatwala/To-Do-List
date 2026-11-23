@@ -19,6 +19,7 @@ import {
   type AuthedRequest,
 } from './http'
 import { syncTaskFoundation } from './ml/task-sync'
+import { createReminder } from './reminders'
 
 const router = Router()
 
@@ -268,6 +269,21 @@ router.post('/reorder', (req: AuthedRequest, res) => {
   }
 
   res.json({ ok: true })
+})
+
+/**
+ * Send an in-app reminder for a pending task. Team reminders go to the current
+ * assignees, or to every teammate when nobody is assigned; personal reminders
+ * stay local with no recipient.
+ */
+router.post('/:taskId/remind', (req: AuthedRequest, res) => {
+  const loaded = loadTask(param(req, 'taskId'), req.userId!)
+  if (!loaded) return notFound(res, 'Task not found.')
+  if (loaded.task.done === 1) return badRequest(res, 'Reminders are for pending tasks.')
+
+  const reminder = createReminder(loaded.task.id, req.userId!)
+  if (!reminder) return badRequest(res, 'Reminders are for pending tasks.')
+  res.status(201).json(reminder)
 })
 
 router.patch('/:taskId', (req: AuthedRequest, res) => {
