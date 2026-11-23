@@ -1,6 +1,6 @@
 # Operations
 
-**Purpose.** How to run the app, train and retrain models, read the model health view, roll back a model, and control logging.
+**Purpose.** How to run the app, train and retrain models, read the model health view, roll back a model, control logging, and understand the small performance caches.
 
 **Where in the code**
 
@@ -14,6 +14,9 @@
 - `server/ml/health-routes.ts` — the `/api/ml` endpoints
 - `server/ml/live-predictor.ts` — the single prediction entry point used by the routes
 - `server/ml/logging.ts` — local logging
+- `server/statement-cache.ts` — per-connection prepared-statement reuse for ML helpers
+- `src/lib/refreshCoalescer.ts` — coalesces rapid bootstrap refreshes
+- `vite.config.ts` — React vendor chunk split
 - `.env.test` — the test runner's TypeScript config
 
 ## Requirements
@@ -64,6 +67,19 @@ node --env-file=.env.test --import tsx --test "server/**/*.test.ts" "src/**/*.te
 - Login (10 per 15 min per email/IP), signup (5 per IP) and password confirmation/deletion (10 per IP) are rate limited in memory. Behind a proxy, set Express `trust proxy` so client IPs are seen correctly.
 - Password reset codes and `/api/auth/forgot` / `/api/auth/reset` were removed. Users change passwords from **My Account** while signed in.
 - `npm start` uses `server/start.ts` to set `NODE_ENV=production` before loading the app, making session cookies `Secure`.
+
+## Performance and caching
+
+These are internal optimizations. They do not change UI copy, colours, layout, prediction rules, or stored data.
+
+- **Startup path** — `/api/health` and static/SPA assets are served before session lookup. Every other `/api/*` route remains behind the session middleware.
+- **Prepared statements** — auth, task and ML query statements are prepared once and reused. ML helpers cache by exact SQL in a `WeakMap` keyed by the `DatabaseSync` connection, so isolated test databases never share statements.
+- **Champion artifacts** — parsed model payloads are cached per connection and reused while the champion row's id and `updated_at` are unchanged. Promotion, rollback and malformed payloads still fall through to a fresh parse or baseline fallback as before.
+- **Bootstrap refreshes** — rapid task mutations share one in-flight bootstrap and schedule one follow-up if more changes arrive. Sign-out and account deletion invalidate any in-flight refresh so stale data cannot repopulate the signed-out screen.
+- **Nudge plan loads** — the panel ignores a plan response whose request is no longer current, so an older request cannot overwrite a newer one.
+- **Header clock** — the 10-second tick lives in `AppHeader`, not the whole board.
+- **Sticky board rendering** — the board is memoized and its open/delete callbacks are stable, so dialog, check-in and toast state changes do not re-render the notes.
+- **Frontend bundle** — Vite emits React as a separate chunk so app edits do not invalidate the framework bytes.
 
 ## Database backup
 
