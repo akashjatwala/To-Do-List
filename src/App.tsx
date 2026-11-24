@@ -286,8 +286,6 @@ export default function App() {
           isCollab={isCollab}
           currentTeam={currentTeam}
           selectedDate={selectedDate}
-          todayValue={todayValue}
-          isToday={isToday}
           doneCount={doneCount}
           totalCount={totalCount}
           donePercent={donePercent}
@@ -419,11 +417,6 @@ export default function App() {
                 </div>
               </>
             )}
-
-            <p className="mt-10 flex items-center justify-center gap-1.5 text-[11px] text-slate-300">
-              <UsersIcon className="h-3.5 w-3.5" />
-              Your personal list is private. Team lists are shared with members only.
-            </p>
           </div>
         </div>
       </main>

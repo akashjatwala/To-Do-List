@@ -193,7 +193,7 @@ export default function PredictionPanel({
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Nudge</h2>
-          <p className="mt-1 text-xs font-bold text-[#454B58]">Chance of finishing today</p>
+          <p className="mt-1 text-xs font-bold text-[#454B58]">Chance you&apos;ll work on it today</p>
         </div>
         <div className="group relative shrink-0">
           <button
@@ -209,8 +209,8 @@ export default function PredictionPanel({
             role="tooltip"
             className="pointer-events-none absolute top-full right-0 z-30 mt-2 w-64 rounded-xl bg-[#2E2446] px-3 py-2 text-[11px] leading-relaxed text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
           >
-            The chance of finishing today is an estimate based on your previously recorded
-            activity and check-ins. It&apos;s a nudge, not a guarantee.
+            The chance you&apos;ll work on it today is an estimate based on your previously
+            recorded activity and check-ins. Any logged activity counts, even a short session.
           </div>
         </div>
       </div>

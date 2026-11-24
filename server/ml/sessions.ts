@@ -232,18 +232,31 @@ export function listSessions(db: DatabaseSync, userId: number, filter: SessionFi
     values.push(filter.to)
   }
   if (filter.asOf !== undefined) {
-    // Only sessions that were already under way by the cutoff — no leakage.
+    // Only sessions that had started *and* been recorded by the cutoff. A
+    // session logged after the fact cannot be known to a prediction made earlier.
     clauses.push('started_at <= ?')
+    values.push(filter.asOf)
+    clauses.push('created_at <= ?')
     values.push(filter.asOf)
   }
   const limit = Math.min(Math.max(filter.limit ?? 200, 1), 1000)
   values.push(limit)
-  return db
+  const rows = db
     .prepare(
       `SELECT * FROM activity_sessions WHERE ${clauses.join(' AND ')}
        ORDER BY local_date DESC, started_at DESC LIMIT ?`,
     )
     .all(...values) as unknown as SessionRow[]
+  if (filter.asOf === undefined) return rows
+  // Clip a session that was still running at the cutoff to the minutes actually
+  // elapsed by then. Sessions with no recorded end keep their logged duration:
+  // the user entered it before the cutoff, so it was knowable at that time.
+  return rows.map((row) => {
+    if (row.ended_at === null || row.ended_at <= filter.asOf!) return row
+    const elapsed = Math.floor((filter.asOf! - row.started_at) / 60_000)
+    const clipped = Math.max(0, Math.min(row.duration_minutes, elapsed))
+    return clipped === row.duration_minutes ? row : { ...row, duration_minutes: clipped }
+  })
 }
 
 /** Every session logged for a task, with its author, for teammates viewing that task. */

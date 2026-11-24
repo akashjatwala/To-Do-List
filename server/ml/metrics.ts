@@ -121,12 +121,15 @@ export function confusion(rows: Labelled[], threshold = 0.5): Confusion {
 export interface ReliabilityBin {
   low: number
   high: number
+  /** Number of rows in the bin. */
   n: number
+  /** Sum of sample weights in the bin. */
+  weight: number
   meanPredicted: number
   observed: number
 }
 
-/** Reliability curve: predicted vs observed in equal-width bins. */
+/** Reliability curve: predicted vs observed in equal-width bins, sample-weighted. */
 export function reliability(rows: Labelled[], bins = 5): ReliabilityBin[] {
   const out: ReliabilityBin[] = []
   for (let bin = 0; bin < bins; bin += 1) {
@@ -134,23 +137,28 @@ export function reliability(rows: Labelled[], bins = 5): ReliabilityBin[] {
     const high = (bin + 1) / bins
     const inBin = rows.filter((row) => (bin === bins - 1 ? row.p >= low && row.p <= high : row.p >= low && row.p < high))
     if (inBin.length === 0) continue
+    const weight = inBin.reduce((sum, row) => sum + (row.w ?? 1), 0)
+    if (weight <= 0) continue
     out.push({
       low,
       high,
       n: inBin.length,
-      meanPredicted: inBin.reduce((sum, row) => sum + row.p, 0) / inBin.length,
-      observed: inBin.reduce((sum, row) => sum + row.y, 0) / inBin.length,
+      weight,
+      meanPredicted: inBin.reduce((sum, row) => sum + (row.w ?? 1) * row.p, 0) / weight,
+      observed: inBin.reduce((sum, row) => sum + (row.w ?? 1) * row.y, 0) / weight,
     })
   }
   return out
 }
 
-/** Expected calibration error over the reliability bins (weighted by bin size). */
+/** Expected calibration error over the bins, weighted by each bin's sample weight. */
 export function calibrationError(rows: Labelled[], bins = 5): number | null {
   if (rows.length === 0) return null
   const curve = reliability(rows, bins)
   if (curve.length === 0) return null
-  return curve.reduce((sum, bin) => sum + (bin.n / rows.length) * Math.abs(bin.meanPredicted - bin.observed), 0)
+  const total = curve.reduce((sum, bin) => sum + bin.weight, 0)
+  if (total <= 0) return null
+  return curve.reduce((sum, bin) => sum + (bin.weight / total) * Math.abs(bin.meanPredicted - bin.observed), 0)
 }
 
 /** Mean absolute error. */

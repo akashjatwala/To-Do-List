@@ -5,7 +5,7 @@ import { answeredValues, checkinState, getCheckin, parseLocalDate } from '../che
 import { badRequest, localDateString, notFound, resolveDate, type AuthedRequest } from '../http'
 import { buildPlan, isPersonalTask, taskContext } from './predictors'
 import { livePredictor } from './live-predictor'
-import { getPredictionSettings, offDayContext } from './off-days'
+import { addDays, getPredictionSettings, offDayContext } from './off-days'
 import { buildDaySchedule } from './day-planner'
 import { rescheduleSuggestions } from './reschedule'
 import {
@@ -16,7 +16,7 @@ import {
   parseFeedback,
   recordFeedback,
 } from './predictions'
-import { activityStatistics, userCompletionPrior, userTaskIds } from './statistics'
+import { activityStatistics, groupStatistics, userCompletionPrior, userTaskIds } from './statistics'
 import { driftForTask } from './drift'
 
 /**
@@ -51,7 +51,7 @@ router.get('/plan', (req: AuthedRequest, res) => {
     predict: livePredictor,
   })
   if (!plan.offDay) logPlanPredictions(db, userId, plan)
-  const driftNotes = plan.offDay ? [] : driftNotesForPlan(db, userId, plan, date, today)
+  const driftNotes = plan.offDay ? [] : driftNotesForPlan(db, userId, plan, date)
   res.json({
     gate: false,
     checkinState: state,
@@ -81,9 +81,8 @@ function driftNotesForPlan(
   userId: number,
   plan: { entries: Array<{ taskId: string; text: string }> },
   date: string,
-  today: string,
 ): string[] {
-  const priorRate = userCompletionPrior(db, userId, userTaskIds(db, userId), today)
+  const priorRate = userCompletionPrior(db, userId, userTaskIds(db, userId), addDays(date, -1))
   const notes: string[] = []
   for (const entry of plan.entries) {
     const drift = driftForTask(db, userId, entry.taskId, date, priorRate)
@@ -114,7 +113,11 @@ router.get('/task', (req: AuthedRequest, res) => {
   // An unanswered check-in is one missing input, not a gate: still return a value.
 
   const taskIds = userTaskIds(db, userId)
-  const priorRate = userCompletionPrior(db, userId, taskIds, today)
+  // Match /plan: no history from the day being predicted may enter the features.
+  const historyEnd = addDays(date, -1)
+  const priorRate = userCompletionPrior(db, userId, taskIds, historyEnd)
+  const tagStats = groupStatistics(db, userId, taskIds, historyEnd, priorRate, 'tag', { to: historyEnd })
+  const priorityStats = groupStatistics(db, userId, taskIds, historyEnd, priorRate, 'priority', { to: historyEnd })
   const prediction = livePredictor(
     db,
     userId,
@@ -127,6 +130,8 @@ router.get('/task', (req: AuthedRequest, res) => {
       answers: row && row.skipped === 0 ? answeredValues(row) : null,
       settings,
       priorRate,
+      tagStats,
+      priorityStats,
     },
   )
   if (!prediction) return notFound(res, 'No prediction is available for this task.')

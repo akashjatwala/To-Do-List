@@ -15,8 +15,9 @@ import {
 import { addDays, diffDays } from './off-days'
 import { epochAtMinute } from './predictors'
 import {
-  DEFAULT_PREDICTION_MINUTE,
+  MIN_ROWS_PER_FEATURE,
   MIN_TAG_OBSERVATIONS,
+  PREDICTION_MINUTES,
   SEASONAL_MIN_MONTHS,
   computeFeatures,
   featureNamesFor,
@@ -38,18 +39,25 @@ import {
  *   but long-term days are kept, so a slow drift is still visible.
  * - **Leak-free tag statistics.** Tag rates and durations are maintained by
  *   walking the days forward and only ever folding in days that already passed.
+ * - **Several prediction times per day.** Every labelled (task, day) produces a
+ *   row at each trained cutoff, reconstructed from what was recorded by then.
+ *   Serving snaps to the same grid, so time of day is learned, never guessed.
  * - **Vocabulary fixed here.** Tags with too few observations collapse into
- *   `tag_other`; the vocabulary (and the seasonal switch) is stored with the
- *   model so serving builds the identical vector.
+ *   `tag_other`; the vocabulary (compact set, seasonal switch, and grid) is
+ *   stored with the model so serving builds the identical vector.
  * - **Missing stays missing.** A day with no label contributes no completion
  *   row; a missing target or duration contributes no row of that kind.
  */
 
 export const RECENT_WEIGHT_HALF_LIFE_DAYS = 60
+/** Below this many rows the wide feature set needs more evidence than exists. */
+export const FULL_FEATURE_MIN_ROWS = 300
 
 export interface TrainingRow {
   taskId: string
   date: string
+  /** Local minute-of-day this row was predicted at. */
+  predictionMinute: number
   features: number[]
   /** 1/0 completion label, or null when the day is not labelled. */
   completionLabel: number | null
@@ -64,6 +72,8 @@ export interface TrainingSet {
   rows: TrainingRow[]
   featureNames: string[]
   vocabulary: FeatureVocabulary
+  /** The cutoffs these rows were built at; serving must use the same grid. */
+  predictionMinutes: number[]
   taskIds: string[]
   from: string
   to: string
@@ -77,6 +87,15 @@ export interface BuildTrainingOptions {
   /** Override the smoothing prior (defaults to the user's rate before `from`). */
   priorRate?: number
   recentHalfLifeDays?: number
+  /** Override the prediction-time grid (defaults to `PREDICTION_MINUTES`). */
+  predictionMinutes?: number[]
+  /** Force the compact feature set on/off (defaults to an estimate from row count). */
+  compactFeatures?: boolean
+  /**
+   * Use an exact recorded vocabulary instead of deriving one from this window.
+   * Backtests use a champion's vocabulary so holdout rows match training columns.
+   */
+  vocabulary?: FeatureVocabulary
 }
 
 function emptyTiming(): TimingProfile {
@@ -138,8 +157,12 @@ export function buildTrainingSet(
   today: string,
   options: BuildTrainingOptions = {},
 ): TrainingSet {
-  const priorRate = options.priorRate ?? userCompletionPrior(db, userId, taskIds, addDays(from, -1))
   const halfLife = options.recentHalfLifeDays ?? RECENT_WEIGHT_HALF_LIFE_DAYS
+  // The prior is recomputed for every date from days strictly before it. Using
+  // one prior for the whole window would make early rows see a rate that did not
+  // exist yet, while serving sees a rate that already includes today.
+  const priorRateFor = (date: string): number =>
+    options.priorRate ?? userCompletionPrior(db, userId, taskIds, addDays(date, -1))
 
   const bounds = db
     .prepare('SELECT MIN(local_date) AS d FROM activity_sessions WHERE user_id = ?')
@@ -157,26 +180,35 @@ export function buildTrainingSet(
     indexByTask.set(taskId, index)
   }
 
-  // Vocabulary: tag observations on labelled days inside the window.
+  // Every (task, day) pair, ascending, for the leak-free tag walk.
+  const pairs: Array<{ taskId: string; day: LabelledDay }> = []
+  for (const taskId of taskIds) for (const day of daysByTask.get(taskId) ?? []) pairs.push({ taskId, day })
+  pairs.sort((a, b) => (a.day.date < b.day.date ? -1 : a.day.date > b.day.date ? 1 : 0))
+
+  const predictionMinutes: number[] = options.predictionMinutes ?? [...PREDICTION_MINUTES]
+  const inWindow = pairs.filter((pair) => pair.day.date >= from && pair.day.date <= to && !pair.day.offDay && pair.day.performed !== null)
+  const rowEstimate = predictionMinutes.length * inWindow.length
+
+  // Vocabulary: tag observations on labelled days inside the window. The
+  // compact set records the same vocabulary but does not use its tag columns.
   const tagCounts = new Map<string, number>()
-  for (const taskId of taskIds) {
-    for (const day of daysByTask.get(taskId) ?? []) {
-      if (day.date < from || day.date > to || day.offDay || day.performed === null) continue
-      for (const id of day.tagIds) tagCounts.set(String(id), (tagCounts.get(String(id)) ?? 0) + 1)
-    }
+  for (const pair of inWindow) {
+    for (const id of pair.day.tagIds) tagCounts.set(String(id), (tagCounts.get(String(id)) ?? 0) + 1)
   }
-  const vocabulary: FeatureVocabulary = {
+  const baseVocabulary: FeatureVocabulary = {
     tags: [...tagCounts.entries()]
       .filter(([, count]) => count >= MIN_TAG_OBSERVATIONS)
       .map(([id]) => id)
       .sort((a, b) => Number(a) - Number(b)),
     seasonal: monthsOfData >= SEASONAL_MIN_MONTHS,
+    compact: false,
   }
-
-  // Every (task, day) pair, ascending, for the leak-free tag walk.
-  const pairs: Array<{ taskId: string; day: LabelledDay }> = []
-  for (const taskId of taskIds) for (const day of daysByTask.get(taskId) ?? []) pairs.push({ taskId, day })
-  pairs.sort((a, b) => (a.day.date < b.day.date ? -1 : a.day.date > b.day.date ? 1 : 0))
+  // Switch only when there is enough evidence for the *actual* wide vector:
+  // a larger tag vocabulary raises the bar, and the trainer applies the same
+  // per-feature minimum so the two decisions can never disagree.
+  const fullMinimum = Math.max(FULL_FEATURE_MIN_ROWS, featureNamesFor(baseVocabulary).length * MIN_ROWS_PER_FEATURE)
+  const compact = options.compactFeatures ?? rowEstimate < fullMinimum
+  const vocabulary: FeatureVocabulary = options.vocabulary ?? { ...baseVocabulary, compact }
 
   const targetDates = [...new Set(pairs.filter((pair) => pair.day.date >= from && pair.day.date <= to).map((pair) => pair.day.date))].sort()
 
@@ -190,39 +222,43 @@ export function buildTrainingSet(
       accumulateTags(accumulators, pairs[pointer].day)
       pointer += 1
     }
+    const priorRate = priorRateFor(date)
     const tagStats = tagStatisticsFrom(accumulators, priorRate)
     const age = diffDays(date, to)
     const weight = Math.pow(0.5, Math.max(0, age) / halfLife)
-    const asOfEpoch = epochAtMinute(date, DEFAULT_PREDICTION_MINUTE) - 1
 
-    for (const taskId of taskIds) {
-      const days = daysByTask.get(taskId) ?? []
-      const index = indexByTask.get(taskId)?.get(date)
-      if (index === undefined) continue
-      const day = days[index]
-      if (day.offDay || day.performed === null) continue
+    for (const minute of predictionMinutes) {
+      const asOfEpoch = epochAtMinute(date, minute) - 1
+      for (const taskId of taskIds) {
+        const days = daysByTask.get(taskId) ?? []
+        const index = indexByTask.get(taskId)?.get(date)
+        if (index === undefined) continue
+        const day = days[index]
+        if (day.offDay || day.performed === null) continue
 
-      const snapshot = gatherFeatureSnapshot(db, {
-        userId,
-        taskId,
-        date,
-        today,
-        asOfEpoch,
-        nowMinutes: DEFAULT_PREDICTION_MINUTE,
-        priorRate,
-        tagStats,
-        monthsOfData,
-        priorDays: days.slice(0, index),
-      })
-      rows.push({
-        taskId,
-        date,
-        features: computeFeatures(snapshot, vocabulary),
-        completionLabel: day.performed ? 1 : 0,
-        targetLabel: day.targetAchieved === null ? null : day.targetAchieved ? 1 : 0,
-        duration: day.performed && day.totalMinutes > 0 ? day.totalMinutes : null,
-        weight,
-      })
+        const snapshot = gatherFeatureSnapshot(db, {
+          userId,
+          taskId,
+          date,
+          today,
+          asOfEpoch,
+          nowMinutes: minute,
+          priorRate,
+          tagStats,
+          monthsOfData,
+          priorDays: days.slice(0, index),
+        })
+        rows.push({
+          taskId,
+          date,
+          predictionMinute: minute,
+          features: computeFeatures(snapshot, vocabulary),
+          completionLabel: day.performed ? 1 : 0,
+          targetLabel: day.targetAchieved === null ? null : day.targetAchieved ? 1 : 0,
+          duration: day.performed && day.totalMinutes > 0 ? day.totalMinutes : null,
+          weight,
+        })
+      }
     }
   }
 
@@ -230,6 +266,7 @@ export function buildTrainingSet(
     rows,
     featureNames: featureNamesFor(vocabulary),
     vocabulary,
+    predictionMinutes,
     taskIds,
     from,
     to,

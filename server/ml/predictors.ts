@@ -4,7 +4,7 @@ import { readRecurrenceConfig, repeatsOnDate, type Recurrence } from '../recurre
 import { averageGoodness, readinessFromCheckin } from './readiness'
 import { configForDate, endOfLocalDay, startOfLocalDay } from './task-config'
 import { dailyActivity } from './daily-activity'
-import { getPredictionSettings, offDayContext, type OffDayKind, type PredictionSettings } from './off-days'
+import { addDays, getPredictionSettings, offDayContext, type OffDayKind, type PredictionSettings } from './off-days'
 import {
   PRIOR_WEIGHT,
   activityStatistics,
@@ -594,9 +594,12 @@ export function buildPlan(
   }
 
   const taskIds = userTaskIds(db, userId)
-  const priorRate = userCompletionPrior(db, userId, taskIds, today)
-  const tagStats = groupStatistics(db, userId, taskIds, today, priorRate, 'tag')
-  const priorityStats = groupStatistics(db, userId, taskIds, today, priorRate, 'priority')
+  // Statistics visible to a prediction must stop before the day being
+  // predicted. `today` includes outcomes recorded today, which would leak.
+  const historyEnd = addDays(date, -1)
+  const priorRate = userCompletionPrior(db, userId, taskIds, historyEnd)
+  const tagStats = groupStatistics(db, userId, taskIds, historyEnd, priorRate, 'tag', { to: historyEnd })
+  const priorityStats = groupStatistics(db, userId, taskIds, historyEnd, priorRate, 'priority', { to: historyEnd })
 
   // Only open personal tasks scheduled on the requested day belong in that
   // day's Nudge. Repeating tasks match when their projection lands on the day,

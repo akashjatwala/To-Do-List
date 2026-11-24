@@ -8,6 +8,8 @@ import { recordTaskConfig } from './task-config'
 import { createSession } from './sessions'
 import { setDailyStatus } from './daily-activity'
 import { addDays } from './off-days'
+import { DEFAULT_PREDICTION_MINUTE } from './features'
+import { epochAtMinute } from './predictors'
 import { championFor, promoteCandidate, registerModel, type RegistryMetrics } from './registry'
 import {
   evaluateModelHealth,
@@ -43,6 +45,11 @@ import { runScenarioSuite } from './scenarios'
 
 const USER = 1
 const CONFIG_FROM = Date.parse('2025-01-01T00:00:00')
+
+/** The cutoff used by training and serving for a local date. */
+function preCutoff(date: string): number {
+  return epochAtMinute(date, DEFAULT_PREDICTION_MINUTE) - 1
+}
 
 function freshDb(): DatabaseSync {
   const db = new DatabaseSync(':memory:')
@@ -102,7 +109,7 @@ function insertTask(db: DatabaseSync, options: { text?: string; duration?: numbe
   return id
 }
 
-function addSession(db: DatabaseSync, taskId: string, date: string, minutes: number, startHour = 9): void {
+function addSession(db: DatabaseSync, taskId: string, date: string, minutes: number, startHour = 7): void {
   const [year, month, day] = date.split('-').map(Number)
   const startedAt = new Date(year, month - 1, day, startHour, 0, 0, 0).getTime()
   createSession(db, USER, {
@@ -112,7 +119,7 @@ function addSession(db: DatabaseSync, taskId: string, date: string, minutes: num
     endedAt: startedAt + minutes * 60_000,
     durationMinutes: minutes,
     note: null,
-  })
+  }, 'user', startedAt)
 }
 
 function reg(db: DatabaseSync, kind: 'completion' | 'target' | 'duration', version: string, metrics: RegistryMetrics) {
@@ -253,11 +260,33 @@ function seedBadHealth(db: DatabaseSync, task: string, version: string, days: nu
       modelVersion: version,
       modelProbability: 0.95,
       baselineProbability: 0.05,
-    })
+    }, preCutoff(today))
     labelHealthPredictions(db, USER, 'completion', today, task, 0)
   }
   return today
 }
+
+test('learning health: the first prediction for a day is frozen, even after labelling', () => {
+  const db = freshDb()
+  const task = insertTask(db)
+  const date = '2026-06-01'
+  const base = { kind: 'completion' as const, date, taskId: task, modelVersion: 'v1', baselineProbability: 0.5 }
+  const storedProbability = () => (db
+    .prepare(
+      `SELECT model_probability FROM ml_health_predictions
+       WHERE user_id = ? AND kind = 'completion' AND local_date = ? AND task_id = ?`,
+    )
+    .get(USER, date, task) as { model_probability: number }).model_probability
+
+  logHealthPrediction(db, USER, { ...base, modelProbability: 0.1 }, 1000)
+  logHealthPrediction(db, USER, { ...base, modelProbability: 0.9 }, 2000)
+  assert.equal(storedProbability(), 0.1)
+
+  labelHealthPredictions(db, USER, 'completion', date, task, 1)
+  logHealthPrediction(db, USER, { ...base, modelProbability: 0.99 }, 3000)
+  assert.equal(storedProbability(), 0.1)
+  db.close()
+})
 
 test('learning health: small noisy data does not trigger a fallback', () => {
   const db = freshDb()

@@ -337,10 +337,6 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
                   </button>
                 </form>
             </>
-
-            <p className="auth-footer mt-10 text-center text-[11px] leading-relaxed text-slate-400">
-              Your personal list is private. Team lists are shared with members only.
-            </p>
           </div>
         </div>
       </main>

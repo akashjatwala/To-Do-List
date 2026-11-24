@@ -4,7 +4,6 @@ A focused to-do list app for individuals and small teams, with a private learnin
 system that runs entirely on your own machine, uses no third-party services, and
 predicts what you are realistically likely to get done and suggests suitable times.
 
-Personal lists stay private; teams share tasks, subtasks, and comment threads.
 The learning system is a separate layer on top of the existing app: it records what
 you actually do, learns from it locally, and sends no personal data to third-party
 services.
@@ -43,7 +42,7 @@ services.
 - A daily check-in (nine optional questions) and an optional evening review
 - Activity logging: timed sessions and one-tap per-day statuses (completed / partial / skipped / postponed)
 - Per-activity statistics, a readiness/energy view, and similar-day context
-- Nudge shows each personal task's chance of finishing today
+- Nudge shows each personal task's chance you'll work on it today (any logged activity counts)
 - Off days (just off / sick / travelling / holiday / other), each with its own emoji, that reduce confidence rather than inventing data
 - The **Nudge** card shows only open personal tasks scheduled on the selected day, including repeating occurrences; team tasks and other days are excluded
 - Display-only **Worth a look** suggestions. The server still computes the proposed flow, workload warning and "better days" ideas, but they are no longer shown in the UI; none of them change a task's date
@@ -69,6 +68,17 @@ npm run dev
 ```
 
 Then open <http://localhost:5173>. The API runs on <http://localhost:3001>.
+
+### Try the ML pipeline with generated data
+
+```bash
+npm run seed:ml        # isolated DB + chronological holdout report
+npm run seed:ml:app    # separate demo account in the local app DB
+```
+
+The app demo signs in with `ml-demo@example.com` / `demo12345` and leaves other accounts
+untouched. The report measures synthetic history only; see
+[docs/ml.md](docs/ml.md#generating-local-test-data) for the exact rules and caveats.
 
 ### Production
 

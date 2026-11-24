@@ -68,7 +68,7 @@ test('task details keep the footer actions without the nudge section', () => {
   const html = renderToStaticMarkup(<TaskDetail {...props} />)
 
   assert.doesNotMatch(html, /Nudge/)
-  assert.doesNotMatch(html, /Chance of finishing today/)
+  assert.doesNotMatch(html, /Chance you'll work on it today/)
   assert.doesNotMatch(html, /71%/)
   assert.doesNotMatch(html, /Low confidence\. Sample value\./)
   assert.match(html, /Only you can see this task\./)
@@ -85,7 +85,7 @@ test('task details right column follows the reference card layout', () => {
   assert.match(html, /Details[\s\S]*>Duration</)
   assert.match(html, /Details[\s\S]*>Repeats</)
   assert.doesNotMatch(html, /Nudge/)
-  assert.doesNotMatch(html, /Chance of finishing today/)
+  assert.doesNotMatch(html, /Chance you'll work on it today/)
   assert.doesNotMatch(html, /Low confidence\. Sample value\./)
   assert.doesNotMatch(html, /Suggested time/)
   assert.doesNotMatch(html, /Last 7 days/)

@@ -1,5 +1,13 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { computeFeatures, gatherFeatureSnapshot, monthsBetween, DEFAULT_PREDICTION_MINUTE } from './features'
+import {
+  computeFeatures,
+  featureNamesFor,
+  gatherFeatureSnapshot,
+  monthsBetween,
+  predictionMinuteFor,
+  DEFAULT_PREDICTION_MINUTE,
+  type FeatureVocabulary,
+} from './features'
 import { loadChampionArtifact } from './registry'
 import { predictClassifier, predictDuration, type ClassifierArtifact, type DurationArtifact } from './training'
 import { epochAtMinute, predictTask, type PredictContext, type TaskPrediction, type PredictOptions } from './predictors'
@@ -9,11 +17,12 @@ import { isFallbackActive, logHealthPredictionSafe } from './health'
  * Serving the champion with a safe fallback.
  *
  * The served number is always produced the same way the training features were:
- * through the shared feature module, with the champion's own vocabulary, at the
- * fixed prediction time. If anything is wrong — no champion, an unreadable
- * payload, a feature-vector length mismatch, a non-finite or out-of-range score —
- * the code **falls back to the baseline predictor** and says why. The user is never
- * shown a broken number, and a champion is never trusted blindly.
+ * through the shared feature module, with the champion's own vocabulary, snapped
+ * to the most recent trained prediction time. If anything is wrong — no champion,
+ * an unreadable payload, a feature-name or prediction-time mismatch, a non-finite
+ * or out-of-range score — the code **falls back to the baseline predictor** and
+ * says why. The user is never shown a broken number, and a champion is never
+ * trusted blindly.
  *
  * A second reason to fall back is the live **model health** check
  * (`health.ts`). When a served model has been scoring worse than the baseline on
@@ -43,6 +52,28 @@ function validProbability(value: number): boolean {
 }
 
 /**
+ * A champion is only used when its recorded columns, in order, are exactly the
+ * columns the shared feature module would build today, and when it was trained
+ * for the prediction time being served. A length check alone cannot catch a
+ * reordered or renamed column. Older artifacts without a grid count as 08:00.
+ */
+function artifactMatches(
+  artifact: { featureNames: string[]; vocabulary: FeatureVocabulary; predictionMinutes?: number[] },
+  predictionMinute: number,
+): boolean {
+  if (!artifact.vocabulary || typeof artifact.vocabulary !== 'object') return false
+  if (!Array.isArray(artifact.featureNames)) return false
+  const expected = featureNamesFor(artifact.vocabulary)
+  if (expected.length !== artifact.featureNames.length) return false
+  if (expected.some((name, i) => name !== artifact.featureNames[i])) return false
+  const grid =
+    Array.isArray(artifact.predictionMinutes) && artifact.predictionMinutes.length > 0
+      ? artifact.predictionMinutes
+      : [DEFAULT_PREDICTION_MINUTE]
+  return grid.includes(predictionMinute)
+}
+
+/**
  * Serve one task: the champion when it is available, sane and healthy, otherwise
  * the baseline predictor. Returns null only when the baseline itself cannot predict
  * (missing task or an off day).
@@ -64,15 +95,17 @@ export function serveTask(
     return { prediction: baseline, usedModel: false, reason: 'No champion model is registered; the baseline predictor is served.' }
   }
 
+  // Never use a time that has not happened yet: snap to the most recent cutoff
+  // the model was trained at. Past dates have no time-of-day, so they use 08:00.
+  const predictionMinute = predictionMinuteFor(context.nowMinutes)
   try {
     const snapshot = gatherFeatureSnapshot(db, {
       userId,
       taskId,
       date: context.date,
       today: context.today,
-      // Fixed prediction time, matching training exactly (leak-free).
-      asOfEpoch: epochAtMinute(context.date, DEFAULT_PREDICTION_MINUTE) - 1,
-      nowMinutes: DEFAULT_PREDICTION_MINUTE,
+      asOfEpoch: epochAtMinute(context.date, predictionMinute) - 1,
+      nowMinutes: predictionMinute,
       priorRate: context.priorRate,
       tagStats: context.tagStats,
       monthsOfData: observedMonths(db, userId, context.today),
@@ -97,10 +130,10 @@ export function serveTask(
 
     if (completion && completion.artifact.kind === 'completion') {
       const artifact = completion.artifact as ClassifierArtifact
-      const features = computeFeatures(snapshot, artifact.vocabulary)
-      if (features.length !== artifact.featureNames.length) {
-        return { prediction: baseline, usedModel: false, reason: 'The champion feature vector did not match its recorded feature list; the baseline is served.' }
+      if (!artifactMatches(artifact, predictionMinute)) {
+        return { prediction: baseline, usedModel: false, reason: 'The champion did not match its recorded feature list or prediction time; the baseline is served.' }
       }
+      const features = computeFeatures(snapshot, artifact.vocabulary)
       const probability = predictClassifier(artifact, features)
       if (!validProbability(probability)) {
         return { prediction: baseline, usedModel: false, reason: 'The champion returned an invalid probability; the baseline is served.' }
@@ -118,8 +151,10 @@ export function serveTask(
 
     if (target && target.artifact.kind === 'target' && snapshot.targetMinutes !== null) {
       const artifact = target.artifact as ClassifierArtifact
-      const features = computeFeatures(snapshot, artifact.vocabulary)
-      if (features.length === artifact.featureNames.length) {
+      if (!artifactMatches(artifact, predictionMinute)) {
+        notes.push(`target from ${target.row.version} does not match its recorded feature list or prediction time; the baseline is used for it`)
+      } else {
+        const features = computeFeatures(snapshot, artifact.vocabulary)
         const probability = predictClassifier(artifact, features)
         if (validProbability(probability)) {
           modelTarget = probability
@@ -137,8 +172,10 @@ export function serveTask(
 
     if (duration && duration.artifact.kind === 'duration') {
       const artifact = duration.artifact as DurationArtifact
-      const features = computeFeatures(snapshot, artifact.vocabulary)
-      if (features.length === artifact.featureNames.length) {
+      if (!artifactMatches(artifact, predictionMinute)) {
+        notes.push(`duration from ${duration.row.version} does not match its recorded feature list or prediction time; the baseline is used for it`)
+      } else {
+        const features = computeFeatures(snapshot, artifact.vocabulary)
         const estimate = predictDuration(artifact, features)
         if (Number.isFinite(estimate.point) && estimate.point >= 0) {
           modelDuration = Math.round(estimate.point)

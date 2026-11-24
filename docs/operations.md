@@ -132,8 +132,10 @@ Training runs on your own recorded data, through the retrain gate:
 - On demand: `POST /api/ml/retrain` (rate-limited), or `POST /api/ml/retrain` with `{"force": true}` to bypass the rate limit.
 - The gate trains only when at least 20 new labelled observations have accumulated (configurable) or a model is stale (30 days), and never more than once every 6 hours.
 
-There is no command that fabricates rows to train on: with too little data each trainer
-returns the baseline and says so.
+The normal retrain path never fabricates rows: with too little data each trainer
+returns the baseline and says so. The separate `npm run seed:ml` command generates
+synthetic history only in an isolated backtest database or a clearly separate demo
+account for pipeline testing; see [ml.md](ml.md#generating-local-test-data).
 
 ## Model serving
 

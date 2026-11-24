@@ -14,8 +14,6 @@ interface AppHeaderProps {
   isCollab: boolean
   currentTeam: Team | undefined
   selectedDate: string
-  todayValue: string
-  isToday: boolean
   doneCount: number
   totalCount: number
   donePercent: number
@@ -45,8 +43,6 @@ export default function AppHeader({
   isCollab,
   currentTeam,
   selectedDate,
-  todayValue,
-  isToday,
   doneCount,
   totalCount,
   donePercent,
@@ -178,16 +174,6 @@ export default function AppHeader({
                     className="sr-only"
                   />
                 </label>
-
-                <button
-                  type="button"
-                  onClick={() => onSetSelectedDate(todayValue)}
-                  disabled={isToday}
-                  aria-label="Go to today"
-                  className="ml-1 rounded-full border border-[#E3E1DC] bg-white/70 px-2.5 py-0.5 text-[11px] font-semibold text-[#5C4B22] transition hover:bg-white focus-visible:ring-2 focus-visible:ring-[#4A2C8A]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white/70"
-                >
-                  Today
-                </button>
 
                 <button
                   type="button"

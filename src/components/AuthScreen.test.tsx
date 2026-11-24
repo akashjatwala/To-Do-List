@@ -24,7 +24,6 @@ test('the login page follows the reference layout and copy', () => {
   assert.match(html, /text-\[#D9480F\]/)
   assert.match(html, /Your day, sorted\./)
   assert.match(html, /Tasks, suggested times, and your teams in one calm place\./)
-  assert.match(html, /Your personal list is private\. Team lists are shared with members only\./)
 })
 
 test('the signup page follows the reference layout and copy', () => {
@@ -46,7 +45,6 @@ test('the signup page follows the reference layout and copy', () => {
   assert.match(html, /Repeat your password/)
   assert.match(html, /Create account/)
   assert.match(html, /Start with one task,/)
-  assert.match(html, /Your personal list is private\. Team lists are shared with members only\./)
 })
 
 test('the decorative notes keep the app rule that there is no Urgent priority', () => {

@@ -2,22 +2,25 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
-import { CHECKIN_ANSWER_KEYS, createCheckinSchema } from '../checkins-store'
+import { CHECKIN_ANSWER_KEYS, createCheckinSchema, saveCheckin, type CheckinAnswerKey } from '../checkins-store'
 import { createFoundationSchema, createMlSchema, createPredictionSchema } from './schema'
 import { recordTaskConfig } from './task-config'
 import { createSession } from './sessions'
-import { setDailyStatus } from './daily-activity'
+import { dailyActivity, setDailyStatus } from './daily-activity'
 import { addDays } from './off-days'
-import { buildTrainingSet } from './dataset'
+import { buildTrainingSet, type TrainingRow } from './dataset'
 import {
   EMPTY_VOCABULARY,
+  PREDICTION_MINUTES,
   computeFeatures,
   featureNamesFor,
   gatherFeatureSnapshot,
+  predictionMinuteFor,
   type FeatureSnapshot,
   type FeatureStats,
+  type FeatureVocabulary,
 } from './features'
-import { trainClassifier, trainDuration } from './training'
+import { MIN_ROWS_PER_FEATURE, chronologicalFolds, trainClassifier, trainDuration } from './training'
 import { fitCalibrator } from './calibration'
 import {
   championFor,
@@ -217,6 +220,123 @@ test('model features: a day is built only from strictly earlier days', () => {
   db.close()
 })
 
+// ---------------------------------------------------------------------------
+// P0 regressions: an answer or activity recorded later must not rewrite what a
+// prediction made earlier could have known.
+// ---------------------------------------------------------------------------
+
+const P0_DATE = '2026-03-10'
+const P0_CUTOFF = epochAtMinute(P0_DATE, 480) - 1
+
+function p0SnapshotOptions(taskId: string) {
+  return {
+    userId: USER,
+    taskId,
+    date: P0_DATE,
+    today: addDays(P0_DATE, 1),
+    asOfEpoch: P0_CUTOFF,
+    nowMinutes: 480,
+    priorRate: 0.5,
+    monthsOfData: 3,
+  }
+}
+
+function p0Answers(feeling: number): Record<CheckinAnswerKey, number | null> {
+  return Object.fromEntries(
+    CHECKIN_ANSWER_KEYS.map((key) => [key, key === 'feeling' ? feeling : null]),
+  ) as Record<CheckinAnswerKey, number | null>
+}
+
+test('P0 regression: a check-in saved after the cutoff is invisible to an earlier snapshot', () => {
+  const db = freshDb()
+  const task = insertTask(db)
+  saveCheckin(db, USER, { date: P0_DATE, answers: p0Answers(1), context: null }, P0_CUTOFF + 60_000)
+
+  const snapshot = gatherFeatureSnapshot(db, p0SnapshotOptions(task))
+  assert.equal(snapshot.answers, null)
+  assert.equal(snapshot.checkinState, 'not_asked')
+  db.close()
+})
+
+test('P0 regression: editing a check-in after the cutoff cannot change an earlier snapshot', () => {
+  const db = freshDb()
+  const task = insertTask(db)
+  saveCheckin(db, USER, { date: P0_DATE, answers: p0Answers(1), context: null }, P0_CUTOFF - 60_000)
+  const before = gatherFeatureSnapshot(db, p0SnapshotOptions(task))
+  assert.equal(before.answers?.feeling, 1)
+
+  saveCheckin(db, USER, { date: P0_DATE, answers: p0Answers(5), context: null }, P0_CUTOFF + 60_000)
+  const after = gatherFeatureSnapshot(db, p0SnapshotOptions(task))
+  assert.deepEqual(after, before)
+  assert.equal(after.answers?.feeling, 1)
+  db.close()
+})
+
+test('P0 regression: a session logged after the cutoff cannot change an earlier snapshot', () => {
+  const db = freshDb()
+  const task = insertTask(db, { duration: 60 })
+  const startedAt = epochAtMinute(P0_DATE, 7 * 60)
+  createSession(db, USER, {
+    taskId: task,
+    localDate: P0_DATE,
+    startedAt,
+    endedAt: startedAt + 30 * 60_000,
+    durationMinutes: 30,
+    note: null,
+  }, 'user', P0_CUTOFF - 1000)
+
+  const before = gatherFeatureSnapshot(db, p0SnapshotOptions(task))
+  assert.equal(before.progressMinutes, 30)
+
+  // A second session that started before the cutoff but was only logged after
+  // it was not knowable to the earlier prediction.
+  const laterStart = epochAtMinute(P0_DATE, 7 * 60 + 30)
+  createSession(db, USER, {
+    taskId: task,
+    localDate: P0_DATE,
+    startedAt: laterStart,
+    endedAt: laterStart + 20 * 60_000,
+    durationMinutes: 20,
+    note: null,
+  }, 'user', P0_CUTOFF + 1000)
+
+  const after = gatherFeatureSnapshot(db, p0SnapshotOptions(task))
+  assert.deepEqual(after, before)
+  assert.equal(after.progressMinutes, 30)
+  db.close()
+})
+
+test('P0 regression: a running session is clipped at the cutoff, not counted in full', () => {
+  const db = freshDb()
+  const task = insertTask(db, { duration: 60 })
+  const startedAt = epochAtMinute(P0_DATE, 7 * 60)
+  createSession(db, USER, {
+    taskId: task,
+    localDate: P0_DATE,
+    startedAt,
+    endedAt: epochAtMinute(P0_DATE, 12 * 60),
+    durationMinutes: 300,
+    note: null,
+  }, 'user', startedAt)
+
+  const day = dailyActivity(db, USER, task, P0_DATE, addDays(P0_DATE, 1), { asOf: P0_CUTOFF })
+  // The cutoff is one millisecond before 08:00, so 59 whole minutes have elapsed.
+  assert.equal(day.totalMinutes, 59)
+  db.close()
+})
+
+test('P0 regression: a same-day outcome cannot change an earlier snapshot', () => {
+  const db = freshDb()
+  const task = insertTask(db, { duration: 60 })
+  const before = gatherFeatureSnapshot(db, p0SnapshotOptions(task))
+
+  // Labelling the day after the prediction time must not touch its features.
+  setStatus(db, task, P0_DATE, 'completed')
+  const after = gatherFeatureSnapshot(db, p0SnapshotOptions(task))
+  assert.deepEqual(after, before)
+  db.close()
+})
+
 test('model features: a missing check-in is explicit and neutral, never a normal answer', () => {
   const names = featureNamesFor(EMPTY_VOCABULARY)
   const missing = computeFeatures(snapshot(), EMPTY_VOCABULARY)
@@ -267,6 +387,104 @@ test('model features: seasonal columns appear only with at least a year of data'
   assert.equal(computeFeatures(snapshot(), EMPTY_VOCABULARY).length, plain.length)
 })
 
+test('model features: serving snaps to the most recent trained prediction time', () => {
+  assert.deepEqual([...PREDICTION_MINUTES], [480, 720, 960, 1200])
+  assert.equal(predictionMinuteFor(480), 480)
+  assert.equal(predictionMinuteFor(540), 480)
+  assert.equal(predictionMinuteFor(720), 720)
+  assert.equal(predictionMinuteFor(900), 720)
+  assert.equal(predictionMinuteFor(960), 960)
+  assert.equal(predictionMinuteFor(1100), 960)
+  assert.equal(predictionMinuteFor(1200), 1200)
+  assert.equal(predictionMinuteFor(1439), 1200)
+})
+
+test('model features: a labelled day trains at every cutoff with time-correct progress', () => {
+  const db = freshDb()
+  const task = insertTask(db, { text: 'Read', duration: 60 })
+  const date = '2026-02-10'
+  setStatus(db, task, date, 'completed')
+  // Recorded just before noon: invisible at 08:00, known from 12:00 onward.
+  const startedAt = epochAtMinute(date, 9 * 60)
+  createSession(
+    db,
+    USER,
+    {
+      taskId: task,
+      localDate: date,
+      startedAt,
+      endedAt: startedAt + 30 * 60_000,
+      durationMinutes: 30,
+      note: null,
+    },
+    'user',
+    epochAtMinute(date, 12 * 60) - 60_000,
+  )
+
+  const from = addDays(date, -1)
+  const to = date
+  const today = addDays(date, 1)
+  const set = buildTrainingSet(db, USER, [task], from, to, today)
+  const rows = set.rows.filter((row) => row.date === date).sort((a, b) => a.predictionMinute - b.predictionMinute)
+  assert.deepEqual(rows.map((row) => row.predictionMinute), [...PREDICTION_MINUTES])
+
+  const progress = featureIndex(set.featureNames, 'today_progress')
+  const left = featureIndex(set.featureNames, 'minutes_left_in_day')
+  // The 09:00 session is invisible at 08:00 and fully counted from 12:00 on.
+  assert.equal(rows[0].features[progress], 0)
+  assert.equal(rows[1].features[progress], 0.5)
+  assert.equal(rows[2].features[progress], 0.5)
+  assert.equal(rows[3].features[progress], 0.5)
+  assert.ok(rows[0].features[left] > rows[3].features[left])
+  db.close()
+})
+
+test('model features: the compact set is used until there are rows for the wide set', () => {
+  const db = freshDb()
+  const task = insertTask(db, { text: 'Read', duration: 60 })
+  const from = '2026-01-01'
+  const dates = Array.from({ length: 5 }, (_, i) => addDays(from, i))
+  dates.forEach((date) => setStatus(db, task, date, 'completed'))
+  const small = buildTrainingSet(db, USER, [task], from, dates[4], addDays(dates[4], 1))
+  assert.equal(small.vocabulary.compact, true)
+  assert.equal(small.featureNames.length, 18)
+  assert.ok(!small.featureNames.some((name) => name.startsWith('tag_')))
+  assert.ok(!small.featureNames.includes('season_sin'))
+  assert.equal(computeFeatures(snapshot(), small.vocabulary).length, small.featureNames.length)
+
+  const longFrom = '2025-01-01'
+  const longDates = Array.from({ length: 75 }, (_, i) => addDays(longFrom, i))
+  longDates.forEach((date, i) => setStatus(db, task, date, i % 2 === 0 ? 'completed' : 'skipped'))
+  const large = buildTrainingSet(db, USER, [task], longFrom, longDates[74], addDays(longDates[74], 1))
+  assert.equal(large.vocabulary.compact, false)
+  assert.ok(large.rows.length >= 300)
+  assert.ok(large.featureNames.length > small.featureNames.length)
+  db.close()
+})
+
+test('model features: an explicit vocabulary keeps holdout columns identical to training', () => {
+  const db = freshDb()
+  const task = insertTask(db, { text: 'Read', duration: 60 })
+  const from = '2026-01-01'
+  const dates = Array.from({ length: 13 }, (_, i) => addDays(from, i))
+  dates.forEach((date, i) => setStatus(db, task, date, i % 3 === 0 ? 'skipped' : 'completed'))
+
+  // A champion's recorded vocabulary is authoritative even if this short holdout
+  // window would otherwise choose a different (or seasonal-free) feature set.
+  const recorded: FeatureVocabulary = { tags: ['1'], seasonal: true, compact: false }
+  const expected = featureNamesFor(recorded)
+  const holdout = buildTrainingSet(db, USER, [task], dates[10], dates[12], addDays(dates[12], 1), {
+    vocabulary: recorded,
+  })
+
+  assert.deepEqual(holdout.featureNames, expected)
+  assert.ok(expected.includes('season_sin'))
+  assert.ok(expected.some((name) => name === 'tag_1'))
+  assert.ok(holdout.rows.length > 0)
+  assert.ok(holdout.rows.every((row) => row.features.length === expected.length))
+  db.close()
+})
+
 test('model features: training and serving build the identical vector through one module', () => {
   const db = freshDb()
   const task = insertTask(db, { text: 'Read', duration: 60 })
@@ -280,7 +498,8 @@ test('model features: training and serving build the identical vector through on
   const today = addDays(to, 1)
   const set = buildTrainingSet(db, USER, [task], from, to, today)
   const row = set.rows[set.rows.length - 1]
-  const priorRate = userCompletionPrior(db, USER, [task], addDays(from, -1))
+  // The training prior is recomputed for every date from days strictly before it.
+  const priorRate = userCompletionPrior(db, USER, [task], addDays(row.date, -1))
   const allDays = gatherTaskDays(db, USER, task, addDays(from, -365), to, today)
   const index = allDays.findIndex((day) => day.date === row.date)
   const snap = gatherFeatureSnapshot(db, {
@@ -288,8 +507,8 @@ test('model features: training and serving build the identical vector through on
     taskId: task,
     date: row.date,
     today,
-    asOfEpoch: epochAtMinute(row.date, 480) - 1,
-    nowMinutes: 480,
+    asOfEpoch: epochAtMinute(row.date, row.predictionMinute) - 1,
+    nowMinutes: row.predictionMinute,
     priorRate,
     tagStats: new Map(),
     monthsOfData: set.monthsOfData,
@@ -315,13 +534,43 @@ test('model training: below the minimum rows the trainers return a baseline and 
   const completion = trainClassifier(set, 'completion')
   assert.equal(completion.type, 'baseline')
   assert.equal(completion.smallData, true)
-  assert.match(completion.reason, /40/)
+  const needed = Math.max(40, set.featureNames.length * MIN_ROWS_PER_FEATURE)
+  assert.match(completion.reason, new RegExp(`at least ${needed}`))
 
   const duration = trainDuration(set)
   assert.equal(duration.type, 'median')
   assert.equal(duration.smallData, true)
-  assert.match(duration.reason, /20/)
+  const durationNeeded = Math.max(20, set.featureNames.length * MIN_ROWS_PER_FEATURE)
+  assert.match(duration.reason, new RegExp(`at least ${durationNeeded}`))
   db.close()
+})
+
+test('model training: a date is never split between train and validation', () => {
+  const rows: TrainingRow[] = []
+  for (let day = 0; day < 8; day += 1) {
+    const date = addDays('2026-01-01', day)
+    for (let task = 0; task < 5; task += 1) {
+      rows.push({
+        taskId: `t${task}`,
+        date,
+        predictionMinute: 480 + task * 60,
+        features: [day, task],
+        completionLabel: task % 2,
+        targetLabel: null,
+        duration: null,
+        weight: 1,
+      })
+    }
+  }
+
+  const folds = chronologicalFolds(rows, 2, 0.4)
+  assert.equal(folds.length, 2)
+  for (const fold of folds) {
+    const trainDates = new Set(fold.train.map((i) => rows[i].date))
+    for (const i of fold.valid) {
+      assert.equal(trainDates.has(rows[i].date), false, `${rows[i].date} must not be on both sides of a fold`)
+    }
+  }
 })
 
 test('model calibration: skipped below the data threshold, never fabricated', () => {
@@ -533,5 +782,65 @@ test('model serving: the champion is served, and the baseline is used when it is
   assert.ok(fallback)
   assert.equal(fallback.usedModel, false)
   assert.match(fallback.reason, /feature|baseline/i)
+  db.close()
+})
+
+test('model serving: a champion is used only at its trained grid with its exact feature list', () => {
+  const db = freshDb()
+  const task = insertTask(db, { text: 'Read', duration: 60 })
+  const from = '2026-04-01'
+  const dates = Array.from({ length: 12 }, (_, i) => addDays(from, i))
+  dates.forEach((date, i) => setStatus(db, task, date, i % 3 === 0 ? 'skipped' : 'completed'))
+  const to = dates[11]
+  const today = addDays(to, 1)
+  const set = buildTrainingSet(db, USER, [task], from, to, today, { predictionMinutes: [480, 720] })
+  const artifact = trainClassifier(set, 'completion')
+
+  const register = (version: string, payload: unknown, featureNames: string[], brier: number) =>
+    registerModel(db, USER, {
+      kind: 'completion',
+      version,
+      trainFrom: from,
+      trainTo: to,
+      dataCount: set.rows.length,
+      labelledCount: set.labelledCount,
+      featureNames,
+      metrics: { type: 'logistic', brier, ece: 0.05, baselineBrier: 0.2 },
+      payload,
+    })
+  const contextAt = (nowMinutes: number): PredictContext => ({
+    date: today,
+    today,
+    nowMinutes,
+    checkinState: 'not_asked',
+    answers: null,
+    settings: { reducedConfidenceDays: 3, explorationShare: 0, stage2MinDays: 3 },
+    priorRate: userCompletionPrior(db, USER, [task], today),
+  })
+
+  const grid = register('grid', artifact, set.featureNames, 0.15)
+  assert.equal(promoteCandidate(db, USER, grid.id).ok, true)
+  // 09:00 is not a trained time; it must snap back to the 08:00 row.
+  const morning = serveTask(db, USER, task, contextAt(540))
+  assert.ok(morning)
+  assert.equal(morning.usedModel, true)
+  const noon = serveTask(db, USER, task, contextAt(780))
+  assert.ok(noon)
+  assert.equal(noon.usedModel, true)
+
+  const morningOnly = register('morning-only', { ...artifact, predictionMinutes: [480] }, set.featureNames, 0.14)
+  assert.equal(promoteCandidate(db, USER, morningOnly.id).ok, true)
+  const offGrid = serveTask(db, USER, task, contextAt(780))
+  assert.ok(offGrid)
+  assert.equal(offGrid.usedModel, false)
+  assert.match(offGrid.reason, /prediction time|feature list|baseline/i)
+
+  const reorderedNames = [...set.featureNames].reverse()
+  const reordered = register('reordered', { ...artifact, featureNames: reorderedNames }, reorderedNames, 0.13)
+  assert.equal(promoteCandidate(db, USER, reordered.id).ok, true)
+  const mismatched = serveTask(db, USER, task, contextAt(720))
+  assert.ok(mismatched)
+  assert.equal(mismatched.usedModel, false)
+  assert.match(mismatched.reason, /feature list|baseline/i)
   db.close()
 })

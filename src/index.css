@@ -459,10 +459,6 @@
   .auth-form {
     margin-top: 1rem;
   }
-
-  .auth-footer {
-    margin-top: 1rem;
-  }
 }
 
 @media (max-height: 620px) {
@@ -498,10 +494,6 @@
 
   .auth-content {
     padding-bottom: 0.25rem;
-  }
-
-  .auth-footer {
-    margin-top: 0;
   }
 
   .auth-notes-canvas {

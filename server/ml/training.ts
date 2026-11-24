@@ -15,8 +15,10 @@ import {
   rocAuc,
   type Labelled,
 } from './metrics'
-import type { FeatureVocabulary } from './features'
+import { MIN_ROWS_PER_FEATURE, type FeatureVocabulary } from './features'
 import type { TrainingRow, TrainingSet } from './dataset'
+
+export { MIN_ROWS_PER_FEATURE }
 
 /**
  * Candidate training, chronological validation and calibration.
@@ -79,6 +81,8 @@ export interface ClassifierArtifact {
   type: ClassifierType
   featureNames: string[]
   vocabulary: FeatureVocabulary
+  /** Local minutes-of-day the model was trained at; serving must snap to these. */
+  predictionMinutes: number[]
   logistic: LogisticModel | null
   gbm: GbmModel | null
   calibrator: Calibrator
@@ -98,6 +102,8 @@ export interface DurationArtifact {
   type: DurationType
   featureNames: string[]
   vocabulary: FeatureVocabulary
+  /** Local minutes-of-day the model was trained at; serving must snap to these. */
+  predictionMinutes: number[]
   median: number
   q10: LinearQuantileModel | null
   q50: LinearQuantileModel | null
@@ -126,17 +132,30 @@ function range(start: number, end: number): number[] {
   return out
 }
 
-/** Expanding-window folds over chronological rows. The last fold ends at `n`. */
+/**
+ * Expanding-window folds over chronological rows. Boundaries are snapped to
+ * date edges: every (task, prediction-time) row for a given date lands in the
+ * same fold, so a shared day cannot leak between training and validation. The
+ * last fold ends at `n`.
+ */
 export function chronologicalFolds(rows: TrainingRow[], folds: number, validFraction: number): Fold[] {
   const n = rows.length
   if (n < 10) return []
   const validTotal = Math.min(n - 1, Math.max(folds * 5, Math.ceil(n * validFraction)))
   const start = n - validTotal
   const foldSize = Math.max(1, Math.floor(validTotal / folds))
+  const dateStarts: number[] = []
+  for (let i = 0; i < n; i += 1) {
+    if (i === 0 || rows[i].date !== rows[i - 1].date) dateStarts.push(i)
+  }
+  const alignToDate = (index: number): number => {
+    for (const dateStart of dateStarts) if (dateStart >= index) return dateStart
+    return n
+  }
   const out: Fold[] = []
   for (let k = 0; k < folds; k += 1) {
-    const validStart = start + k * foldSize
-    const validEnd = k === folds - 1 ? n : Math.min(n, start + (k + 1) * foldSize)
+    const validStart = alignToDate(start + k * foldSize)
+    const validEnd = k === folds - 1 ? n : alignToDate(start + (k + 1) * foldSize)
     if (validEnd - validStart < 1) continue
     const train = range(0, validStart)
     if (train.length < 5) continue
@@ -199,10 +218,10 @@ function rawClassifierPredict(type: ClassifierType, logistic: LogisticModel | nu
  * not enough data.
  */
 export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target', options: TrainOptions = {}): ClassifierArtifact {
-  const minRows = kind === 'completion' ? MIN_COMPLETION_ROWS : MIN_TARGET_ROWS
+  const nFeatures = set.featureNames.length
+  const minRows = Math.max(kind === 'completion' ? MIN_COMPLETION_ROWS : MIN_TARGET_ROWS, nFeatures * MIN_ROWS_PER_FEATURE)
   const label = kind === 'completion' ? (row: TrainingRow) => row.completionLabel : (row: TrainingRow) => row.targetLabel
   const rows = set.rows.filter((row) => label(row) !== null)
-  const nFeatures = set.featureNames.length
   const folds = options.folds ?? DEFAULT_FOLDS
   const validFraction = options.validFraction ?? DEFAULT_VALID_FRACTION
 
@@ -211,6 +230,7 @@ export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target',
     type: 'baseline',
     featureNames: set.featureNames,
     vocabulary: set.vocabulary,
+    predictionMinutes: set.predictionMinutes,
     logistic: null,
     gbm: null,
     calibrator: { kind: 'none', a: 1, b: 0, thresholds: [], values: [], samples: 0, reason: 'No model trained.' },
@@ -252,7 +272,26 @@ export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target',
     }
   }
 
-  const brierOf = (candidate: ClassifierType): number => brier(oof[candidate]) ?? Number.POSITIVE_INFINITY
+  // Chronological calibration. For every fold, fit a calibrator only on out-of-
+  // fold rows from *earlier* folds, then apply it to this fold. A calibration
+  // curve is therefore never scored on the rows that were used to fit it, and
+  // the final fold is a genuine untouched window for calibration.
+  const calibratedOof: Record<ClassifierType, Labelled[]> = { baseline: [], logistic: [], gbm: [] }
+  const candidateTypes: ClassifierType[] = ['baseline', 'logistic', 'gbm']
+  for (const type of candidateTypes) {
+    let offset = 0
+    const earlier: Labelled[] = []
+    for (const fold of foldList) {
+      const calibrator = fitCalibrator(earlier)
+      const current = oof[type].slice(offset, offset + fold.valid.length)
+      for (const row of current) calibratedOof[type].push({ ...row, p: applyCalibrator(calibrator, row.p) })
+      earlier.push(...current)
+      offset += current.length
+    }
+  }
+
+  // Choose on the calibrated scores users would actually see, not on raw ones.
+  const brierOf = (candidate: ClassifierType): number => brier(calibratedOof[candidate]) ?? Number.POSITIVE_INFINITY
   const baselineBrier = brierOf('baseline')
   const logisticBrier = brierOf('logistic')
   const gbmBrier = brierOf('gbm')
@@ -268,7 +307,9 @@ export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target',
     reason = `Gradient boosting beat both the baseline and logistic regression on chronological validation (Brier ${gbmBrier.toFixed(3)} vs logistic ${logisticBrier.toFixed(3)}, baseline ${baselineBrier.toFixed(3)}).`
   }
 
-  // Fit the calibrator on the chosen model's out-of-fold predictions.
+  // The served calibrator is fitted only after the model type is fixed. It uses
+  // all out-of-fold scores, which are honest model outputs, but validation
+  // metrics above never reuse those fit rows.
   const calibrator = fitCalibrator(oof[chosen])
 
   // Final model, trained on every row.
@@ -277,9 +318,9 @@ export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target',
   const gbmFinal = chosen === 'gbm' ? trainGbm(allExamples, nFeatures, {}) : null
   const baselineRate = weightedBaseRate(rows, label)
 
-  // Validation metrics on calibrated out-of-fold predictions.
-  const validationLabelled: Labelled[] = oof[chosen].map((row) => ({ ...row, p: applyCalibrator(calibrator, row.p) }))
-  const baselineLabelled: Labelled[] = oof.baseline
+  // Validation metrics use the chronologically calibrated out-of-fold scores.
+  const validationLabelled: Labelled[] = calibratedOof[chosen]
+  const baselineLabelled: Labelled[] = calibratedOof.baseline
 
   // Per-task metrics from the pooled out-of-fold rows, tracked alongside. The
   // out-of-fold predictions were pushed fold by fold, so a cursor over the same
@@ -291,9 +332,8 @@ export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target',
     for (const fold of foldList) {
       for (const i of fold.valid) {
         const row = rows[i]
-        const source = oof[chosen][cursor]
-        const calibrated = applyCalibrator(calibrator, source.p)
-        ;(taskByFold[row.taskId] ??= []).push({ p: calibrated, y: source.y, w: source.w })
+        const source = calibratedOof[chosen][cursor]
+        ;(taskByFold[row.taskId] ??= []).push({ p: source.p, y: source.y, w: source.w })
         cursor += 1
       }
     }
@@ -307,6 +347,7 @@ export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target',
     type: chosen,
     featureNames: set.featureNames,
     vocabulary: set.vocabulary,
+    predictionMinutes: set.predictionMinutes,
     logistic: logisticFinal,
     gbm: gbmFinal,
     calibrator,
@@ -349,6 +390,7 @@ export function weightedMedian(points: Array<{ value: number; weight: number }>)
 export function trainDuration(set: TrainingSet, options: TrainOptions = {}): DurationArtifact {
   const rows = set.rows.filter((row) => row.duration !== null)
   const nFeatures = set.featureNames.length
+  const minRows = Math.max(MIN_DURATION_ROWS, nFeatures * MIN_ROWS_PER_FEATURE)
   const folds = options.folds ?? DEFAULT_FOLDS
   const validFraction = options.validFraction ?? DEFAULT_VALID_FRACTION
 
@@ -357,6 +399,7 @@ export function trainDuration(set: TrainingSet, options: TrainOptions = {}): Dur
     type: 'median',
     featureNames: set.featureNames,
     vocabulary: set.vocabulary,
+    predictionMinutes: set.predictionMinutes,
     median: weightedMedian(rows.map((row) => ({ value: row.duration!, weight: row.weight }))),
     q10: null,
     q50: null,
@@ -366,9 +409,9 @@ export function trainDuration(set: TrainingSet, options: TrainOptions = {}): Dur
     reason,
   })
 
-  if (rows.length < MIN_DURATION_ROWS) {
+  if (rows.length < minRows) {
     return baseArtifact(
-      `Only ${rows.length} completed-day duration(s); at least ${MIN_DURATION_ROWS} are needed. The median baseline is used and no interval is claimed.`,
+      `Only ${rows.length} completed-day duration(s); at least ${minRows} are needed. The median baseline is used and no interval is claimed.`,
     )
   }
   const foldList = chronologicalFolds(rows, folds, validFraction)
@@ -421,6 +464,7 @@ export function trainDuration(set: TrainingSet, options: TrainOptions = {}): Dur
     type: useQuantile ? 'quantile' : 'median',
     featureNames: set.featureNames,
     vocabulary: set.vocabulary,
+    predictionMinutes: set.predictionMinutes,
     median,
     q10,
     q50,

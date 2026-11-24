@@ -20,7 +20,7 @@
 
 | Number | Shown as | Meaning | Absent when |
 | --- | --- | --- | --- |
-| Completion probability | Nudge: "Chance of finishing today" subtitle, then task name + percentage with a bar below | How likely you are to finish the task that day | Never (always a number) |
+| Completion probability | Nudge: "Chance you'll work on it today" subtitle, then task name + percentage with a bar below | How likely you are to do some work on the task that day; any logged activity counts, even a short session | Never (always a number) |
 | Target probability | Not shown in the current UI | How likely you are to reach the task's full time target | The task has no target duration |
 | Expected duration | Not shown in the current UI | Roughly how long it usually takes | Not enough duration history |
 | Confidence | Not shown in the current UI | How much personal history backs the number | Never |
@@ -32,7 +32,7 @@ display them.
 
 ## What Nudge displays
 
-The card is headed **Nudge** with the subtitle **Chance of finishing today** underneath and a
+The card is headed **Nudge** with the subtitle **Chance you'll work on it today** underneath and a
 sparkle button that opens a hover/focus tooltip explaining the estimate. For each open personal
 task scheduled on the selected date — due that day or a repeating occurrence projected onto it —
 it shows the task name, the completion probability as a percentage beside it, and a bar underneath.

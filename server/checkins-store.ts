@@ -111,6 +111,7 @@ export function createCheckinSchema(db: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS idx_checkins_user_date ON checkins(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_checkin_history_user ON checkin_history(user_id, recorded_at);
+    CREATE INDEX IF NOT EXISTS idx_checkin_history_user_date_asof ON checkin_history(user_id, date, recorded_at);
   `)
 }
 
@@ -177,6 +178,50 @@ export function getCheckin(
     .get(userId, date) as unknown as CheckinRow | undefined
 }
 
+/**
+ * The check-in state as it was known at `asOfEpoch`, reconstructed from the
+ * append-only history. A later edit must not change an earlier prediction.
+ * Falls back to the current row only when it was created before the cutoff and
+ * has no history (older databases and direct inserts).
+ */
+export function getCheckinAsOf(
+  db: DatabaseSync,
+  userId: number,
+  date: string,
+  asOfEpoch: number,
+): CheckinRow | undefined {
+  const history = db
+    .prepare(
+      `SELECT * FROM checkin_history
+       WHERE user_id = ? AND date = ? AND recorded_at <= ?
+       ORDER BY recorded_at DESC, id DESC LIMIT 1`,
+    )
+    .get(userId, date, asOfEpoch) as unknown as CheckinHistoryRow | undefined
+  if (history) {
+    return {
+      id: history.checkin_id,
+      user_id: history.user_id,
+      date: history.date,
+      feeling: history.feeling,
+      energy: history.energy,
+      motivation: history.motivation,
+      sleep: history.sleep,
+      stress: history.stress,
+      free_time: history.free_time,
+      focus: history.focus,
+      body: history.body,
+      workload: history.workload,
+      skipped: history.skipped,
+      context: history.context,
+      source: history.source,
+      created_at: history.recorded_at,
+      updated_at: history.recorded_at,
+    }
+  }
+  const current = getCheckin(db, userId, date)
+  return current && current.created_at <= asOfEpoch ? current : undefined
+}
+
 /** Most recent days first, for the "view your history" screen. */
 export function listCheckins(db: DatabaseSync, userId: number, limit = 30): CheckinRow[] {
   return db
@@ -227,8 +272,7 @@ function recordHistory(db: DatabaseSync, row: CheckinRow, recordedAt: number): v
  * it afterwards. `created_at` is preserved on updates; each write appends a
  * snapshot to the history table.
  */
-export function saveCheckin(db: DatabaseSync, userId: number, input: CheckinInput): CheckinRow {
-  const now = Date.now()
+export function saveCheckin(db: DatabaseSync, userId: number, input: CheckinInput, now = Date.now()): CheckinRow {
   db.exec('BEGIN')
   try {
     db.prepare(
@@ -281,8 +325,7 @@ export function saveCheckin(db: DatabaseSync, userId: number, input: CheckinInpu
  * Skip the whole check-in for a day. Recorded as skipped with no answers —
  * never as neutral values.
  */
-export function skipCheckin(db: DatabaseSync, userId: number, date: string): CheckinRow {
-  const now = Date.now()
+export function skipCheckin(db: DatabaseSync, userId: number, date: string, now = Date.now()): CheckinRow {
   db.exec('BEGIN')
   try {
     db.prepare(

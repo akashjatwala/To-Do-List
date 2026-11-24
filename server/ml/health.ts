@@ -84,9 +84,10 @@ export interface HealthPredictionInput {
 }
 
 /**
- * Store one served model output beside the baseline's for the same day. Upserts
- * on (user, kind, day, task), so re-running a prediction the same day updates
- * the row. The label is never touched here.
+ * Store one served model output beside the baseline's for the same day. The
+ * **first** prediction for a (user, kind, day, task) is frozen: a later
+ * recomputation cannot replace the score that was actually served before the
+ * outcome was known. The label is never touched here.
  */
 export function logHealthPrediction(
   db: DatabaseSync,
@@ -101,13 +102,7 @@ export function logHealthPrediction(
         baseline_probability, model_duration, baseline_duration, label, label_duration,
         created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
-     ON CONFLICT(user_id, kind, local_date, task_id) DO UPDATE SET
-       model_version = excluded.model_version,
-       model_probability = excluded.model_probability,
-       baseline_probability = excluded.baseline_probability,
-       model_duration = excluded.model_duration,
-       baseline_duration = excluded.baseline_duration,
-       updated_at = excluded.updated_at`,
+     ON CONFLICT(user_id, kind, local_date, task_id) DO NOTHING`,
   ).run(
     userId,
     input.kind,
@@ -330,8 +325,8 @@ export function evaluateModelHealth(
   const windowStart = addDays(today, -(windowDays - 1))
   const rows = db
     .prepare(
-      `SELECT model_version, model_probability, baseline_probability, model_duration,
-              baseline_duration, label, label_duration
+      `SELECT model_version, model_probability, baseline_probability,
+              model_duration, baseline_duration, label, label_duration
        FROM ml_health_predictions
        WHERE user_id = ? AND kind = ? AND model_version = ? AND local_date >= ? AND local_date <= ?`,
     )

@@ -18,6 +18,7 @@
 - `server/ml/learning.ts` — the retrain gate, rate limit and scheduler
 - `server/ml/health.ts` — live model health and automatic fallback
 - `server/ml/drift.ts` — recent-vs-long-term drift and dated config changes
+- `server/ml/demo-data.ts` — repeatable synthetic history and a chronological backtest
 
 > **Schema note (2026-11-18).** The cleanup that removed unused planning/target/weekly scaffold
 > tables did not touch any ML table or model module. `ml_models`, `ml_shadow`,
@@ -76,22 +77,58 @@ chronological validation (and gradient boosting must beat logistic by a margin t
 ## Training
 
 - **Chronological only.** Rows are built day by day; a day's features use only earlier days. There is no shuffling and no random split.
+- **One as-of rule for training and serving.** History stops the day before the date being predicted; the prior and tag/priority statistics use that same end date. Today's progress counts only what was already recorded at the prediction time: check-ins are reconstructed from their append-only history, and a session logged later is invisible (or clipped to the minutes that had elapsed). An edit made after a prediction cannot rewrite it.
+- **A trained time grid.** Every labelled (task, day) produces rows at 08:00, 12:00, 16:00 and 20:00. Serving snaps the current local time to the most recent of those cutoffs, so a 09:00 view uses the 08:00 row and a 13:00 view uses the 12:00 row. A past date always uses 08:00.
 - **Weighted toward recent days** with a half-life, so last month counts more than last spring.
-- **Minimum rows** before a model is trained at all: completion 40, target 40, duration 20. Below that the baseline is served and labelled as a starting estimate.
-- **Validation** uses chronological folds; the baseline and the current champion are scored on the same held-out days.
+- **Minimum rows** before a model is trained at all: completion 40, target 40, duration 20, and at least 5 rows per feature. Early models use an 18-column compact set; the full vector is only used once there is enough evidence for every column. The chosen set and the time grid are stored in the artifact.
+- **Validation** uses chronological folds whose boundaries fall on date edges, so all prediction-time rows for one day stay on the same side. The baseline and the current champion are scored on the same held-out days.
+- **Calibration is scored honestly.** For each fold the calibrator is fitted only on out-of-fold rows from *earlier* folds, so reported Brier/ECE never reuse rows that fitted the curve. The last fold stays a genuine untouched window. Brier and ECE use the same sample weights.
+
+## Generating local test data
+
+`server/ml/demo-data.ts` can fill an isolated database or a separate demo account with
+**synthetic but realistically mixed** history: six personal tasks, versioned config
+changes, daily check-ins with later edits, timed sessions (including late logs), explicit
+skipped/postponed days and off periods. Everything is written through the real app stores,
+so the same dataset, feature and training paths are exercised.
+
+```bash
+# Recreate server/data/ml-backtest.db, run a holdout backtest, then train demo champions.
+npm run seed:ml
+
+# Same generator against the running app's local DB, creating only the demo account.
+npm run seed:ml:app
+```
+
+Both commands accept `--days`, `--holdout`, `--seed` and `--db` when called directly, e.g.
+`node --import tsx server/ml/demo-data.ts --target isolated --days 120 --holdout 30`.
+
+The backtest trains **only** on days before a final untouched holdout window. Holdout rows
+use the exact feature vocabulary and prediction grid recorded by the trained artifact, and
+the baseline probabilities are built as of the same cutoff, so later edits and late-logged
+sessions cannot leak into an earlier score. The report prints Brier, ECE, AUC and threshold
+accuracy for the classifiers, and MAE for duration, beside the baseline.
+
+The isolated target recreates `server/data/ml-backtest.db` on every run. The app target
+recreates only `ml-demo@example.com` (password `demo12345`); other accounts are untouched.
+Sign in as that user to see a Nudge backed by real registered champions.
+
+These numbers describe the generator's synthetic habits. They prove the pipeline can learn
+a signal when one exists; they are **not** an accuracy figure for your own recorded days.
 
 ## Calibration gate
 
 A classifier may show a calibration error (ECE) no larger than **0.12** and still be trusted.
 The calibrator is fitted only when there is enough data (60 rows for Platt, 200 for isotonic).
-Calibration is **reported, never gated** in evaluation — it is used to decide whether a
-calibrated model is served.
+Calibration is always reported in evaluation output; the promotion gate also uses the honest
+ECE above to decide whether a calibrated model is trusted.
 
 ## Registry: versions, promotion, rollback
 
 - A trained model is stored as an **append-only** row with its full metadata (date range, counts, feature names, hyperparameters, seed, metrics, git commit) and its serialised payload. Older versions are never overwritten.
 - Only one **champion** per (user, kind) is ever served. Promoting a candidate retires the old champion; it does not delete it.
 - A candidate is promoted only when it beats **both** the baseline and the current champion on chronological validation **and** passes the reliability (calibration) gate. Otherwise it is kept, or rejected, with the reason recorded.
+- A champion is served only when its recorded feature names, in order, are exactly the columns the shared feature module builds today, and when its trained grid contains the snapped serving time. A reordered or renamed column cannot slip through a length check.
 - `rollbackChampion` restores the previous version and keeps the newer one as `retired`.
 
 ## Shadow mode
@@ -117,7 +154,9 @@ the link between all the training above and the numbers in the app: the champion
 for completion, target and duration when present and healthy, otherwise the baseline is
 served. The current Nudge card displays the completion probability (percentage beside
 the task, with a bar below); recommended time, target and duration remain computed and logged
-but are not shown there.
+but are not shown there. The completion number means **"chance you'll work on it today"**:
+any logged activity counts, even a short session. It is not a claim that the full time target
+was reached.
 With no trained model yet, this is the baseline-only behaviour as before.
 `ML_DISABLE_MODEL_SERVING=1` keeps that baseline-only path for comparison or emergencies
 (read at startup). The wiring is covered by `server/ml/live-predictor.test.ts`.
@@ -160,8 +199,9 @@ See [operations.md](operations.md) for the commands.
 
 There is **no** accuracy figure for your own data. The dataset is fresh, so there is not enough
 history to train or validate a personal model yet. No accuracy number is invented, and none is
-claimed. As you record activity, the health view will report real numbers, per task and per tag,
-never as one blended score.
+claimed. The synthetic backtest in [Generating local test data](#generating-local-test-data) is
+a pipeline check, not this evaluation. As you record activity, the health view will report real
+numbers, per task and per tag, never as one blended score.
 
 ## Related docs
 

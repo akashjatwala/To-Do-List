@@ -3,7 +3,7 @@ import {
   CHECKIN_ANSWER_KEYS,
   answeredValues,
   checkinState,
-  getCheckin,
+  getCheckinAsOf,
   type CheckinAnswerKey,
   type CheckinState,
 } from '../checkins-store'
@@ -52,20 +52,43 @@ import {
  * returns the plain snapshot the pure function consumes.
  */
 
-export const FEATURE_VERSION = 'features-1.0.0'
+export const FEATURE_VERSION = 'features-1.1.0'
 /** A tag needs at least this many labelled observations to earn its own column. */
 export const MIN_TAG_OBSERVATIONS = 8
 /** Seasonal features appear only once this many months of data exist. */
 export const SEASONAL_MIN_MONTHS = 12
-/** The default prediction time: 08:00 local. */
+/** The original morning prediction time: 08:00 local. */
 export const DEFAULT_PREDICTION_MINUTE = 8 * 60
+/**
+ * The times of day a model is trained to predict at. Serving snaps to the most
+ * recent one that has already happened, so features never come from the future.
+ */
+export const PREDICTION_MINUTES = [8 * 60, 12 * 60, 16 * 60, 20 * 60] as const
+/** A fitted column needs several rows; below this the baseline stays in charge. */
+export const MIN_ROWS_PER_FEATURE = 5
 export const EXPOSURE_WINDOW_DAYS = 14
+
+/** Snap a local minute-of-day to the most recent trained prediction time. */
+export function predictionMinuteFor(nowMinutes: number): number {
+  let chosen = PREDICTION_MINUTES[0]
+  for (const minute of PREDICTION_MINUTES) {
+    if (minute <= nowMinutes) chosen = minute
+    else break
+  }
+  return chosen
+}
 
 export interface FeatureVocabulary {
   /** Tag ids (as strings) with enough observations to earn their own column. */
   tags: string[]
   /** Whether seasonal features are included (at least a year of data). */
   seasonal: boolean
+  /**
+   * A small core feature set for the early days, when a wide vector would need
+   * far more rows than the user has. Persisted with the model so serving uses
+   * exactly the same columns.
+   */
+  compact?: boolean
 }
 
 export const EMPTY_VOCABULARY: FeatureVocabulary = { tags: [], seasonal: false }
@@ -201,6 +224,33 @@ function buildBaseSpec(): FeatureSpec[] {
 const BASE_SPEC: FeatureSpec[] = buildBaseSpec()
 const SEASONAL_NAMES = ['season_sin', 'season_cos'] as const
 
+/**
+ * The small core used while there are too few rows for a wide vector. Chosen
+ * for coverage: history, progress, time left, check-in and priority, without
+ * per-tag or seasonal columns that need years of data to mean anything.
+ */
+const COMPACT_NAMES = new Set([
+  'labelled_days',
+  'completion_rate',
+  'recent_completion_rate',
+  'decayed_completion_rate',
+  'decayed_missing',
+  'duration_mean',
+  'target_rate',
+  'target_rate_missing',
+  'days_since_last_completion',
+  'recent_misses',
+  'today_progress',
+  'remaining_target',
+  'remaining_ratio',
+  'minutes_left_in_day',
+  'checkin_any_answered',
+  'checkin_skipped',
+  'priority_level',
+  'priority_missing',
+])
+const COMPACT_SPEC = BASE_SPEC.filter((spec) => COMPACT_NAMES.has(spec.name))
+
 export function baseFeatureNames(): string[] {
   return BASE_SPEC.map((spec) => spec.name)
 }
@@ -211,6 +261,7 @@ export function tagFeatureNames(vocabulary: FeatureVocabulary): string[] {
 
 /** The full, ordered feature list for a vocabulary. Persisted with the model. */
 export function featureNamesFor(vocabulary: FeatureVocabulary): string[] {
+  if (vocabulary.compact) return COMPACT_SPEC.map((spec) => spec.name)
   return [...baseFeatureNames(), ...tagFeatureNames(vocabulary), ...(vocabulary.seasonal ? [...SEASONAL_NAMES] : [])]
 }
 
@@ -241,6 +292,7 @@ function seasonalValues(snapshot: FeatureSnapshot): number[] {
  * vocabulary always give the same vector, and it is exactly what training saw.
  */
 export function computeFeatures(snapshot: FeatureSnapshot, vocabulary: FeatureVocabulary): number[] {
+  if (vocabulary.compact) return COMPACT_SPEC.map((spec) => spec.value(snapshot))
   const out = BASE_SPEC.map((spec) => spec.value(snapshot))
   out.push(...tagValues(snapshot, vocabulary))
   if (vocabulary.seasonal) out.push(...seasonalValues(snapshot))
@@ -370,7 +422,9 @@ export function gatherFeatureSnapshot(db: DatabaseSync, options: GatherFeatureOp
     (group): group is GroupStatistics => group !== undefined,
   )
 
-  const checkinRow = getCheckin(db, userId, date)
+  // Reconstruct the answers as they were known at the cutoff. A check-in saved
+  // later in the day (or edited tomorrow) must not leak into this snapshot.
+  const checkinRow = getCheckinAsOf(db, userId, date, options.asOfEpoch)
   const answers = checkinRow && checkinRow.skipped === 0 ? answeredValues(checkinRow) : null
   const state: CheckinState = checkinRow ? checkinState(checkinRow) : 'not_asked'
 

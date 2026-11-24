@@ -72,8 +72,8 @@ flexible time categories, and a preferred time is never treated as a deadline.
 
 ## Known limits
 
-- **No real accuracy figure yet.** The dataset is fresh. There is not enough history to train or validate a personal model, so no accuracy number is claimed.
-- **Fresh dataset only.** No historical data was imported, and no training rows are fabricated.
+- **No real accuracy figure yet.** The dataset is fresh. There is not enough history to train or validate a personal model, so no accuracy number is claimed for your own habits. The synthetic backtest verifies the pipeline only.
+- **Fresh dataset only.** No historical data was imported into your account, and no training rows are fabricated there. Synthetic rows are confined to the isolated backtest DB or the separate demo account.
 - **Timing has no registered model.** The recommended window comes from a timing profile, not a trained model, so it is not versioned or gated like completion/target/duration. It is logged with the prediction but is not shown in Nudge.
 - **Nudge is deliberately compact.** It shows the completion probability as a percentage beside the task name with a bar below; confidence, target probability, expected duration and recommended time are still computed and logged, but are not displayed there.
 - **The learning system needs data to personalise.** Stage 1 predictions are starting estimates; personalisation begins only once the stage-2 threshold is met.

@@ -12,8 +12,9 @@
 | Decision | Why |
 | --- | --- |
 | Fresh dataset only; no imported history | The user starts clean, so the system never pretends to know habits it has not seen |
-| Never fabricate a training row | A made-up row would make the system look better than it is |
-| Never claim accuracy without real evidence | The dataset is fresh, so no accuracy figure is claimed until there is real history to measure |
+| Never fabricate a training row in user data | A made-up row in someone's own history would make the system look better than it is; synthetic rows are confined to the isolated backtest DB and the separate demo account |
+| Never claim accuracy without real evidence | A synthetic chronological backtest can verify the pipeline, but an accuracy figure for a person's own habits is only claimed after their own history is measured |
+| Synthetic demo data stays clearly separate | The generator writes to an isolated DB or a separate demo account, and its report says plainly that the numbers describe synthetic habits |
 | Missing stays missing | A blank answer, an absent priority and a skipped day are real facts, and are stored as such, never defaulted |
 | `not_asked` is different from `skipped` | "I did not open the app" and "I chose to skip" are different, and conflating them would corrupt the labels |
 | A prediction is never an outcome | Predictions and outcomes live in separate tables; the label columns are filled only from observed activity |

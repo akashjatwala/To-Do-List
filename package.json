@@ -11,7 +11,9 @@
     "lint": "eslint .",
     "start": "node --import tsx server/start.ts",
     "preview": "vite preview",
-    "test": "node --env-file=.env.test --import tsx --test \"server/**/*.test.ts\" \"src/**/*.test.ts\" \"src/**/*.test.tsx\""
+    "test": "node --env-file=.env.test --import tsx --test \"server/**/*.test.ts\" \"src/**/*.test.ts\" \"src/**/*.test.tsx\"",
+    "seed:ml": "node --import tsx server/ml/demo-data.ts --target isolated",
+    "seed:ml:app": "node --import tsx server/ml/demo-data.ts --target app"
   },
   "dependencies": {
     "@fontsource/baloo-2": "^5.3.0",
