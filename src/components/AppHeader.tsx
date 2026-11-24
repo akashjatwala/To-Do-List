@@ -1,10 +1,11 @@
-import type { Team, User } from '@/types'
+import type { AppNotification, Team, User, UserInvite } from '@/types'
 import { dateInputValue, dueFromDateInput } from '@/lib/date'
 import { greetingForHour } from '@/lib/checkin'
 import { useHeaderClock } from '@/hooks/useHeaderClock'
 import AccountMenu from './AccountMenu'
+import NotificationCenter from './NotificationCenter'
 import TeamBar from './TeamBar'
-import { ChevronRightIcon } from './Icons'
+import { ChevronRightIcon, SearchIcon } from './Icons'
 
 interface AppHeaderProps {
   user: User
@@ -24,6 +25,12 @@ interface AppHeaderProps {
   onOpenCollaborate: () => void
   onSelectTeam: (teamId: string) => void
   onManageTeam: (teamId: string) => void
+  notifications: AppNotification[]
+  invites: UserInvite[]
+  onAcceptInvite: (invite: UserInvite) => void | Promise<void>
+  onDeclineInvite: (invite: UserInvite) => void | Promise<void>
+  onOpenNotificationTask: (taskId: string) => void
+  onOpenSearch: () => void
   onOpenAccount: () => void
   onLogout: () => void
   onSetSelectedDate: (value: string) => void
@@ -49,6 +56,12 @@ export default function AppHeader({
   onOpenCollaborate,
   onSelectTeam,
   onManageTeam,
+  notifications,
+  invites,
+  onAcceptInvite,
+  onDeclineInvite,
+  onOpenNotificationTask,
+  onOpenSearch,
   onOpenAccount,
   onLogout,
   onSetSelectedDate,
@@ -112,12 +125,22 @@ export default function AppHeader({
           </nav>
         </div>
 
-        <AccountMenu
-          name={user.name}
-          email={user.email}
-          onOpenAccount={onOpenAccount}
-          onLogout={onLogout}
-        />
+        <div className="flex items-center gap-2">
+          <NotificationCenter
+            userId={user.id}
+            notifications={notifications}
+            invites={invites}
+            onAcceptInvite={onAcceptInvite}
+            onDeclineInvite={onDeclineInvite}
+            onOpenTask={onOpenNotificationTask}
+          />
+          <AccountMenu
+            name={user.name}
+            email={user.email}
+            onOpenAccount={onOpenAccount}
+            onLogout={onLogout}
+          />
+        </div>
       </div>
 
       <div className="bg-[#F6F6F4]">
@@ -180,6 +203,16 @@ export default function AppHeader({
                 </button>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={onOpenSearch}
+              aria-label="Search tasks"
+              className="flex w-full items-center gap-2 rounded-xl border border-[#E3E1DC] bg-white/80 px-3 py-2 text-left text-sm font-medium text-[#92969C] shadow-sm transition hover:bg-white hover:text-[#454B58] focus-visible:ring-4 focus-visible:ring-[#4A2C8A]/15 focus-visible:outline-none sm:w-auto sm:min-w-[13rem] sm:max-w-[18rem]"
+            >
+              <SearchIcon className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">Search tasks</span>
+            </button>
 
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-4 sm:shrink">
               {isCollab ? (

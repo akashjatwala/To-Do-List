@@ -1,8 +1,15 @@
 import { Router } from 'express'
 import { db } from '../db'
 import { parseLocalDate } from '../checkins-store'
-import { badRequest, forbidden, localDateString, notFound, param, text, type AuthedRequest } from '../http'
-import { listTags, mergeTags, renameTag, resolveTagChain } from './tags'
+import { badRequest, localDateString, notFound, param, text, type AuthedRequest } from '../http'
+import {
+  createTag,
+  deleteTag,
+  listTags,
+  renameTag,
+  resolveTagChain,
+  TagNameConflictError,
+} from './tags'
 import { configTagIds, listTaskConfigs, type TaskConfigRow } from './task-config'
 import {
   createSession,
@@ -233,26 +240,35 @@ tagRoutes.get('/', (req: AuthedRequest, res) => {
   res.json({ items: listTags(db, req.userId!) })
 })
 
+tagRoutes.post('/', (req: AuthedRequest, res) => {
+  const name = text(req.body?.name, TAG_NAME_MAX)
+  if (!name) return badRequest(res, `Tag names must be 1–${TAG_NAME_MAX} characters.`)
+  const tag = createTag(db, req.userId!, name)
+  if (!tag) return badRequest(res, `Tag names must be 1–${TAG_NAME_MAX} characters.`)
+  res.json({ tag: { id: tag.id, name: tag.name } })
+})
+
 tagRoutes.patch('/:id', (req: AuthedRequest, res) => {
   const id = Number.parseInt(param(req, 'id'), 10)
   if (!Number.isInteger(id)) return badRequest(res, 'That tag id is not valid.')
   const name = text(req.body?.name, TAG_NAME_MAX)
   if (!name) return badRequest(res, `Tag names must be 1–${TAG_NAME_MAX} characters.`)
-  const tag = renameTag(db, req.userId!, id, name)
-  if (!tag) return notFound(res, 'Tag not found.')
-  res.json({ tag: { id: tag.id, name: tag.name } })
+  try {
+    const tag = renameTag(db, req.userId!, id, name)
+    if (!tag) return notFound(res, 'Tag not found.')
+    res.json({ tag: { id: tag.id, name: tag.name } })
+  } catch (error) {
+    if (error instanceof TagNameConflictError) return badRequest(res, error.message)
+    throw error
+  }
 })
 
-tagRoutes.post('/merge', (req: AuthedRequest, res) => {
-  const userId = req.userId!
-  const sourceId = Number.parseInt(String(req.body?.sourceId), 10)
-  const targetId = Number.parseInt(String(req.body?.targetId), 10)
-  if (!Number.isInteger(sourceId) || !Number.isInteger(targetId)) {
-    return badRequest(res, 'Provide two tag ids to merge.')
-  }
-  const tag = mergeTags(db, userId, sourceId, targetId)
-  if (!tag) return forbidden(res, 'Those tags cannot be merged.')
-  res.json({ tag: { id: tag.id, name: tag.name } })
+tagRoutes.delete('/:id', (req: AuthedRequest, res) => {
+  const id = Number.parseInt(param(req, 'id'), 10)
+  if (!Number.isInteger(id)) return badRequest(res, 'That tag id is not valid.')
+  const tag = deleteTag(db, req.userId!, id)
+  if (!tag) return notFound(res, 'Tag not found.')
+  res.json({ ok: true })
 })
 
 /** Resolve a possibly-merged tag id to the tag that is still active. */

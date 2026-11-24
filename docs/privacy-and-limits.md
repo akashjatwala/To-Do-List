@@ -16,6 +16,7 @@
 - Every model, statistic and log line is derived from, and written back to, the local SQLite database (`server/data/todo.db`).
 - File logging is opt-in (`ML_LOG_FILE`) and stays local.
 - Reminders are local records in the same database; sending one never delivers an email, push notification or webhook.
+- The notification centre is a local view of invitations, reminders, comments and assignments. Its read marker is stored in your browser only; it does not create a delivery queue or external message.
 
 ## What is optional
 
@@ -73,8 +74,8 @@ flexible time categories, and a preferred time is never treated as a deadline.
 
 - **No real accuracy figure yet.** The dataset is fresh. There is not enough history to train or validate a personal model, so no accuracy number is claimed.
 - **Fresh dataset only.** No historical data was imported, and no training rows are fabricated.
-- **Timing has no registered model.** The ideal window comes from a timing profile, not a trained model, so it is not versioned or gated like completion/target/duration. It is logged with the prediction and shown in Nudge only when recorded start times exist.
-- **Nudge is deliberately compact.** It shows the completion probability as a percentage beside the task name with a bar below, plus an ideal time when timing history exists; confidence, target probability and expected duration are still computed and logged, but are not displayed there.
+- **Timing has no registered model.** The recommended window comes from a timing profile, not a trained model, so it is not versioned or gated like completion/target/duration. It is logged with the prediction but is not shown in Nudge.
+- **Nudge is deliberately compact.** It shows the completion probability as a percentage beside the task name with a bar below; confidence, target probability, expected duration and recommended time are still computed and logged, but are not displayed there.
 - **The learning system needs data to personalise.** Stage 1 predictions are starting estimates; personalisation begins only once the stage-2 threshold is met.
 - **Sensitive questions are optional**, so a prediction may run on less context than it could — this widens uncertainty rather than inventing a value.
 

@@ -58,6 +58,12 @@ export interface Task {
   assignees: TaskAssignee[]
 }
 
+/** An active, user-scoped lower-case tag from the local learning tables. */
+export interface UserTag {
+  id: number
+  name: string
+}
+
 /** An in-app reminder shown in the Overdue card. No external delivery is involved. */
 export interface Reminder {
   id: number
@@ -66,6 +72,28 @@ export interface Reminder {
   senderId: number
   createdAt: number
   recipients: TaskAssignee[]
+}
+
+export type NotificationKind =
+  | 'invite'
+  | 'reminder'
+  | 'team-reminder'
+  | 'comment'
+  | 'assignment'
+  | 'task-added'
+  | 'task-completed'
+
+/** A read-only item from the in-app notification centre. */
+export interface AppNotification {
+  id: string
+  kind: NotificationKind
+  createdAt: number
+  title: string
+  body: string
+  taskId: string | null
+  teamId: string | null
+  teamName: string | null
+  actorName: string | null
 }
 
 export interface Member {

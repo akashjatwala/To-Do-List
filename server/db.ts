@@ -74,6 +74,8 @@ db.exec(`
     text TEXT NOT NULL,
     done INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    completed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     due INTEGER,
     position INTEGER NOT NULL DEFAULT 0,
     progress INTEGER NOT NULL DEFAULT 0,
@@ -113,6 +115,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS task_assignees (
     task_id TEXT NOT NULL,
     user_id INTEGER NOT NULL,
+    assigned_at INTEGER,
+    assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     PRIMARY KEY (task_id, user_id),
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -218,6 +222,8 @@ export interface TaskRow {
   text: string
   done: number
   created_at: number
+  completed_at: number | null
+  completed_by: number | null
   due: number | null
   position: number
   progress: number

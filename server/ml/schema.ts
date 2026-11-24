@@ -30,6 +30,7 @@ export function createFoundationSchema(db: DatabaseSync): void {
       name TEXT NOT NULL,
       normalized TEXT NOT NULL,
       merged_into_id INTEGER,
+      deleted_at INTEGER,
       created_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (merged_into_id) REFERENCES tags(id)

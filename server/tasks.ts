@@ -52,9 +52,15 @@ const selectSubtasksForTask = db.prepare(
 const insertSubtask = db.prepare(
   'INSERT INTO subtasks (id, task_id, text, done, position, assignee_id) VALUES (?, ?, ?, 0, ?, ?)',
 )
-const selectAssigneeUserIds = db.prepare('SELECT user_id FROM task_assignees WHERE task_id = ?')
+const selectAssigneesForTask = db.prepare(
+  'SELECT user_id, assigned_at, assigned_by FROM task_assignees WHERE task_id = ?',
+)
 const insertAssignee = db.prepare(
-  'INSERT OR IGNORE INTO task_assignees (task_id, user_id) VALUES (?, ?)',
+  `INSERT INTO task_assignees (task_id, user_id, assigned_at, assigned_by)
+   VALUES (?, ?, ?, ?)
+   ON CONFLICT(task_id, user_id) DO UPDATE SET
+     assigned_at = excluded.assigned_at,
+     assigned_by = excluded.assigned_by`,
 )
 const selectTeamRole = db.prepare('SELECT role FROM team_members WHERE team_id = ? AND user_id = ?')
 const selectTeamMembership = db.prepare(
@@ -101,17 +107,20 @@ function parseDuration(value: unknown): number | null | undefined {
 }
 
 
-/** Tags are a deduped list of short labels. */
+/** Tags are a deduped list of short lower-case labels. */
 function parseTags(value: unknown): string[] | null {
   if (value === undefined) return []
   if (!Array.isArray(value)) return null
   const out: string[] = []
+  const seen = new Set<string>()
   for (const item of value) {
     if (typeof item !== 'string') return null
-    const tag = item.trim().replace(/\s+/g, ' ')
+    const tag = item.trim().replace(/\s+/g, ' ').toLowerCase()
     if (!tag) continue
     if (tag.length > TAG_MAX) return null
-    if (!out.includes(tag)) out.push(tag)
+    if (seen.has(tag)) continue
+    seen.add(tag)
+    out.push(tag)
   }
   if (out.length > TAGS_MAX) return null
   return out
@@ -147,9 +156,21 @@ function spawnNextOccurrence(task: TaskRow): string {
     insertSubtask.run(randomUUID(), id, subtask.text, subtask.position, subtask.assignee_id ?? null)
   }
 
-  // The next occurrence keeps the same team working on it.
-  const assignees = selectAssigneeUserIds.all(task.id) as unknown as Array<{ user_id: number }>
-  for (const assignee of assignees) insertAssignee.run(id, assignee.user_id)
+  // The next occurrence keeps the same team working on it, including who
+  // assigned each teammate and when, so the notification history stays intact.
+  const assignees = selectAssigneesForTask.all(task.id) as unknown as Array<{
+    user_id: number
+    assigned_at: number | null
+    assigned_by: number | null
+  }>
+  for (const assignee of assignees) {
+    insertAssignee.run(
+      id,
+      assignee.user_id,
+      assignee.assigned_at ?? task.created_at,
+      assignee.assigned_by ?? task.user_id,
+    )
+  }
 
   syncTaskFoundation(db, selectTaskById.get(id) as unknown as TaskRow)
 
@@ -307,6 +328,7 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
   const updates: string[] = []
   const values: Array<string | number | null> = []
   let completing = false
+  let completionTouched = false
 
   if (req.body?.text !== undefined) {
     const title = text(req.body.text, TASK_MAX)
@@ -327,11 +349,13 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
     }
     // Progress drives completion, so 100% means done and anything less means open.
     completing = progress === 100
+    completionTouched = true
     updates.push('progress = ?', 'done = ?')
     values.push(progress, progress === 100 ? 1 : 0)
   } else if (req.body?.done !== undefined) {
     if (typeof req.body.done !== 'boolean') return badRequest(res, '“done” must be true or false.')
     completing = req.body.done
+    completionTouched = true
     updates.push('done = ?')
     values.push(req.body.done ? 1 : 0)
     if (req.body.done) {
@@ -341,6 +365,14 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
       updates.push('progress = ?')
       values.push(0)
     }
+  }
+
+  if (completionTouched && completing && loaded.task.done === 0) {
+    updates.push('completed_at = ?', 'completed_by = ?')
+    values.push(Date.now(), userId)
+  } else if (completionTouched && !completing && loaded.task.done === 1) {
+    updates.push('completed_at = ?', 'completed_by = ?')
+    values.push(null, null)
   }
 
   if (req.body?.due !== undefined) {
@@ -477,10 +509,29 @@ router.put('/:taskId/assignees', (req: AuthedRequest, res) => {
     }
   }
 
+  const previous = new Map(
+    (
+      selectAssigneesForTask.all(loaded.task.id) as unknown as Array<{
+        user_id: number
+        assigned_at: number | null
+        assigned_by: number | null
+      }>
+    ).map((row) => [row.user_id, row]),
+  )
+  const assignedAt = Date.now()
+
   db.exec('BEGIN')
   try {
     clearTaskAssignees.run(loaded.task.id)
-    for (const userId of userIds) insertAssignee.run(loaded.task.id, userId)
+    for (const userId of userIds) {
+      const old = previous.get(userId)
+      insertAssignee.run(
+        loaded.task.id,
+        userId,
+        old?.assigned_at ?? assignedAt,
+        old?.assigned_by ?? req.userId!,
+      )
+    }
     db.exec('COMMIT')
   } catch (error) {
     db.exec('ROLLBACK')

@@ -1,5 +1,6 @@
 import type {
   ActivitySession,
+  AppNotification,
   BootstrapData,
   Checkin,
   CheckinAnswers,
@@ -19,6 +20,7 @@ import type {
   TaskConfig,
   Team,
   User,
+  UserTag,
 } from './types'
 
 export class ApiError extends Error {
@@ -72,6 +74,7 @@ const del = <T>(path: string) => request<T>(path, { method: 'DELETE' })
 
 export const api = {
   bootstrap: () => request<BootstrapData>('/api/bootstrap'),
+  listNotifications: () => request<{ items: AppNotification[] }>('/api/notifications'),
 
   signup: (email: string, name: string, password: string, remember: boolean) =>
     post<{ user: User }>('/api/auth/signup', { email, name, password, remember }),
@@ -206,6 +209,12 @@ export const api = {
 
   listTaskConfigs: (taskId: string) =>
     request<{ items: TaskConfig[] }>(`/api/task-configs/${encodeURIComponent(taskId)}`),
+
+  listTags: () => request<{ items: UserTag[] }>('/api/tags'),
+  createTag: (name: string) => post<{ tag: UserTag }>('/api/tags', { name }),
+  renameTag: (id: number, name: string) =>
+    patch<{ tag: UserTag }>(`/api/tags/${id}`, { name }),
+  deleteTag: (id: number) => del<{ ok: true }>(`/api/tags/${id}`),
 
   // ---- Daily state summary, estimates and the evening review ----
 

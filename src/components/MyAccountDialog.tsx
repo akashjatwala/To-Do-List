@@ -4,6 +4,7 @@ import type { Team, User } from '@/types'
 import { Modal, Spinner } from './ui'
 import { ChangePassword, DeleteAccount } from './AccountForms'
 import { PencilIcon } from './Icons'
+import TagManagerDialog from './TagManager'
 
 function SettingRow({
   label,
@@ -18,7 +19,7 @@ function SettingRow({
 }) {
   return (
     <div
-      className={`flex flex-wrap justify-between gap-x-4 gap-y-2 py-3 first:pt-0 last:pb-0 ${
+      className={`flex flex-wrap justify-between gap-x-4 gap-y-2 py-3.5 first:pt-1 last:pb-1 ${
         align === 'start' ? 'items-start' : 'items-center'
       }`}
     >
@@ -36,7 +37,7 @@ function TextButton({ children, onClick }: { children: ReactNode; onClick: () =>
     <button
       type="button"
       onClick={onClick}
-      className="rounded-lg border border-[#E1E2E0] bg-white px-3 py-1.5 text-xs font-semibold text-[#15181E] transition hover:bg-[#F6F6F4]"
+      className="inline-flex min-w-[5.5rem] items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
     >
       {children}
     </button>
@@ -50,6 +51,7 @@ export default function MyAccountDialog({
   teams,
   onUserChanged,
   onPasswordChanged,
+  onTagsChanged,
   onDeleted,
   notify,
 }: {
@@ -59,6 +61,7 @@ export default function MyAccountDialog({
   teams: Team[]
   onUserChanged: (user: User) => void
   onPasswordChanged: () => void
+  onTagsChanged: () => void | Promise<void>
   onDeleted: () => void
   notify: (message: string, tone?: 'success' | 'error' | 'info') => void
 }) {
@@ -66,6 +69,7 @@ export default function MyAccountDialog({
   const [nameDraft, setNameDraft] = useState(user.name)
   const [nameBusy, setNameBusy] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
+  const [tagsOpen, setTagsOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const saveName = async (event: FormEvent) => {
@@ -90,7 +94,7 @@ export default function MyAccountDialog({
 
   // Ignore close requests while a nested confirmation is open.
   const requestClose = () => {
-    if (passwordOpen || deleteOpen) return
+    if (passwordOpen || tagsOpen || deleteOpen) return
     onClose()
   }
 
@@ -99,11 +103,11 @@ export default function MyAccountDialog({
       open={open}
       onClose={requestClose}
       title="My Account"
-      description="Manage your name, password, and account."
-      width="max-w-xl"
+      description="Manage your name, password, tags, and account."
+      width="max-w-2xl"
     >
-      <div className="rounded-[18px] border border-[#E1E2E0] bg-white px-5">
-        <div className="divide-y divide-[#E1E2E0]/80">
+      <div className="rounded-[18px] border border-slate-200 bg-white px-6 sm:px-7">
+        <div className="divide-y divide-slate-100">
           {editingName ? (
             <form onSubmit={saveName} className="flex flex-wrap items-center gap-2 py-3">
               <input
@@ -147,6 +151,11 @@ export default function MyAccountDialog({
             />
           )}
           <SettingRow
+            label="Tags"
+            hint="Add, rename or delete the tags used by your tasks."
+            action={<TextButton onClick={() => setTagsOpen(true)}>Manage</TextButton>}
+          />
+          <SettingRow
             label="Password"
             hint="Last changed 3 months ago"
             action={<TextButton onClick={() => setPasswordOpen(true)}>Change</TextButton>}
@@ -183,6 +192,15 @@ export default function MyAccountDialog({
             }}
           />
         </Modal>
+      )}
+
+      {tagsOpen && (
+        <TagManagerDialog
+          open
+          onClose={() => setTagsOpen(false)}
+          onChanged={onTagsChanged}
+          notify={notify}
+        />
       )}
 
       {deleteOpen && (

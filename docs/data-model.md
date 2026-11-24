@@ -37,12 +37,12 @@ check-in, task, prediction or ML table was removed, and the model code was left 
 | --- | --- |
 | `users` | Account email and password hash |
 | `auth_tokens` | Login sessions only. Only token **hashes** are stored; the former reset-code rows were removed by migration 12 |
-| `schema_migrations` | Applied migration versions; migration 13 records the reminder-table addition |
+| `schema_migrations` | Applied migration versions; migration 13 records the reminder tables, migration 14 the assignment metadata, migration 15 the completion metadata and migration 16 the duplicate-tag consolidation |
 | `teams`, `team_members`, `team_invites` | Teams, membership roles, pending invites |
-| `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration, preferred time. `team_id NULL` means a personal task |
+| `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration, preferred time. `completed_at` and `completed_by` timestamp a real change to done for the activity feed and stay blank for old completed rows. `team_id NULL` means a personal task |
 | `subtasks` | Subtasks with position, done and an optional assignee (a member of the task's team; `NULL` on personal tasks) |
 | `comments` | Task comments |
-| `task_assignees` | Team tasks assigned to several teammates. The task's `user_id` stays the creator/owner; any team member can edit this list |
+| `task_assignees` | Team tasks assigned to several teammates. The task's `user_id` stays the creator/owner; any team member can edit this list. `assigned_at` and `assigned_by` record who made each assignment and when, for the notification centre |
 | `task_reminders` | One row per reminder sent from an overdue sticky note: task, sender and timestamp. Deleting the task or sender removes the reminder |
 | `task_reminder_recipients` | Who was notified for a team reminder. Empty for personal reminders; a snapshot of assignees, or all team members when the task has no assignees |
 
@@ -57,8 +57,8 @@ check-in, task, prediction or ML table was removed, and the model code was left 
 
 | Table | Holds |
 | --- | --- |
-| `tags` | Stable tag ids per user; `merged_into_id` points at the surviving tag |
-| `tag_history` | Append-only trail of tag create / rename / merge |
+| `tags` | Stable tag ids per user, lower-case names, `merged_into_id` points at the surviving tag, `deleted_at` hides a deleted tag without losing historic ids |
+| `tag_history` | Append-only trail of tag create / rename / merge; deletion keeps the row rather than adding an event |
 | `task_tags` | Current task ↔ tag membership |
 | `task_configs` | **Versioned** task configuration: name, category, priority, frequency, target duration, preferred time, active. A change appends a row; old rows are never overwritten |
 | `task_config_tags` | The tag set as it stood for one config version |
@@ -126,7 +126,7 @@ erDiagram
 
 - **Missing stays missing.** A blank check-in answer is `NULL`, never a neutral value. "No priority" is `NULL`, never `low`. A skipped check-in stores no answers at all.
 - **`not_asked` vs skipped.** There is no row at all for a day you never touched; an explicit skip writes a row with `skipped = 1`. The two are different facts.
-- **History is kept.** Tags and task configuration are versioned and append-only. Renaming or merging a tag never breaks a past record.
+- **History is kept.** Tags and task configuration are versioned and append-only. Renaming, merging or deleting a tag never breaks a past record; a deleted tag is hidden, not removed.
 - **A prediction is never an outcome.** Predictions live in `predictions`, `ml_shadow`, `ml_health_predictions`. Outcomes live in `activity_sessions`, `daily_activity_status`, `activity_outcome_links`. The label columns in the ML tables are filled only from observed activity.
 
 ## Related docs

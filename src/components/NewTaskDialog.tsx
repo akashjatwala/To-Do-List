@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import type { Priority, Recurrence, RecurrenceConfig, Task, Team } from '@/types'
 import { dueFromDateInput, formatDateValue } from '@/lib/date'
+import { parseQuickAdd } from '@/lib/quickAdd'
 import {
   COMMON_TAGS,
   PRIORITY_META,
@@ -14,6 +15,7 @@ import {
   CalendarIcon,
   PlusIcon,
   RepeatIcon,
+  SparklesIcon,
   TagIcon,
   UsersIcon,
   XIcon,
@@ -115,6 +117,8 @@ export default function NewTaskDialog({
 }) {
   const [text, setText] = useState('')
   const [due, setDue] = useState(defaultDue)
+  const [preferredTime, setPreferredTime] = useState<string | null>(null)
+  const [quickFillNote, setQuickFillNote] = useState('')
   const [priority, setPriority] = useState<Priority>('none')
   const [recurrence, setRecurrence] = useState<Recurrence>('none')
   const [duration, setDuration] = useState<number | null>(null)
@@ -139,6 +143,8 @@ export default function NewTaskDialog({
     if (!open) return
     setText('')
     setDue(defaultDue)
+    setPreferredTime(null)
+    setQuickFillNote('')
     setPriority('none')
     setRecurrence('none')
     setDuration(null)
@@ -154,7 +160,9 @@ export default function NewTaskDialog({
     return () => window.clearTimeout(timer)
   }, [open, defaultDue, defaultTeamId])
 
-  const toggleTag = (tag: string) => {
+  const toggleTag = (rawTag: string) => {
+    const tag = rawTag.trim().replace(/\s+/g, ' ').toLowerCase()
+    if (!tag) return
     setTags((current) =>
       current.includes(tag)
         ? current.filter((item) => item !== tag)
@@ -165,7 +173,7 @@ export default function NewTaskDialog({
   }
 
   const commitDraft = () => {
-    const value = tagDraft.trim().replace(/\s+/g, ' ')
+    const value = tagDraft.trim().replace(/\s+/g, ' ').toLowerCase()
     setTagDraft('')
     if (!value || tags.includes(value) || tags.length >= TAG_LIMIT) return
     setTags((current) => [...current, value])
@@ -180,12 +188,68 @@ export default function NewTaskDialog({
 
   const chooseSuggestion = (title: string) => {
     setText(title)
+    setQuickFillNote('')
     setSuggestionsOpen(false)
     setHighlight(-1)
     textRef.current?.focus()
   }
 
+  const quickFill = () => {
+    if (!text.trim()) {
+      setQuickFillNote('Type a task first, e.g. “Submit report tomorrow 3pm #work”.')
+      return
+    }
+    const parsed = parseQuickAdd(text, undefined, teams)
+    const nextTags = [...tags]
+    for (const tag of parsed.tags) {
+      if (nextTags.length >= TAG_LIMIT) break
+      if (!nextTags.includes(tag)) nextTags.push(tag)
+    }
+    const addedTags = nextTags.slice(tags.length)
+
+    setText(parsed.text)
+    if (parsed.due) setDue(parsed.due)
+    if (parsed.preferredTime) setPreferredTime(parsed.preferredTime)
+    if (parsed.teamId) setTeamId(parsed.teamId)
+    setTags(nextTags)
+    if (parsed.duration !== null) {
+      if (DURATION_PRESETS.includes(parsed.duration)) {
+        setDuration(parsed.duration)
+        setCustomDuration('')
+        setCustomOpen(false)
+      } else {
+        setDuration(null)
+        setCustomDuration(String(parsed.duration))
+        setCustomOpen(true)
+      }
+    }
+
+    setSuggestionsOpen(false)
+    setHighlight(-1)
+    const parts: string[] = []
+    if (parsed.text !== text.trim().replace(/\s+/g, ' ')) parts.push('title')
+    if (parsed.due) parts.push('date')
+    if (parsed.preferredTime) parts.push('time')
+    if (addedTags.length) parts.push(addedTags.map((tag) => `#${tag}`).join(', '))
+    if (parsed.duration !== null) parts.push(`${parsed.duration} min`)
+    if (parsed.teamId) {
+      const team = teams.find((item) => item.id === parsed.teamId)
+      if (team) parts.push(`team: ${team.name}`)
+    }
+    setQuickFillNote(
+      parts.length > 0
+        ? `Filled ${parts.join(', ')}.`
+        : 'No date, time, tags, duration or team found.',
+    )
+    textRef.current?.focus()
+  }
+
   const onTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    // Keep the removed shortcut from falling through to form submission.
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault()
+      return
+    }
     if (!showSuggestions) return
     if (event.key === 'ArrowDown') {
       event.preventDefault()
@@ -220,12 +284,12 @@ export default function NewTaskDialog({
     const ok = await onAdd({
       text: value,
       due: dueFromDateInput(due),
+      preferredTime,
       priority,
       tags: nextTags,
       recurrence,
       recurrenceConfig: null,
       duration: minutes,
-      preferredTime: null,
       teamId,
     })
     setBusy(false)
@@ -233,6 +297,8 @@ export default function NewTaskDialog({
     if (!ok) return
     if (addAnother) {
       setText('')
+      setPreferredTime(null)
+      setQuickFillNote('')
       setTags([])
       setTagDraft('')
       setSuggestionsOpen(false)
@@ -254,9 +320,30 @@ export default function NewTaskDialog({
         <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_19rem]">
           <div className="min-w-0 space-y-5">
             <section className="relative">
-              <label className={FIELD_LABEL} htmlFor="new-task-title">
-                Task
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label className={FIELD_LABEL} htmlFor="new-task-title">
+                  Task
+                </label>
+                <div className="group relative">
+                  <button
+                    type="button"
+                    onClick={quickFill}
+                    aria-describedby="quick-fill-hint"
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-[#8A3210] transition hover:bg-[#FDF3E7] focus-visible:ring-2 focus-visible:ring-[#D9480F]/30 focus-visible:outline-none"
+                    aria-label="Quick fill task fields"
+                  >
+                    <SparklesIcon className="h-3.5 w-3.5" />
+                    Quick fill
+                  </button>
+                  <div
+                    id="quick-fill-hint"
+                    role="tooltip"
+                    className="pointer-events-none absolute top-full right-0 z-40 mt-1 hidden w-max max-w-[16rem] rounded-lg border border-[#E3E1DC] bg-white px-3 py-2 text-left text-[11px] leading-snug text-slate-500 shadow-lg group-hover:block group-focus-within:block"
+                  >
+                    Try “Submit report tomorrow 3pm #work”
+                  </div>
+                </div>
+              </div>
               <input
                 id="new-task-title"
                 ref={textRef}
@@ -264,6 +351,7 @@ export default function NewTaskDialog({
                 onChange={(event) => {
                   const value = event.target.value
                   setText(value)
+                  setQuickFillNote('')
                   setHighlight(-1)
                   setSuggestionsOpen(value.trim().length > 0)
                 }}
@@ -286,6 +374,11 @@ export default function NewTaskDialog({
                 className="field text-base"
                 aria-label="New task"
               />
+              {quickFillNote && (
+                <p aria-live="polite" className="mt-1 text-[11px] font-medium text-[#8A3210]">
+                  {quickFillNote}
+                </p>
+              )}
               {showSuggestions && (
                 <div
                   id="new-task-suggestions"
@@ -526,7 +619,10 @@ export default function NewTaskDialog({
                 </p>
               )}
               <div className="mt-4 space-y-1.5 text-xs font-medium text-[#6B4F1D]">
-                <p>{previewDate(due)}</p>
+                <p>
+                  {previewDate(due)}
+                  {preferredTime ? ` · ${preferredTime}` : ''}
+                </p>
                 <p>{selectedDuration ? `${selectedDuration} min` : 'No duration yet'}</p>
                 {recurrence !== 'none' && <p>{RECURRENCE_META[recurrence].label}</p>}
                 <p>

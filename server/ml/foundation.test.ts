@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
 import { createFoundationSchema, createPredictionSchema } from './schema'
 import { syncTaskFoundation } from './task-sync'
-import { listTags, mergeTags, renameTag, resolveTagChain, syncTaskTags } from './tags'
+import { createTag, deleteTag, listTags, mergeTags, renameTag, resolveTagChain, syncTaskTags } from './tags'
 import {
   configForDate,
   configTagIds,
@@ -95,6 +95,11 @@ function taskRow(db: DatabaseSync, id: string) {
   return db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as unknown as Parameters<
     typeof syncTaskFoundation
   >[1]
+}
+
+function storedTags(db: DatabaseSync, id: string): string[] {
+  const row = db.prepare('SELECT tags FROM tasks WHERE id = ?').get(id) as { tags: string }
+  return JSON.parse(row.tags) as string[]
 }
 
 /** A local timestamp inside a given local date. */
@@ -392,8 +397,21 @@ test('the effective-from timestamp decides which version applied', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Tags: rename and merge keep past records linked
+// Tags: create, rename and delete keep past records linked
 // ---------------------------------------------------------------------------
+
+test('creating a tag lowercases the name and is idempotent', () => {
+  const db = freshDb()
+  const first = createTag(db, USER, ' Wellness ', at('2026-05-01', 8))
+  const again = createTag(db, USER, 'wellness', at('2026-05-02', 8))
+  assert.equal(first?.name, 'wellness')
+  assert.equal(again?.id, first?.id)
+  assert.deepEqual(
+    listTags(db, USER).map((tag) => ({ id: tag.id, name: tag.name })),
+    [{ id: first!.id, name: 'wellness' }],
+  )
+  db.close()
+})
 
 test('renaming a tag keeps past config versions linked to the same tag id', () => {
   const db = freshDb()
@@ -403,16 +421,46 @@ test('renaming a tag keeps past config versions linked to the same tag id', () =
   const [tagId] = configTagIds(db, v1.id)
 
   const renamed = renameTag(db, USER, tagId, 'Wellness', at('2026-05-10', 8))
-  assert.equal(renamed?.name, 'Wellness')
+  assert.equal(renamed?.name, 'wellness')
   // The snapshot still points at the same id, which now resolves to the new name.
   assert.deepEqual(configTagIds(db, v1.id), [tagId])
-  assert.equal(resolveTagChain(db, tagId)?.name, 'Wellness')
+  assert.equal(resolveTagChain(db, tagId)?.name, 'wellness')
+  assert.deepEqual(storedTags(db, id), ['wellness'])
+  db.close()
+})
+
+test('renaming onto an existing tag is rejected instead of merging', () => {
+  const db = freshDb()
+  const one = createTag(db, USER, 'work', at('2026-05-01', 8))!
+  const two = createTag(db, USER, 'personal', at('2026-05-01', 8))!
+  assert.throws(() => renameTag(db, USER, one.id, 'Personal', at('2026-05-10', 8)), /already exists/)
+  assert.equal(resolveTagChain(db, one.id)?.name, 'work')
+  assert.equal(resolveTagChain(db, two.id)?.name, 'personal')
+  db.close()
+})
+
+test('deleting a tag clears current labels but keeps historic ids resolvable', () => {
+  const db = freshDb()
+  const id = insertTask(db, { tags: ['Health', 'Fitness'] })
+  syncTaskFoundation(db, taskRow(db, id), at('2026-05-01', 8))
+  const v1 = latestConfig(db, id)!
+  const [healthId, fitnessId] = configTagIds(db, v1.id)
+
+  assert.ok(deleteTag(db, USER, healthId, at('2026-05-10', 8)))
+  assert.deepEqual(configTagIds(db, v1.id), [healthId, fitnessId])
+  assert.equal(resolveTagChain(db, healthId)?.name, 'health')
+  assert.deepEqual(listTags(db, USER).map((tag) => tag.name), ['fitness'])
+  assert.deepEqual(storedTags(db, id), ['fitness'])
+  assert.deepEqual(syncTaskTags(db, USER, id, ['fitness']), [fitnessId])
+  db.close()
 })
 
 test('merging tags keeps old links resolvable through the surviving tag', () => {
   const db = freshDb()
   const id = insertTask(db, { tags: ['Health', 'Fitness'] })
+  const other = insertTask(db, { id: 'other', tags: ['health'] })
   syncTaskFoundation(db, taskRow(db, id), at('2026-05-01', 8))
+  syncTaskFoundation(db, taskRow(db, other), at('2026-05-01', 8))
   const v1 = latestConfig(db, id)!
   const before = configTagIds(db, v1.id)
   assert.equal(before.length, 2)
@@ -426,6 +474,8 @@ test('merging tags keeps old links resolvable through the surviving tag', () => 
   // The merged tag no longer appears in the active list.
   assert.equal(listTags(db, USER).length, 1)
   assert.deepEqual(syncTaskTags(db, USER, id, ['Health', 'Fitness']), [targetId])
+  assert.deepEqual(storedTags(db, id), ['fitness'])
+  assert.deepEqual(storedTags(db, other), ['fitness'])
 })
 
 // ---------------------------------------------------------------------------

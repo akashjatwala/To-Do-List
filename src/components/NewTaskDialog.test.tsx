@@ -99,6 +99,27 @@ test('title suggestions come from the selected list and match the typed text', (
   assert.deepEqual(suggestTaskTitles(history, 'Review pricing page', null), [])
 })
 
+test('quick fill sits beside the task field without changing the autocomplete rules', () => {
+  const html = renderToStaticMarkup(
+    <NewTaskDialog
+      {...props}
+      historyTasks={[historicalTask('Review pricing page', 1795000000000, 'team-1')]}
+    />,
+  )
+  assert.match(html, /aria-label="Quick fill task fields"/)
+  assert.match(html, /Quick fill/)
+  assert.match(html, /role="tooltip"/)
+  assert.match(html, /id="quick-fill-hint"/)
+  assert.match(html, /aria-describedby="quick-fill-hint"/)
+  assert.match(html, /Try “Submit report tomorrow 3pm #work”/)
+  assert.doesNotMatch(html, /Ctrl\/⌘ \+ Enter/)
+  assert.match(html, /role="combobox"/)
+  assert.match(html, /aria-autocomplete="list"/)
+  assert.match(html, /aria-controls="new-task-suggestions"/)
+  assert.doesNotMatch(html, /aria-label="Task suggestions"/)
+  assert.match(html, /aria-expanded="false"/)
+})
+
 test('new task title suggestions stay hidden until text is typed', () => {
   const html = renderToStaticMarkup(
     <NewTaskDialog

@@ -18,6 +18,7 @@ services.
 - Personal to-do lists
 - Shared team lists with host/member roles
 - Email invitations (accept or decline in-app)
+- **Notifications** beside your name collects invitations, reminders, and a recent **Team activity** feed of task adds, completions, comments and assignments — including your own — in one in-app panel; read state is browser-local and nothing is emailed, pushed or webhooked
 - Two top-level views — **My tasks** (only your private personal tasks) and **Teams** (team lists; pick a team from the row underneath, and use **New team** to create one)
 - A day-by-day board: sticky notes for the selected day, with a calendar picker and prev/next-day controls
 - Priority-colored sticky notes — low = soft green, medium = cream, high = soft red
@@ -28,10 +29,12 @@ services.
 - Completed tasks collect in a list on the right, scoped to the same day
 - Create personal tasks in **My tasks**, or open a team in **Teams** — new tasks are filed into the list you are viewing
 - **Add task** opens a centered dialog. In **My tasks**, the Off days and Today's plan cards sit in the right-hand column above Completed, leaving more room for the notes
+- **Quick fill** in the New Task dialog turns “Submit report tomorrow 3pm #work” into a title, due date, preferred time and tag. It also understands weekdays, `next Monday`, `in 3 days`, `25/11/26`, a trailing team name such as `launch crew`, `30m`/`1h` and extra `#tags`; the existing title autocomplete is unchanged
 - Recurring tasks (daily, weekly, monthly, or custom weekly weekdays / nth-weekday monthly); completing one automatically creates the next occurrence
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking
 - Task comments
+- **Search tasks** between the greeting and the clock: click it to find tasks across the lists you can see by title, tag, person, subtask or comment, with scope/status/priority/due/tag/assignee filters. Notes appear only once you enter a term or choose a filter, and **Clear search** resets both. Typing also suggests task titles from the selected scope, using the same token matching and ranking as New Task; choosing a suggestion fills the field only. Search is local to the loaded board and never calls a prediction model.
 - Light-only interface with a soft cream background (`#F8F1E8`) and no theme toggle
 - Adaptive layout: the board and side column reflow by window width, with touch-friendly controls on narrow screens
 
@@ -40,11 +43,12 @@ services.
 - A daily check-in (nine optional questions) and an optional evening review
 - Activity logging: timed sessions and one-tap per-day statuses (completed / partial / skipped / postponed)
 - Per-activity statistics, a readiness/energy view, and similar-day context
-- Nudge shows each personal task's chance of finishing today, plus an ideal time when recorded timing history exists
+- Nudge shows each personal task's chance of finishing today
 - Off days (just off / sick / travelling / holiday / other), each with its own emoji, that reduce confidence rather than inventing data
-- The **Nudge** card shows only open personal tasks due on the selected day; team tasks and other days are excluded
+- The **Nudge** card shows only open personal tasks scheduled on the selected day, including repeating occurrences; team tasks and other days are excluded
 - Display-only **Worth a look** suggestions. The server still computes the proposed flow, workload warning and "better days" ideas, but they are no longer shown in the UI; none of them change a task's date
 - Versioned tags, priority, target duration and preferred time, with full history
+- **My Account → Tags** adds, renames and deletes tags; names are always lower case, every task updates immediately, and past history stays linked to the original tag ids
 - Local model training, versioning, promotion, rollback and a plain-words model health view
 - Trained champions are served for completion, target and duration when healthy; with no model yet, the starting estimates are shown instead
 - Continuous learning: recording activity updates statistics immediately and retraining is gated and rate-limited

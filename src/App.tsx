@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '@/api'
-import type { BootstrapData, Task } from '@/types'
+import type { AppNotification, BootstrapData, Task } from '@/types'
 import { todayDateValue } from '@/lib/date'
 import { localDateString } from '@/lib/checkin'
 import { RefreshCoalescer } from '@/lib/refreshCoalescer'
@@ -12,6 +12,7 @@ import MyAccountDialog from './components/MyAccountDialog'
 import CheckinModal from './components/CheckinModal'
 import NewTaskDialog from './components/NewTaskDialog'
 import OverdueTasksDialog from './components/OverdueTasksDialog'
+import SearchDialog from './components/SearchDialog'
 import { StickyBoard } from './components/StickyBoard'
 import TaskDetail from './components/TaskDetail'
 import TeamModal from './components/TeamModal'
@@ -29,6 +30,8 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [overdueOpen, setOverdueOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [teamModal, setTeamModal] = useState<{ teamId: string | null } | null>(null)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -54,14 +57,29 @@ export default function App() {
       ),
     [setData],
   )
-  const refresh = useCallback((): Promise<void> => refreshCoalescer.refresh(), [refreshCoalescer])
+  const loadNotifications = useCallback(async () => {
+    try {
+      const result = await api.listNotifications()
+      setNotifications(result.items)
+    } catch {
+      // Keep the last known list; the next successful refresh will retry.
+    }
+  }, [])
+
+  const refresh = useCallback(async (): Promise<void> => {
+    await refreshCoalescer.refresh()
+    await loadNotifications()
+  }, [refreshCoalescer, loadNotifications])
 
   useEffect(() => {
     let cancelled = false
     api
       .bootstrap()
       .then((next) => {
-        if (!cancelled) setData(next)
+        if (!cancelled) {
+          setData(next)
+          void loadNotifications()
+        }
       })
       .catch((error: unknown) => {
         if (error instanceof Error && 'status' in error && error.status === 401) return
@@ -73,7 +91,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [notify])
+  }, [loadNotifications, notify])
 
   const currentUserId = data?.user.id ?? null
   const {
@@ -144,10 +162,12 @@ export default function App() {
   const resetSessionState = () => {
     refreshCoalescer.invalidate()
     setData(null)
+    setNotifications([])
     setSelectedId(null)
     setTeamModal(null)
     setTaskDialogOpen(false)
     setOverdueOpen(false)
+    setSearchOpen(false)
     resetViewState()
     resetCheckinState()
   }
@@ -185,9 +205,17 @@ export default function App() {
   // Stable identities let the memoized sticky board skip renders caused by
   // unrelated dialog, check-in or toast state.
   const openTask = useCallback((task: Task) => setSelectedId(task.id), [])
+  const openNotificationTask = useCallback((taskId: string) => setSelectedId(taskId), [setSelectedId])
   const canDeleteTask = useCallback(
     (task: Task) => (data ? canDeleteTaskForUser(task, data.user.id, data.teams) : false),
     [data],
+  )
+  const openSearchTask = useCallback(
+    (task: Task) => {
+      setSearchOpen(false)
+      setSelectedId(task.id)
+    },
+    [setSelectedId],
   )
 
   if (loading) {
@@ -269,6 +297,12 @@ export default function App() {
           onOpenCollaborate={openCollaborate}
           onSelectTeam={openTeam}
           onManageTeam={(teamId) => setTeamModal({ teamId })}
+          notifications={notifications}
+          invites={data.invites}
+          onAcceptInvite={acceptInvite}
+          onDeclineInvite={declineInvite}
+          onOpenNotificationTask={openNotificationTask}
+          onOpenSearch={() => setSearchOpen(true)}
           onOpenAccount={() => {
             setTaskDialogOpen(false)
             setSelectedId(null)
@@ -335,11 +369,9 @@ export default function App() {
               <>
                 <div className="mt-4 grid grid-cols-1 items-start gap-5 md:grid-cols-[minmax(0,1fr)_19rem] xl:grid-cols-[minmax(0,1fr)_21rem]">
                   <div className="min-w-0">
-                    <div className="mb-4">
-                      <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">
-                        Tasks and plan
-                      </h2>
-                    </div>
+                    <h2 className="mb-4 text-xl font-extrabold tracking-tight text-[#15181E]">
+                      Tasks and plan
+                    </h2>
 
                     <StickyBoard
                       tasks={openTasks}
@@ -406,12 +438,22 @@ export default function App() {
         onAdd={addTask}
       />
 
+      <SearchDialog
+        open={searchOpen}
+        tasks={data.tasks}
+        teams={data.teams}
+        currentUserId={data.user.id}
+        todayValue={todayValue}
+        canDelete={canDeleteTask}
+        onClose={() => setSearchOpen(false)}
+        onOpenTask={openSearchTask}
+        onToggleTask={(task) => void toggleTask(task)}
+        onDeleteTask={(task) => void deleteTask(task)}
+      />
+
       <OverdueTasksDialog
         open={overdueOpen}
         tasks={overdueTasksForScope}
-        scopeLabel={
-          isCollab && currentTeam ? `${currentTeam.name} team tasks` : 'Your personal tasks'
-        }
         currentUserId={data.user.id}
         showOwner={isCollab}
         canDelete={canDeleteTask}
@@ -437,6 +479,7 @@ export default function App() {
           await refresh()
           notify('Password updated. Other devices were signed out.', 'success')
         }}
+        onTagsChanged={refresh}
         onDeleted={handleAccountDeleted}
         notify={notify}
       />

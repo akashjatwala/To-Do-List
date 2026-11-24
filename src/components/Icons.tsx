@@ -128,6 +128,13 @@ export const ArrowRightIcon = (props: IconProps) => (
   </Icon>
 )
 
+export const SearchIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.6-3.6" />
+  </Icon>
+)
+
 export const MailIcon = (props: IconProps) => (
   <Icon {...props}>
     <rect x="2" y="4" width="20" height="16" rx="2" />

@@ -21,25 +21,23 @@
 | Number | Shown as | Meaning | Absent when |
 | --- | --- | --- | --- |
 | Completion probability | Nudge: "Chance of finishing today" subtitle, then task name + percentage with a bar below | How likely you are to finish the task that day | Never (always a number) |
-| Ideal time | Nudge: "Ideal time: 10:30–11:00" below the bar | A suggested window from recorded start times for the task, or similar tasks when the task has none | No timing history exists |
 | Target probability | Not shown in the current UI | How likely you are to reach the task's full time target | The task has no target duration |
 | Expected duration | Not shown in the current UI | Roughly how long it usually takes | Not enough duration history |
 | Confidence | Not shown in the current UI | How much personal history backs the number | Never |
 | Stage | not shown | 1 (starting estimate) or 2 (personalised) | Never |
 
-The recommended window is shown in Nudge as **Ideal time** when recorded timing history exists.
-The proposed flow, workload warning, "better days" ideas, target probability and expected duration
-are still computed, logged and returned by the API, but the current UI does not display them in
-Nudge.
+The recommended window, proposed flow, workload warning, "better days" ideas, target probability
+and expected duration are still computed, logged and returned by the API, but Nudge does not
+display them.
 
 ## What Nudge displays
 
 The card is headed **Nudge** with the subtitle **Chance of finishing today** underneath and a
 sparkle button that opens a hover/focus tooltip explaining the estimate. For each open personal
-task due on the selected date it shows the task name, the completion probability as a percentage
-beside it, and a bar underneath. When recorded start times exist it also shows **Ideal time**, a
-suggested window based on that task's history or similar tasks, with a short source line. It does
-not show a confidence label, target probability, estimated duration or progress wording.
+task scheduled on the selected date — due that day or a repeating occurrence projected onto it —
+it shows the task name, the completion probability as a percentage beside it, and a bar underneath.
+It does not show a recommended time, confidence label, target probability, estimated duration or
+progress wording.
 Low-chance, low-priority tasks may also show **Worth a look** suggestions with *Drop it / Move it*
 and *Keep it* actions. Nudge needs no check-in: today's tasks show a percentage straight away.
 When a check-in *is* answered, those answers feed the predictor and Nudge refreshes with the
@@ -85,7 +83,7 @@ sentence about the skip; the uncertainty is still part of the prediction.
 ## Baseline vs model
 
 - The **baseline** (`predictors.ts`) always works and always has an answer. Its version string is `baseline-1.0.0`.
-- A **champion model** (`serving.ts`) replaces the completion, target and duration numbers when one is registered, loadable and healthy. The recommended window and the explanation still come from the baseline, so timing is unchanged.
+- A **champion model** (`serving.ts`) replaces the completion, target and duration numbers when one is registered, loadable and healthy. The recommended window and the explanation still come from the baseline; the window is logged but is not shown in Nudge.
 - If there is no champion, the payload cannot be read, the feature vector does not match, the score is invalid, or the live health check has fallen back, the baseline is served and the reason is stated.
 - One entry point, `server/ml/live-predictor.ts`, is used by **both** `/api/predictions/plan` and `/api/predictions/task`, so the plan and the single-task view cannot disagree. With no champion in the database both show the baseline, exactly as before.
 - `ML_DISABLE_MODEL_SERVING=1` keeps baseline-only behaviour on both routes without changing any model data (read at startup).
@@ -97,7 +95,7 @@ See [ml.md](ml.md) for how a champion is trained, promoted and watched.
 - `GET /api/predictions/plan` always returns a plan for the requested date. An unanswered check-in is just one missing input; the response stays `gate: false` and shows numbers straight away.
 - Predictions are **personal tasks only**. Team tasks are never predicted, never appear in Nudge, and never feed the history, statistics or training data behind a prediction. The single-task and statistics endpoints also refuse team tasks and other users' tasks.
 - An off day returns `offDay: true` with **no** predictions at all.
-- The plan only considers open **personal** tasks due on the requested date; team tasks and tasks due on other dates (or with no due date) are never part of it. It ranks them by probability, priority, what is left of the target and how much time is left. The ranking is a suggestion; it never changes a probability.
+- The plan only considers open **personal** tasks scheduled on the requested date: tasks due that day and repeating tasks whose next occurrence falls on that date. Team tasks, tasks due on other dates and tasks with no due date are never part of it. It ranks them by probability, priority, what is left of the target and how much time is left. The ranking is a suggestion; it never changes a probability.
 - The same `/plan` response also carries `schedule` (a proposed flow and workload warning) and `reschedules` (ideas for another day). Both are still computed as **display-only** data — nothing is written to a task's date — but the current UI does not show them. An off day suppresses both.
 - Low-confidence, low-priority, sufficiently-labelled tasks may still produce **Worth a look** suggestions. They are offered as ideas, never forced.
 - Plain-language **drift notes** (a recent-vs-long-term shift, or a dated configuration change) are returned with the plan. They are informational, never change a number, and are not displayed in the current Nudge card.

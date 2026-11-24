@@ -6,13 +6,16 @@ export default function AccountMenu({
   email,
   onOpenAccount,
   onLogout,
+  defaultOpen = false,
 }: {
   name: string
   email: string
   onOpenAccount: () => void
   onLogout: () => void
+  /** Used by static rendering tests; the app leaves this closed. */
+  defaultOpen?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

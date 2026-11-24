@@ -5,6 +5,7 @@ import express from 'express'
 import type { Response } from 'express'
 import { getUserById, userIdForToken } from './auth'
 import { bootstrap } from './data'
+import { notificationsFor } from './notifications'
 import authRoutes from './auth-routes'
 import teamRoutes, { invitesRouter } from './teams'
 import taskRoutes from './tasks'
@@ -75,6 +76,12 @@ app.get('/api/bootstrap', (req: AuthedRequest, res) => {
   const data = bootstrap(userId)
   if (!data) return fail(res, 401, 'Your account could not be found.')
   res.json(data)
+})
+
+app.get('/api/notifications', (req: AuthedRequest, res) => {
+  const userId = requireUser(req, res)
+  if (userId === null) return
+  res.json({ items: notificationsFor(userId) })
 })
 
 app.use('/api/teams', (req: AuthedRequest, res, next) => {

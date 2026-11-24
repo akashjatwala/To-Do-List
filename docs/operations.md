@@ -97,7 +97,13 @@ checkpoint.
 Schema changes are applied by `server/migrations.ts`, which records each version in
 `schema_migrations`. The checks are idempotent, so an older database is baselined safely on first
 start. Migration 12 removes old password-reset rows and narrows `auth_tokens.kind` to `session`;
-migration 13 adds the reminder tables.
+migration 13 adds the reminder tables; migration 14 adds `assigned_at` and `assigned_by` to
+`task_assignees` and backfills them from each task's owner and creation time; migration 15 adds
+`completed_at` and `completed_by` to `tasks` without backfilling a completion time. Migration 16 is
+data-only: it folds legacy duplicate active tags with the same name into the oldest id using the
+existing merge path, so task links, JSON labels and history stay consistent. Migration 17 adds
+`tags.deleted_at` for soft deletion and lower-cases legacy tag names and task labels while
+preserving every id; identically named tags belonging to different users still stay separate.
 
 ## In-app reminders
 
@@ -106,6 +112,17 @@ A pending sticky note in the all-overdue dialog can send a reminder with
 sent. Personal reminders have no recipient; team reminders go to the task's current assignees, or
 to every team member when nobody is assigned. The newest scoped reminders are returned in
 `bootstrap` and shown in the Overdue card.
+
+## Notification centre
+
+`GET /api/notifications` builds the bell panel from the same local rows: pending invitations,
+reminders addressed to the user, and a team activity feed of task adds, completions, comments,
+assignments and team reminders from the user's teams. The user's own actions are included. Team
+rows carry the team name, and unread rows use a restrained indigo style. It never queues a message
+or contacts an outside service. The assignment route records who assigned
+whom and when; migration 14 fills older rows from the task's owner and creation time. Completion
+is timestamped only when a task changes to done; migration 15 adds those columns but deliberately
+does not backfill old rows. The read marker is browser-local, so clearing site data resets it.
 
 ## Training instructions
 
@@ -124,10 +141,10 @@ Both prediction routes (`GET /api/predictions/plan` and `GET /api/predictions/ta
 through one entry point, `server/ml/live-predictor.ts`. For each task it serves the champion
 completion, target and duration numbers when a model is registered, loadable and healthy;
 otherwise it falls back to the baseline predictor. The Nudge card shows the completion
-percentage beside each task name, with a bar below, plus an ideal time when recorded timing
-history exists. The recommended window and the plain-language explanation still come from the
-baseline, so timing is unchanged; the window is logged with the prediction. With no trained
-model in the database, behaviour is identical to the baseline-only app.
+percentage beside each task name, with a bar below. The recommended window and the
+plain-language explanation still come from the baseline; the window is logged with the prediction
+but is no longer shown in Nudge. With no trained model in the database, behaviour is identical
+to the baseline-only app.
 
 To compare the two or disable model serving in an emergency, start the server with
 `ML_DISABLE_MODEL_SERVING=1`. This keeps all baseline-only behaviour without changing or

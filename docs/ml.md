@@ -116,8 +116,8 @@ Both prediction routes call `server/ml/live-predictor.ts`, which wraps `serving.
 the link between all the training above and the numbers in the app: the champion is served
 for completion, target and duration when present and healthy, otherwise the baseline is
 served. The current Nudge card displays the completion probability (percentage beside
-the task, with a bar below) and, when recorded timing history exists, an ideal time based on
-past start times; target and duration remain computed and logged but are not shown there.
+the task, with a bar below); recommended time, target and duration remain computed and logged
+but are not shown there.
 With no trained model yet, this is the baseline-only behaviour as before.
 `ML_DISABLE_MODEL_SERVING=1` keeps that baseline-only path for comparison or emergencies
 (read at startup). The wiring is covered by `server/ml/live-predictor.test.ts`.

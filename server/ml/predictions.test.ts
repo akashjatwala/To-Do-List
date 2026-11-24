@@ -8,6 +8,7 @@ import {
   saveCheckin,
   type CheckinAnswerKey,
 } from '../checkins-store'
+import type { Recurrence, RecurrenceConfig } from '../recurrence'
 import { createFoundationSchema, createPredictionSchema } from './schema'
 import { endOfLocalDay, recordTaskConfig } from './task-config'
 import { syncTaskTags } from './tags'
@@ -123,6 +124,8 @@ function insertTask(
     priority?: string
     tagNames?: string[]
     due?: number | null
+    recurrence?: Recurrence
+    recurrenceConfig?: RecurrenceConfig | null
   } = {},
 ): string {
   const id = randomUUID()
@@ -130,25 +133,48 @@ function insertTask(
   const duration = options.duration === undefined ? 60 : options.duration
   const priority = options.priority ?? 'none'
   const due = options.due === undefined ? endOfLocalDay(TODAY) : options.due
+  const recurrence = options.recurrence ?? 'none'
+  const recurrenceConfig = options.recurrenceConfig ?? null
   db.prepare(
-    `INSERT INTO tasks (id, user_id, text, created_at, due, priority, tags, recurrence, duration)
-     VALUES (?, ?, ?, 1, ?, ?, '[]', 'none', ?)`,
-  ).run(id, USER, text, due, priority, duration)
+    `INSERT INTO tasks (id, user_id, text, created_at, due, priority, tags, recurrence, duration, recurrence_config)
+     VALUES (?, ?, ?, 1, ?, ?, '[]', ?, ?, ?)`,
+  ).run(
+    id,
+    USER,
+    text,
+    due,
+    priority,
+    recurrence,
+    duration,
+    recurrenceConfig ? JSON.stringify(recurrenceConfig) : null,
+  )
   const tagIds = options.tagNames ? syncTaskTags(db, USER, id, options.tagNames) : []
-  recordTaskConfig(db, taskLike(id, text, priority, duration), tagIds, CONFIG_FROM)
+  recordTaskConfig(
+    db,
+    taskLike(id, text, priority, duration, recurrence, recurrenceConfig),
+    tagIds,
+    CONFIG_FROM,
+  )
   return id
 }
 
 /** The task fields `recordTaskConfig` reads. */
-function taskLike(id: string, text: string, priority: string, duration: number | null) {
+function taskLike(
+  id: string,
+  text: string,
+  priority: string,
+  duration: number | null,
+  recurrence: Recurrence = 'none',
+  recurrenceConfig: RecurrenceConfig | null = null,
+) {
   return {
     id,
     user_id: USER,
     text,
     priority,
     tags: '[]',
-    recurrence: 'none',
-    recurrence_config: null,
+    recurrence,
+    recurrence_config: recurrenceConfig ? JSON.stringify(recurrenceConfig) : null,
     duration,
     preferred_time: null,
   }
@@ -494,7 +520,7 @@ test('free time and the recommended window never point at the past', () => {
   assert.equal(window.exploratory, false)
 })
 
-test('learned ideal time is hidden once its window has passed', () => {
+test('learned recommended window is omitted once it has passed', () => {
   const timing = timingProfile([9 * 60]) // learned morning habit
   const window = recommendWindow(timing, TODAY, 21 * 60, 30, null)
   assert.equal(window.start, null)
@@ -603,7 +629,7 @@ test('plan ranking excludes completed and inactive tasks and never forces a choi
   assert.match(plan.note, /suggestion only/i)
 })
 
-test('plan only includes tasks due on the selected date', () => {
+test('plan includes non-repeating tasks due on the selected date', () => {
   const db = freshDb()
   const dueToday = insertTask(db, { text: 'Today', duration: 60 })
   const tomorrow = insertTask(db, {
@@ -619,6 +645,42 @@ test('plan only includes tasks due on the selected date', () => {
     [dueToday],
   )
   assert.equal(plan.suggestions.some((entry) => entry.taskId === tomorrow || entry.taskId === noDue), false)
+  db.close()
+})
+
+test('plan includes repeating personal tasks projected onto the selected date', () => {
+  const db = freshDb()
+  const daily = insertTask(db, {
+    text: 'Daily',
+    due: endOfLocalDay(addDays(TODAY, -2)),
+    recurrence: 'daily',
+  })
+  const weekly = insertTask(db, {
+    text: 'Weekly',
+    due: endOfLocalDay(addDays(TODAY, -7)),
+    recurrence: 'weekly',
+  })
+  const monthly = insertTask(db, {
+    text: 'Monthly',
+    due: endOfLocalDay(addDays(TODAY, -30)),
+    recurrence: 'monthly',
+  })
+  const custom = insertTask(db, {
+    text: 'Custom',
+    due: endOfLocalDay(addDays(TODAY, -14)),
+    recurrence: 'custom',
+    recurrenceConfig: { mode: 'weekly', days: [weekdayOf(TODAY)] },
+  })
+  const future = insertTask(db, {
+    text: 'Future daily',
+    due: endOfLocalDay(addDays(TODAY, 1)),
+    recurrence: 'daily',
+  })
+
+  const plan = buildPlan(db, USER, TODAY, TODAY, 480, 'completed')
+  const ids = plan.entries.map((entry) => entry.taskId)
+  for (const id of [daily, weekly, monthly, custom]) assert.ok(ids.includes(id))
+  assert.ok(!ids.includes(future))
   db.close()
 })
 

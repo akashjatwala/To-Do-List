@@ -213,13 +213,15 @@ export default function TaskDetail({
 
   const addTag = (event: FormEvent) => {
     event.preventDefault()
-    const value = tagInput.trim().replace(/\s+/g, ' ')
+    const value = tagInput.trim().replace(/\s+/g, ' ').toLowerCase()
     setTagInput('')
     if (!value || task.tags.includes(value) || task.tags.length >= TAG_LIMIT) return
     void onUpdate({ tags: [...task.tags, value] })
   }
 
-  const toggleTag = (tag: string) => {
+  const toggleTag = (rawTag: string) => {
+    const tag = rawTag.trim().replace(/\s+/g, ' ').toLowerCase()
+    if (!tag) return
     if (task.tags.includes(tag)) {
       void onUpdate({ tags: task.tags.filter((item) => item !== tag) })
     } else if (task.tags.length < TAG_LIMIT) {

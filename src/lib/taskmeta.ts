@@ -202,14 +202,14 @@ export function formatDuration(minutes: number): string {
  * is as quick as picking a priority.
  */
 export const COMMON_TAGS = [
-  'Work',
-  'Personal',
-  'Meeting',
-  'Errand',
-  'Shopping',
-  'Health',
-  'Finance',
-  'Follow-up',
+  'work',
+  'personal',
+  'meeting',
+  'errand',
+  'shopping',
+  'health',
+  'finance',
+  'follow-up',
 ]
 
 export const TAG_LIMIT = 8

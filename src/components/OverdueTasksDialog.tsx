@@ -6,8 +6,6 @@ interface OverdueTasksDialogProps {
   open: boolean
   /** Overdue tasks in the current personal or team scope. */
   tasks: Task[]
-  /** Short scope name shown under the dialog title. */
-  scopeLabel: string
   currentUserId: number
   showOwner: boolean
   canDelete: (task: Task) => boolean
@@ -27,7 +25,6 @@ interface OverdueTasksDialogProps {
 export default function OverdueTasksDialog({
   open,
   tasks,
-  scopeLabel,
   currentUserId,
   showOwner,
   canDelete,
@@ -44,13 +41,12 @@ export default function OverdueTasksDialog({
       open={open}
       onClose={onClose}
       title="All overdue tasks"
-      description={scopeLabel}
       width="max-w-6xl"
     >
       <StickyBoard
         tasks={overdue}
         emptyTitle="No overdue tasks"
-        emptyText="Nothing is past its due date in this scope. Nice work."
+        emptyText="Nothing is past its due date. Nice work."
         currentUserId={currentUserId}
         showOwner={showOwner}
         canDelete={canDelete}

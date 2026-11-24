@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { answeredValues, getCheckin, type CheckinAnswerKey, type CheckinState } from '../checkins-store'
+import { readRecurrenceConfig, repeatsOnDate, type Recurrence } from '../recurrence'
 import { averageGoodness, readinessFromCheckin } from './readiness'
 import { configForDate, endOfLocalDay, startOfLocalDay } from './task-config'
 import { dailyActivity } from './daily-activity'
@@ -262,7 +263,7 @@ export interface TimeWindow {
  * time and never in the past. With no timing data it falls back to a sensible
  * next-hour window (low confidence is applied by the caller). When learned
  * timing exists but its ideal window has already passed, no window is returned
- * so the UI does not show a misleading late-evening "ideal time".
+ * so the logged window is not a misleading late-evening recommendation.
  */
 export function recommendWindow(
   timing: TimingProfile,
@@ -597,16 +598,36 @@ export function buildPlan(
   const tagStats = groupStatistics(db, userId, taskIds, today, priorRate, 'tag')
   const priorityStats = groupStatistics(db, userId, taskIds, today, priorRate, 'priority')
 
-  // Only tasks due on the requested day belong in that day's Nudge. Personal
-  // tasks only; team tasks are never part of this plan.
-  const openTasks = db
+  // Only open personal tasks scheduled on the requested day belong in that
+  // day's Nudge. Repeating tasks match when their projection lands on the day,
+  // the same rule the dated board uses. Team tasks are never part of this plan.
+  const openTaskRows = db
     .prepare(
-      `SELECT id FROM tasks
+      `SELECT id, due, recurrence, recurrence_config FROM tasks
        WHERE user_id = ? AND done = 0 AND team_id IS NULL
-         AND due >= ? AND due <= ?
+         AND due IS NOT NULL AND due <= ?
        ORDER BY created_at`,
     )
-    .all(userId, startOfLocalDay(date), endOfLocalDay(date)) as unknown as Array<{ id: string }>
+    .all(userId, endOfLocalDay(date)) as unknown as Array<{
+    id: string
+    due: number
+    recurrence: string
+    recurrence_config: string | null
+  }>
+  const dayStart = startOfLocalDay(date)
+  const dayEnd = endOfLocalDay(date)
+  const openTasks = openTaskRows
+    .filter((task) =>
+      task.recurrence === 'none'
+        ? task.due >= dayStart && task.due <= dayEnd
+        : repeatsOnDate(
+            task.due,
+            task.recurrence as Recurrence,
+            readRecurrenceConfig(task.recurrence_config),
+            date,
+          ),
+    )
+    .map((task) => ({ id: task.id }))
 
   const context: PredictContext = {
     date,

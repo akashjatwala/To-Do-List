@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { mergeTags } from './ml/tags'
 
 /**
  * Versioned, idempotent schema migrations.
@@ -21,6 +22,91 @@ const hasColumn = (db: DatabaseSync, table: string, column: string): boolean =>
 
 const addColumn = (db: DatabaseSync, table: string, definition: string) =>
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`)
+
+/**
+ * Older seeded databases can contain several active ids for the same tag name.
+ * Fold them into the oldest id with the existing merge logic so task links,
+ * context questions, JSON labels and tag history all stay consistent.
+ */
+export function deduplicateTags(db: DatabaseSync): void {
+  const groups = db
+    .prepare(
+      `SELECT user_id, normalized, MIN(id) AS survivor_id
+       FROM tags
+       WHERE merged_into_id IS NULL
+       GROUP BY user_id, normalized
+       HAVING COUNT(*) > 1`,
+    )
+    .all() as unknown as Array<{ user_id: number; normalized: string; survivor_id: number }>
+
+  const now = Date.now()
+  for (const group of groups) {
+    const sources = db
+      .prepare(
+        `SELECT id FROM tags
+         WHERE user_id = ? AND normalized = ? AND merged_into_id IS NULL AND id <> ?
+         ORDER BY id`,
+      )
+      .all(group.user_id, group.normalized, group.survivor_id) as unknown as Array<{ id: number }>
+    for (const source of sources) {
+      mergeTags(db, group.user_id, source.id, group.survivor_id, now)
+    }
+  }
+}
+
+/**
+ * Legacy rows can hold mixed-case tag names even though `normalized` has
+ * always been lower case. Canonicalise both the tag rows and the JSON labels
+ * stored on tasks, keeping every id (and therefore every history link) intact.
+ */
+export function lowercaseTagNames(db: DatabaseSync): void {
+  const canonical = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase()
+
+  const tags = db.prepare('SELECT id, name, normalized FROM tags').all() as unknown as Array<{
+    id: number
+    name: string
+    normalized: string
+  }>
+  const updateTag = db.prepare('UPDATE tags SET name = ?, normalized = ? WHERE id = ?')
+  for (const tag of tags) {
+    const name = canonical(tag.name)
+    const normalized = canonical(tag.normalized)
+    if (name !== tag.name || normalized !== tag.normalized) updateTag.run(name, normalized, tag.id)
+  }
+
+  const tasks = db.prepare('SELECT id, tags FROM tasks WHERE tags IS NOT NULL').all() as unknown as Array<{
+    id: string
+    tags: string
+  }>
+  const updateTask = db.prepare('UPDATE tasks SET tags = ? WHERE id = ?')
+  for (const task of tasks) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(task.tags)
+    } catch {
+      continue
+    }
+    if (!Array.isArray(parsed)) continue
+    const seen = new Set<string>()
+    const next: string[] = []
+    let changed = false
+    for (const item of parsed) {
+      if (typeof item !== 'string') {
+        changed = true
+        continue
+      }
+      const name = canonical(item)
+      if (!name || seen.has(name)) {
+        changed = true
+        continue
+      }
+      if (name !== item) changed = true
+      seen.add(name)
+      next.push(name)
+    }
+    if (changed) updateTask.run(JSON.stringify(next), task.id)
+  }
+}
 
 const migrations: Migration[] = [
   {
@@ -168,6 +254,59 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_task_reminders_task ON task_reminders(task_id);
         CREATE INDEX IF NOT EXISTS idx_task_reminder_recipients_reminder ON task_reminder_recipients(reminder_id);
       `)
+    },
+  },
+  {
+    version: 14,
+    name: 'task_assignees.assignment-metadata',
+    up: (db) => {
+      if (!hasColumn(db, 'task_assignees', 'assigned_at')) {
+        addColumn(db, 'task_assignees', 'assigned_at INTEGER')
+      }
+      if (!hasColumn(db, 'task_assignees', 'assigned_by')) {
+        addColumn(
+          db,
+          'task_assignees',
+          'assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL',
+        )
+      }
+      // Old assignments were made when the task was created by its owner.
+      db.exec(`
+        UPDATE task_assignees
+        SET assigned_at = COALESCE(assigned_at, (SELECT created_at FROM tasks WHERE tasks.id = task_assignees.task_id)),
+            assigned_by = COALESCE(assigned_by, (SELECT user_id FROM tasks WHERE tasks.id = task_assignees.task_id))
+      `)
+    },
+  },
+  {
+    version: 15,
+    name: 'tasks.completion-metadata',
+    up: (db) => {
+      if (!hasColumn(db, 'tasks', 'completed_at')) {
+        addColumn(db, 'tasks', 'completed_at INTEGER')
+      }
+      if (!hasColumn(db, 'tasks', 'completed_by')) {
+        addColumn(db, 'tasks', 'completed_by INTEGER REFERENCES users(id) ON DELETE SET NULL')
+      }
+      // Existing done rows have no reliable completion time, so they stay blank
+      // rather than pretending they were completed when they were created.
+    },
+  },
+  {
+    version: 16,
+    name: 'tags.duplicate-names',
+    up: (db) => {
+      deduplicateTags(db)
+    },
+  },
+  {
+    version: 17,
+    name: 'tags.lowercase-and-deletable',
+    up: (db) => {
+      if (!hasColumn(db, 'tags', 'deleted_at')) {
+        addColumn(db, 'tags', 'deleted_at INTEGER')
+      }
+      lowercaseTagNames(db)
     },
   },
 ]

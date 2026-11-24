@@ -60,6 +60,65 @@ export function readRecurrenceConfig(value: string | null | undefined): Recurren
   }
 }
 
+function localDateValue(timestamp: number): string {
+  const date = new Date(timestamp)
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+function dateFromValue(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+/**
+ * Whether a repeating task is scheduled on a local date (YYYY-MM-DD). The due
+ * date always matches; later dates follow the same rules the board uses for
+ * projection. This lets server-side consumers such as Nudge see the same
+ * occurrences without creating extra task rows.
+ */
+export function repeatsOnDate(
+  due: number | null,
+  recurrence: Recurrence,
+  config: RecurrenceConfig | null,
+  dateValue: string,
+): boolean {
+  if (due === null || recurrence === 'none' || !dateValue) return false
+  const dueValue = localDateValue(due)
+  if (dateValue < dueValue) return false
+  if (dateValue === dueValue) return true
+
+  const target = dateFromValue(dateValue)
+  const source = new Date(due)
+
+  switch (recurrence) {
+    case 'daily':
+      return true
+    case 'weekly':
+      return target.getDay() === source.getDay()
+    case 'monthly': {
+      const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+      return target.getDate() === Math.min(source.getDate(), lastDay)
+    }
+    case 'custom': {
+      if (!config) return false
+      if (config.mode === 'weekly') return config.days.includes(target.getDay())
+      if (target.getDay() !== config.weekday) return false
+      const firstOfMonth = new Date(target.getFullYear(), target.getMonth(), 1)
+      const offset = (config.weekday - firstOfMonth.getDay() + 7) % 7
+      const nth = Math.floor((target.getDate() - 1 - offset) / 7) + 1
+      if (config.nth === 5) {
+        const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+        return target.getDate() + 7 > lastDay
+      }
+      return nth === config.nth
+    }
+    default:
+      return false
+  }
+}
+
 /** Day of the month for the nth weekday, with nth = 5 meaning the last one. */
 function nthWeekday(weekday: number, nth: number, year: number, month: number): number {
   const lastDay = new Date(year, month + 1, 0)

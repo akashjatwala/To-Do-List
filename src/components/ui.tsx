@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { initials, avatarColor } from '@/lib/date'
 import { XIcon } from './Icons'
 
@@ -58,6 +59,7 @@ export function Modal({
   description,
   children,
   width = 'max-w-lg',
+  surfaceClassName = 'border-slate-200 bg-white',
 }: {
   open: boolean
   onClose: () => void
@@ -65,6 +67,8 @@ export function Modal({
   description?: string
   children: ReactNode
   width?: string
+  /** Optional surface tone; defaults to the app's neutral white modal. */
+  surfaceClassName?: string
 }) {
   useBodyScrollLock(open)
 
@@ -79,7 +83,7 @@ export function Modal({
 
   if (!open) return null
 
-  return (
+  const dialog = (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
       <div
         className="animate-fade absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
@@ -89,7 +93,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`animate-in relative w-full ${width} max-h-[90dvh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-6 shadow-2xl sm:rounded-2xl`}
+        className={`animate-in relative w-full ${width} max-h-[90dvh] overflow-y-auto rounded-t-2xl border p-6 shadow-2xl sm:rounded-2xl ${surfaceClassName}`}
         style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
       >
         <div className="mb-5 flex items-start justify-between gap-4">
@@ -107,6 +111,11 @@ export function Modal({
       </div>
     </div>
   )
+
+  // A portalled dialog is a sibling of the page rather than a descendant of
+  // its parent dialog. Without this, an animated parent's transform becomes
+  // the containing block for a nested dialog and clips/confines its overlay.
+  return typeof document === 'undefined' ? dialog : createPortal(dialog, document.body)
 }
 
 export interface ConfirmOptions {

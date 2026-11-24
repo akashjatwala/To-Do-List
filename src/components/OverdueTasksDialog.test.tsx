@@ -29,12 +29,11 @@ function makeTask(overrides: Partial<Task> = {}): Task {
   }
 }
 
-function render(tasks: Task[], scopeLabel = 'Your personal tasks') {
+function render(tasks: Task[]) {
   return renderToStaticMarkup(
     <OverdueTasksDialog
       open
       tasks={tasks}
-      scopeLabel={scopeLabel}
       currentUserId={1}
       showOwner={false}
       canDelete={() => false}
@@ -48,15 +47,13 @@ function render(tasks: Task[], scopeLabel = 'Your personal tasks') {
 }
 
 test('the overdue dialog shows the scoped overdue tasks as sticky notes', () => {
-  const html = render(
-    [
-      makeTask({ id: 'overdue-1', text: 'Write the brief' }),
-      makeTask({ id: 'done-1', text: 'Already shipped', done: true }),
-    ],
-    'Launch crew team tasks',
-  )
+  const html = render([
+    makeTask({ id: 'overdue-1', text: 'Write the brief' }),
+    makeTask({ id: 'done-1', text: 'Already shipped', done: true }),
+  ])
   assert.match(html, /All overdue tasks/)
-  assert.match(html, /Launch crew team tasks/)
+  assert.doesNotMatch(html, /Your personal tasks/)
+  assert.doesNotMatch(html, /team tasks/)
   assert.match(html, /sticky-note/)
   assert.match(html, /Write the brief/)
   assert.doesNotMatch(html, /Already shipped/)
