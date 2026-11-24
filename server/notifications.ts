@@ -13,6 +13,7 @@ export type NotificationKind =
   | 'reminder'
   | 'team-reminder'
   | 'comment'
+  | 'mention'
   | 'assignment'
   | 'task-added'
   | 'task-completed'
@@ -118,13 +119,37 @@ function shorten(value: string, max: number): string {
   return `${clean.slice(0, Math.max(1, max - 1)).trimEnd()}…`
 }
 
+/** Names and email forms that a teammate may use after an @ in a comment. */
+function mentionAliases(name: string | null | undefined, email: string | null | undefined): string[] {
+  const values = [email, name, email?.split('@')[0]]
+    .map((value) => value?.trim().toLowerCase())
+    .filter((value): value is string => Boolean(value))
+  return [...new Set(values)]
+}
+
+/** Require the alias to end at a token boundary so @qa does not match @qa-mate. */
+function mentionsUser(text: string, aliases: string[]): boolean {
+  const lower = text.toLowerCase()
+  return aliases.some((alias) => {
+    const needle = `@${alias}`
+    let index = lower.indexOf(needle)
+    while (index !== -1) {
+      const after = lower[index + needle.length]
+      if (after === undefined || !/[\p{L}\p{N}_.-]/u.test(after)) return true
+      index = lower.indexOf(needle, index + 1)
+    }
+    return false
+  })
+}
+
 /** Notifications relevant to one user, newest first. */
 export function notificationsFor(userId: number, database: DatabaseSync = db): AppNotification[] {
-  const user = database.prepare('SELECT email FROM users WHERE id = ?').get(userId) as
-    | { email: string }
+  const user = database.prepare('SELECT name, email FROM users WHERE id = ?').get(userId) as
+    | { name: string; email: string }
     | undefined
   if (!user) return []
 
+  const aliases = mentionAliases(user.name, user.email)
   const items: AppNotification[] = []
   const inMyTeams = 't.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?)'
 
@@ -268,6 +293,37 @@ export function notificationsFor(userId: number, database: DatabaseSync = db): A
       teamName: row.team_name,
       actorName: displayName(row.actor_name, row.actor_email),
     })
+  }
+
+  if (aliases.length > 0) {
+    const mentionRows = database
+      .prepare(
+        `SELECT c.id, c.task_id, t.team_id, tm.name AS team_name,
+                c.text, t.text AS task_text, c.created_at,
+                c.user_id AS actor_id, u.name AS actor_name, u.email AS actor_email
+         FROM comments c
+         JOIN tasks t ON t.id = c.task_id
+         JOIN teams tm ON tm.id = t.team_id
+         JOIN users u ON u.id = c.user_id
+         WHERE ${inMyTeams} AND c.user_id <> ?
+         ORDER BY c.created_at DESC, c.id DESC
+         LIMIT 100`,
+      )
+      .all(userId, userId) as unknown as CommentRow[]
+    for (const row of mentionRows) {
+      if (!mentionsUser(row.text, aliases)) continue
+      items.push({
+        id: `mention:${row.id}`,
+        kind: 'mention',
+        createdAt: row.created_at,
+        title: `${actorLabel(row.actor_id, row.actor_name, row.actor_email, userId)} mentioned you`,
+        body: `“${shorten(row.text, 110)}” on ${shorten(row.task_text, 60)}`,
+        taskId: row.task_id,
+        teamId: row.team_id,
+        teamName: row.team_name,
+        actorName: displayName(row.actor_name, row.actor_email),
+      })
+    }
   }
 
   const assignments = database

@@ -12,8 +12,14 @@
     "start": "node --import tsx server/start.ts",
     "preview": "vite preview",
     "test": "node --env-file=.env.test --import tsx --test \"server/**/*.test.ts\" \"src/**/*.test.ts\" \"src/**/*.test.tsx\"",
+    "test:e2e": "npm run build && playwright test",
+    "docs:screenshots": "npm run build && node --env-file=.env.screenshots --import tsx scripts/capture-screenshots.ts",
     "seed:ml": "node --import tsx server/ml/demo-data.ts --target isolated",
-    "seed:ml:app": "node --import tsx server/ml/demo-data.ts --target app"
+    "seed:ml:app": "node --import tsx server/ml/demo-data.ts --target app",
+    "demo:team": "node --import tsx scripts/seed-demo-team.ts",
+    "qa:seed": "node --env-file=.env.qa --import tsx scripts/qa-seed.ts",
+    "qa:reset": "node --env-file=.env.qa --import tsx scripts/qa-reset.ts",
+    "perf:check": "node --env-file=.env.perf --import tsx scripts/perf-check.ts"
   },
   "dependencies": {
     "@fontsource/baloo-2": "^5.3.0",
@@ -25,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "4.1.17",
     "@types/express": "^5.0.3",
     "@types/node": "^26.6.6",

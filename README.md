@@ -8,6 +8,27 @@ The learning system is a separate layer on top of the existing app: it records w
 you actually do, learns from it locally, and sends no personal data to third-party
 services.
 
+## Screenshots
+
+These images are generated from a disposable, synthetic QA database with
+`npm run docs:screenshots`; they contain no real user data.
+
+**Day board** — sticky notes, Nudge and completed tasks:
+
+![DUIT day board with sticky notes and completed tasks](docs/screenshots/board.png)
+
+**Team list** — shared tasks for the selected team:
+
+![DUIT Teams view with multiple shared teams and tasks](docs/screenshots/teams.png)
+
+**Task details** — assignees, priority, tags and `@mention` comments:
+
+![DUIT task details with assignees and a mention comment](docs/screenshots/task-details.png)
+
+**Notifications** — in-app assignment and mention activity:
+
+![DUIT notifications panel with assignment and mention activity](docs/screenshots/notifications.png)
+
 ## Features
 
 **Lists and tasks**
@@ -28,7 +49,7 @@ services.
 - Completed tasks collect in a list on the right, scoped to the same day
 - Create personal tasks in **My tasks**, or open a team in **Teams** — new tasks are filed into the list you are viewing
 - **Add task** opens a centered dialog. In **My tasks**, the Off days and Today's plan cards sit in the right-hand column above Completed, leaving more room for the notes
-- **Quick fill** in the New Task dialog turns “Submit report tomorrow 3pm #work” into a title, due date, preferred time and tag. It also understands weekdays, `next Monday`, `in 3 days`, `25/11/26`, a trailing team name such as `launch crew`, `30m`/`1h` and extra `#tags`; the existing title autocomplete is unchanged
+- **Quick fill** in the New Task dialog turns “Submit report tomorrow 3pm #work !high” into a title, due date, preferred time, tag and priority. It also understands weekdays, `next Monday`, `in 3 days`, `25/11/26`, a trailing team name such as `launch crew`, `30m`/`1h` and extra `#tags`; the existing title autocomplete is unchanged. `!low`, `!medium` and `!high` set priority; unsupported `!words` stay in the title
 - Recurring tasks (daily, weekly, monthly, or custom weekly weekdays / nth-weekday monthly); completing one automatically creates the next occurrence
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking
@@ -74,11 +95,17 @@ Then open <http://localhost:5173>. The API runs on <http://localhost:3001>.
 ```bash
 npm run seed:ml        # isolated DB + chronological holdout report
 npm run seed:ml:app    # separate demo account in the local app DB
+npm run demo:team      # rich multi-team demo on the demo accounts only
 ```
 
-The app demo signs in with `ml-demo@example.com` / `demo12345` and leaves other accounts
-untouched. The report measures synthetic history only; see
-[docs/ml.md](docs/ml.md#generating-local-test-data) for the exact rules and caveats.
+The app demo signs in with `ml-demo@example.com` / `demo12345`. Two teammates are
+also available: `ml-demo-mate@example.com` and `ml-demo-priya@example.com` with the
+same password. No other account is touched.
+
+Open **Teams** after `npm run demo:team` to see a realistic fixture: three joined
+teams plus one pending invitation, historical completed work, multi-assignee tasks
+with subtasks and notes, sent invitations and incoming invites. All of it is
+synthetic; see [docs/ml.md](docs/ml.md#generating-local-test-data) for the ML caveats.
 
 ### Production
 
@@ -106,6 +133,8 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 | [docs/predictions.md](docs/predictions.md) | What is predicted, from what inputs, and how it is shown |
 | [docs/ml.md](docs/ml.md) | Features, algorithms and why they were chosen, training, versioning, health and drift |
 | [docs/operations.md](docs/operations.md) | Running, training, retraining, health checks and rollback |
+| [docs/api.md](docs/api.md) | HTTP routes, request bodies and authentication |
+| [docs/testing.md](docs/testing.md) | Unit, browser and QA checks, seed/reset scripts and performance smoke test |
 | [docs/privacy-and-limits.md](docs/privacy-and-limits.md) | What is stored, what stays local, and the honest limits |
 | [docs/decisions.md](docs/decisions.md) | The main design choices and their reasons |
 
@@ -118,6 +147,11 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 | `npm start` | Serve the built app and API on port 3001 |
 | `npm run preview` | Preview the Vite build |
 | `npm test` | Run the whole test suite (server + frontend) |
+| `npm run test:e2e` | Build, start an isolated server and run the Chrome browser flows |
+| `npm run qa:seed` | Seed the isolated QA database with two users, a team and sample activity |
+| `npm run qa:reset` | Delete the isolated QA database |
+| `npm run perf:check` | Seed 5,000 tasks in a disposable DB and report bootstrap timings |
+| `npm run docs:screenshots` | Regenerate the synthetic screenshots embedded above |
 
 ## Development notes
 

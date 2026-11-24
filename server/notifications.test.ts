@@ -145,3 +145,25 @@ test('personal reminders stay in Reminders while untargeted team reminders join 
   assert.equal(ofKind(items, 'team-reminder')[0].teamName, 'Launch crew')
   db.close()
 })
+
+test('comments that @mention the viewer create a mention notification', () => {
+  const db = fixture()
+  db.exec(`
+    INSERT INTO comments (id, task_id, user_id, text, created_at) VALUES
+      ('mention-me', 'team', 2, 'Can @me review this?', 7000),
+      ('mention-other', 'team', 2, 'Marco can you help? @Marco', 7100),
+      ('self-mention', 'team', 1, 'Reminder for @me', 7200),
+      ('partial-alias', 'team', 2, 'Ask @qa-mate instead', 7300);
+  `)
+
+  const items = notificationsFor(1, db)
+  const mentions = ofKind(items, 'mention')
+  assert.deepEqual(
+    mentions.map((item) => item.title),
+    ['Asha mentioned you'],
+  )
+  assert.equal(mentions[0].taskId, 'team')
+  assert.equal(mentions[0].teamName, 'Launch crew')
+  assert.match(mentions[0].body, /Can @me review this\?/)
+  db.close()
+})

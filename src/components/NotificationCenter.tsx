@@ -101,7 +101,7 @@ export default function NotificationCenter({
         ? PlusIcon
         : item.kind === 'task-completed'
           ? CheckIcon
-          : item.kind === 'comment'
+          : item.kind === 'comment' || item.kind === 'mention'
             ? MessageIcon
             : item.kind === 'reminder' || item.kind === 'team-reminder'
               ? BellIcon

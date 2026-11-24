@@ -1,4 +1,4 @@
-import type { Team } from '@/types'
+import type { Priority, Team } from '@/types'
 import { dateInputValue } from './date'
 import { TAG_LIMIT } from './taskmeta'
 
@@ -10,6 +10,8 @@ export interface QuickAddResult {
   tags: string[]
   duration: number | null
   teamId: string | null
+  /** Null when the phrase did not specify a priority, so the dialog keeps its current choice. */
+  priority: Priority | null
 }
 
 const WEEKDAYS: Record<string, number> = {
@@ -219,14 +221,13 @@ function timeFrom(hour: number, minute: number, period?: string): string | null 
   return `${`${normalized}`.padStart(2, '0')}:${`${minute}`.padStart(2, '0')}`
 }
 
-function cleanTitle(value: string, fallback: string): string {
-  const cleaned = value
+function cleanTitle(value: string): string {
+  return value
     .replace(/\s+/g, ' ')
     .replace(/^\s*(?:on|at|for|due|by)\s+/i, '')
     .replace(/\s+(?:on|at|for|due|by)$/i, '')
     .replace(/^[\s,;:–—-]+|[\s,;:–—-]+$/g, '')
     .trim()
-  return cleaned || fallback.trim().replace(/\s+/g, ' ')
 }
 
 /**
@@ -238,8 +239,7 @@ export function parseQuickAdd(
   now = new Date(),
   teams: Team[] = [],
 ): QuickAddResult {
-  const original = input.trim().replace(/\s+/g, ' ')
-  let text = original
+  let text = input.trim().replace(/\s+/g, ' ')
   let due: string | null = null
   const tonight = /\btonight\b/i.test(text)
 
@@ -281,6 +281,18 @@ export function parseQuickAdd(
     },
   )
 
+  let priority: Priority | null = null
+  text = text.replace(
+    /\b(?:no|none)\s+priority\b|\b(high|medium|low)\s+priority\b|(?:^|\s)!(high|medium|low|none)\b/gi,
+    (_match, phrase: string | undefined, shorthand: string | undefined) => {
+      if (priority !== null) return ' '
+      const value = (phrase ?? shorthand ?? 'none').toLowerCase()
+      priority =
+        value === 'high' ? 'high' : value === 'medium' ? 'medium' : value === 'low' ? 'low' : 'none'
+      return ' '
+    },
+  )
+
   const tags: string[] = []
   text = text.replace(/(?:^|\s)#([A-Za-z0-9][A-Za-z0-9_-]{0,23})\b/g, (match, raw: string) => {
     const tag = raw.toLowerCase()
@@ -299,11 +311,12 @@ export function parseQuickAdd(
   }
 
   return {
-    text: cleanTitle(text, original),
+    text: cleanTitle(text),
     due,
     preferredTime,
     tags,
     duration,
     teamId,
+    priority,
   }
 }

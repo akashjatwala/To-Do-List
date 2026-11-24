@@ -1,5 +1,8 @@
 node_modules
 dist
 server/data
+test-results
+playwright-report
+blob-report
 *.local
 .DS_Store

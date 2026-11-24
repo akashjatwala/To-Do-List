@@ -14,6 +14,7 @@ test('parses the sample phrase into title, date, time and tag', () => {
     tags: ['work'],
     duration: null,
     teamId: null,
+    priority: null,
   })
 })
 
@@ -25,6 +26,7 @@ test('parses weekdays, twelve-hour times, tags and duration', () => {
     tags: ['work'],
     duration: 30,
     teamId: null,
+    priority: null,
   })
 })
 
@@ -36,6 +38,7 @@ test('parses today and named times without inventing a priority', () => {
     tags: ['personal'],
     duration: null,
     teamId: null,
+    priority: null,
   })
 })
 
@@ -47,6 +50,7 @@ test('parses relative dates and twenty-four-hour times', () => {
     tags: ['planning'],
     duration: 60,
     teamId: null,
+    priority: null,
   })
 })
 
@@ -58,6 +62,7 @@ test('tonight gets a date and a default evening time', () => {
     tags: [],
     duration: null,
     teamId: null,
+    priority: null,
   })
 })
 
@@ -69,6 +74,7 @@ test('leaves plain titles untouched', () => {
     tags: [],
     duration: null,
     teamId: null,
+    priority: null,
   })
 })
 
@@ -80,6 +86,7 @@ test('keeps invalid times in the title but still collects tags', () => {
     tags: ['qa'],
     duration: null,
     teamId: null,
+    priority: null,
   })
 })
 
@@ -91,6 +98,7 @@ test('parses explicit dates', () => {
     tags: ['finance'],
     duration: null,
     teamId: null,
+    priority: null,
   })
 })
 
@@ -110,6 +118,7 @@ test('parses slash dates and a trailing team name', () => {
     tags: [],
     duration: null,
     teamId: 'crew',
+    priority: null,
   })
 })
 
@@ -126,5 +135,36 @@ test('keeps an invalid slash date in the title', () => {
     tags: ['qa'],
     duration: null,
     teamId: null,
+    priority: null,
   })
+})
+
+test('parses shorthand and phrase priorities', () => {
+  assert.deepEqual(parseQuickAdd('Ship release tomorrow !high #work', now), {
+    text: 'Ship release',
+    due: '2026-11-24',
+    preferredTime: null,
+    tags: ['work'],
+    duration: null,
+    teamId: null,
+    priority: 'high',
+  })
+  assert.equal(parseQuickAdd('Sort inbox low priority', now).priority, 'low')
+  assert.equal(parseQuickAdd('Tidy desk !none', now).priority, 'none')
+})
+
+test('keeps unsupported priority words in the title', () => {
+  assert.deepEqual(parseQuickAdd('Fix alert !urgent', now), {
+    text: 'Fix alert !urgent',
+    due: null,
+    preferredTime: null,
+    tags: [],
+    duration: null,
+    teamId: null,
+    priority: null,
+  })
+})
+
+test('does not invent a title from markers alone', () => {
+  assert.equal(parseQuickAdd('tomorrow !high #work', now).text, '')
 })

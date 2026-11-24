@@ -15,6 +15,7 @@ export function groupNotifications(items: AppNotification[]): NotificationGroups
       [
         'team-reminder',
         'comment',
+        'mention',
         'assignment',
         'task-added',
         'task-completed',

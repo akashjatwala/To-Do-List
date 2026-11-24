@@ -210,6 +210,7 @@ export default function NewTaskDialog({
     setText(parsed.text)
     if (parsed.due) setDue(parsed.due)
     if (parsed.preferredTime) setPreferredTime(parsed.preferredTime)
+    if (parsed.priority) setPriority(parsed.priority)
     if (parsed.teamId) setTeamId(parsed.teamId)
     setTags(nextTags)
     if (parsed.duration !== null) {
@@ -230,6 +231,7 @@ export default function NewTaskDialog({
     if (parsed.text !== text.trim().replace(/\s+/g, ' ')) parts.push('title')
     if (parsed.due) parts.push('date')
     if (parsed.preferredTime) parts.push('time')
+    if (parsed.priority && parsed.priority !== 'none') parts.push(`priority: ${parsed.priority}`)
     if (addedTags.length) parts.push(addedTags.map((tag) => `#${tag}`).join(', '))
     if (parsed.duration !== null) parts.push(`${parsed.duration} min`)
     if (parsed.teamId) {
@@ -239,7 +241,7 @@ export default function NewTaskDialog({
     setQuickFillNote(
       parts.length > 0
         ? `Filled ${parts.join(', ')}.`
-        : 'No date, time, tags, duration or team found.',
+        : 'No date, time, priority, tags, duration or team found.',
     )
     textRef.current?.focus()
   }
@@ -340,7 +342,7 @@ export default function NewTaskDialog({
                     role="tooltip"
                     className="pointer-events-none absolute top-full right-0 z-40 mt-1 hidden w-max max-w-[16rem] rounded-lg border border-[#E3E1DC] bg-white px-3 py-2 text-left text-[11px] leading-snug text-slate-500 shadow-lg group-hover:block group-focus-within:block"
                   >
-                    Try “Submit report tomorrow 3pm #work”
+                    Try “Submit report tomorrow 3pm 30m #work !high”
                   </div>
                 </div>
               </div>

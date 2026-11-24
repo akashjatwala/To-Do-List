@@ -79,6 +79,7 @@ export type NotificationKind =
   | 'reminder'
   | 'team-reminder'
   | 'comment'
+  | 'mention'
   | 'assignment'
   | 'task-added'
   | 'task-completed'
