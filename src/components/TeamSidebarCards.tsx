@@ -50,13 +50,11 @@ function offWindow(offDay: TeammateOffDay, today: string): string {
 export function TeamMembersCard({
   team,
   currentUserId,
-  openCounts,
   notify,
   onChanged,
 }: {
   team: Team
   currentUserId: number
-  openCounts: Record<number, number>
   notify: Notify
   onChanged: () => Promise<void>
 }) {
@@ -136,7 +134,6 @@ export function TeamMembersCard({
         <ul className="space-y-0.5">
           {team.members.map((member) => {
             const you = member.id === currentUserId
-            const open = openCounts[member.id] ?? 0
             return (
               <li key={member.id} className="flex items-center gap-3 rounded-xl px-1 py-2">
                 <Avatar email={member.email} size="sm" />
@@ -146,9 +143,6 @@ export function TeamMembersCard({
                 </span>
                 <span className="shrink-0 text-[10px] font-bold tracking-wide text-[#5B6675]">
                   {member.role === 'host' ? 'Host' : 'Member'}
-                </span>
-                <span className="shrink-0 text-[11px] font-medium text-[#7C8794]">
-                  {open} open
                 </span>
               </li>
             )

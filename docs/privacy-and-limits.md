@@ -25,7 +25,7 @@
 
 ## Retention
 
-Check-ins, their edit trail and everything the learning system derives from them stay in the app's own local database. Nothing is uploaded. There is no in-app privacy panel or check-in deletion workflow; data is changed only through the app's own local records.
+Check-ins, their edit trail and everything the learning system derives from them stay in the app's own local database. Nothing is uploaded. There is no in-app privacy panel, check-in deletion workflow, or deletion API; check-ins are edited in place.
 
 ## Mood and energy are inputs, not a diagnosis
 

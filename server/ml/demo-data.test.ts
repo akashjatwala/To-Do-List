@@ -148,6 +148,14 @@ test('demo data: current examples show off-day moves and skip events', () => {
   const result = generateDemoHistory(db, userId, { days: 30, holdoutDays: 7, seed: 41, today: '2026-11-24' })
 
   assert.equal(result.counts.offDays, 2)
+  assert.equal(
+    count(
+      db,
+      "SELECT COUNT(*) AS n FROM off_days WHERE user_id = ? AND note LIKE '%next working day%'",
+      userId,
+    ),
+    0,
+  )
   assert.equal(result.counts.skipEvents, 4)
   assert.equal(
     count(db, 'SELECT COUNT(*) AS n FROM tasks WHERE user_id = ? AND preferred_time IS NOT NULL', userId),
@@ -160,7 +168,7 @@ test('demo data: current examples show off-day moves and skip events', () => {
   const dueOf = (id: string) =>
     localDateValue((db.prepare('SELECT due FROM tasks WHERE id = ?').get(id) as { due: number }).due)
   for (const id of ['demo-off-day-note', 'demo-off-day-repeat', 'demo-skipped-note', 'demo-skipped-repeat']) {
-    assert.equal(dueOf(id), '2026-11-27', `${id} should land on the next working day`)
+    assert.equal(dueOf(id), '2026-11-27', `${id} should land on the next non-off date`)
   }
 
   const events = (

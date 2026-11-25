@@ -34,7 +34,6 @@ interface AppSidebarProps {
   reminders: Reminder[]
   completedTasks: Task[]
   repeatingTasks: Task[]
-  memberOpenCounts: Record<number, number>
   notify: (message: string, tone?: ToastTone) => void
   refresh: () => Promise<void>
   onCelebrated: () => void
@@ -65,7 +64,6 @@ export default function AppSidebar({
   reminders,
   completedTasks,
   repeatingTasks,
-  memberOpenCounts,
   notify,
   refresh,
   onCelebrated,
@@ -121,7 +119,6 @@ export default function AppSidebar({
           <TeamMembersCard
             team={currentTeam}
             currentUserId={data.user.id}
-            openCounts={memberOpenCounts}
             notify={notify}
             onChanged={refresh}
           />

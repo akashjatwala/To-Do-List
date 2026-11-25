@@ -197,6 +197,7 @@ test('teammates see an off-day notice, but people outside the team do not', () =
     ['Asha is off from Jan 10 to Jan 12'],
   )
   assert.equal(offDays[0].actorName, 'Asha')
+  assert.equal(offDays[0].body, '')
   assert.equal(offDays[0].teamId, null)
   assert.equal(ofKind(notificationsFor(4, db), 'off-day').length, 0)
   db.close()

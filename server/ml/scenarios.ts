@@ -19,7 +19,7 @@ import { activityStatistics, groupStatistics, userCompletionPrior, userTaskIds }
 import { checkinAdjustment } from './predictors'
 import { buildTrainingSet } from './dataset'
 import { trainUserModels } from './pipeline'
-import { recordActivityOutcome, tagLevelStatistics } from './learning'
+import { recordActivityOutcome } from './learning'
 import { driftForTask, configChangesForTask } from './drift'
 import { modelHealthView } from './health'
 
@@ -446,9 +446,4 @@ export function runScenarioSuite(factory: () => DatabaseSync = scenarioDatabase)
       db.close()
     }
   })
-}
-
-/** A tiny helper used by the learning tests: a tag-level statistic after linking. */
-export function tagStatisticCount(db: DatabaseSync): number {
-  return tagLevelStatistics(db, USER).length
 }

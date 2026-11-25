@@ -211,13 +211,6 @@ export interface TeamRow {
   created_at: number
 }
 
-export interface TeamInviteRow {
-  team_id: string
-  email: string
-  invited_by: number
-  created_at: number
-}
-
 export interface TaskRow {
   id: string
   user_id: number

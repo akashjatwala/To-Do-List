@@ -556,7 +556,7 @@ export function notificationsFor(userId: number, database: DatabaseSync = db): A
       kind: 'off-day',
       createdAt: row.updated_at,
       title: `${actor} is off ${offDayPhrase(row.start_date, row.end_date)}`,
-      body: 'Open tasks for those dates moved to the next working day.',
+      body: '',
       taskId: null,
       teamId: null,
       teamName: null,

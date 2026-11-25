@@ -5,10 +5,8 @@ import {
   CHECKIN_ANSWER_KEYS,
   checkinState,
   createCheckinSchema,
-  deleteCheckins,
   getCheckin,
   listCheckinHistory,
-  listCheckins,
   parseAnswer,
   parseContext,
   parseLocalDate,
@@ -166,18 +164,6 @@ test('the local date comes from the local calendar, not UTC', () => {
   // Late evening local time is still that local day, even if UTC has rolled over.
   assert.equal(localDateString(new Date(2026, 0, 1, 23, 30, 0)), '2026-01-01')
   assert.equal(localDateString(new Date(2026, 0, 2, 0, 30, 0)), '2026-01-02')
-})
-
-test('deleting history removes every check-in and its edit trail', () => {
-  const db = freshDb()
-  saveCheckin(db, USER, { date: '2026-05-09', answers: answers({ feeling: 3 }), context: null })
-  saveCheckin(db, USER, { date: '2026-05-09', answers: answers({ feeling: 4 }), context: null })
-  saveCheckin(db, USER, { date: '2026-05-10', answers: answers({ feeling: 2 }), context: null })
-
-  assert.equal(listCheckins(db, USER, 10).length, 2)
-  deleteCheckins(db, USER)
-  assert.equal(listCheckins(db, USER, 10).length, 0)
-  assert.equal(listCheckinHistory(db, USER, 10).length, 0)
 })
 
 test('validation helpers reject malformed input', () => {

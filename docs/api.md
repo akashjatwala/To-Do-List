@@ -97,7 +97,6 @@ Login, signup and password routes are rate-limited.
 | `GET` | `/api/checkins/history?limit=30` | Recent check-ins, limit 1–365. |
 | `PUT` | `/api/checkins` | Saves answers for a date. All answer keys must be integers 1–5 or `null`. |
 | `POST` | `/api/checkins/skip` | Marks the date as skipped. |
-| `DELETE` | `/api/checkins` | Deletes this user's check-ins. |
 
 Sensitive check-in answers are optional; `null` is kept as missing.
 

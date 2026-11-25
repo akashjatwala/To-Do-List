@@ -10,7 +10,7 @@ end-to-end checks. Neither writes to the live database at `server/data/todo.db`.
 | `npm run lint` | ESLint over the server, frontend, scripts and tests. |
 | `npm test` | Node's test runner over `server/**/*.test.ts`, `src/**/*.test.ts` and `src/**/*.test.tsx` using `.env.test`. |
 | `npm run build` | `tsc -b` followed by the Vite production build. |
-| `npm run test:e2e` | Builds the app, starts an isolated server, and runs two Chrome browser flows. |
+| `npm run test:e2e` | Builds the app, starts an isolated server, and runs three Chrome browser flows. |
 
 These first three commands are also the CI checks in `.github/workflows/ci.yml`
 on every push and pull request. CI uses Node 22; the app itself needs Node 22.5+
@@ -33,10 +33,12 @@ with:
 - `NODE_ENV=development` — keeps the session cookie usable over plain HTTP
 - `ML_DISABLE_SCHEDULER=1` — stops background retraining during a run
 
-The two specs in `e2e/app.spec.ts` verify:
+The three specs in `e2e/app.spec.ts` verify:
 
 1. Signup, task creation through the dialog, completion, sign-out and sign-in.
-2. Team creation, invitation acceptance, task assignment, `@mention` comments,
+2. Repeating and ordinary notes moving off an off day, with a skip landing on the
+   next non-off date.
+3. Team creation, invitation acceptance, task assignment, `@mention` comments,
    and the resulting in-app notifications for the teammate.
 
 Traces and failure artifacts are written to `test-results/` only when a test

@@ -204,15 +204,6 @@ export function subScoreBarClass(score: number | null): string {
   return 'bg-emerald-500'
 }
 
-/** The card background class for a band. Never red. */
-export function bandBackgroundClass(tone: EnergyTone): string {
-  if (tone === 'peach') return 'bg-[#ffccbc]'
-  if (tone === 'butter') return 'bg-[#fff9c4]'
-  if (tone === 'cyan') return 'bg-[#e0f7fa]'
-  if (tone === 'lime') return 'bg-[#dcedc8]'
-  return 'bg-white'
-}
-
 /** The ring stroke colour class for a band, dark enough to read on its background. */
 export function bandRingClass(tone: EnergyTone): string {
   if (tone === 'peach') return 'text-[#c25e3a]'

@@ -52,7 +52,6 @@ import {
  * returns the plain snapshot the pure function consumes.
  */
 
-export const FEATURE_VERSION = 'features-1.1.0'
 /** A tag needs at least this many labelled observations to earn its own column. */
 export const MIN_TAG_OBSERVATIONS = 8
 /** Seasonal features appear only once this many months of data exist. */

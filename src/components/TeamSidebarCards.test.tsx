@@ -29,12 +29,11 @@ const incoming: UserInvite[] = [
   },
 ]
 
-test('Members uses soft slate and drops the header count', () => {
+test('Members uses soft slate and shows no task counts', () => {
   const html = renderToStaticMarkup(
     <TeamMembersCard
       team={team}
       currentUserId={1}
-      openCounts={{ 1: 2, 2: 1 }}
       notify={() => undefined}
       onChanged={async () => undefined}
     />,
@@ -42,6 +41,7 @@ test('Members uses soft slate and drops the header count', () => {
   assert.match(html, /bg-\[#EDF0F4\]/)
   assert.match(html, /Members<\/h2>/)
   assert.doesNotMatch(html, /Members<\/h2><span/)
+  assert.doesNotMatch(html, /\d+ open/)
   assert.match(html, /rounded-2xl bg-white\/55/)
 })
 

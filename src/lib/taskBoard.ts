@@ -38,7 +38,6 @@ export interface BoardModel {
   repeatingTasks: Task[]
   overdueTasks: Task[]
   teamOverdueTasks: Task[]
-  memberOpenCounts: Record<number, number>
   teamStats: TeamStats
 }
 
@@ -85,12 +84,6 @@ export function selectBoardModel(
     )
     .sort((a, b) => a.due! - b.due!)
 
-  const memberOpenCounts: Record<number, number> = {}
-  for (const task of viewTasks) {
-    if (task.done || task.recurrence !== 'none') continue
-    memberOpenCounts[task.userId] = (memberOpenCounts[task.userId] ?? 0) + 1
-  }
-
   const done = dateTasks.filter((task) => task.done).length
   return {
     viewTasks,
@@ -100,7 +93,6 @@ export function selectBoardModel(
     repeatingTasks,
     overdueTasks,
     teamOverdueTasks,
-    memberOpenCounts,
     teamStats: {
       total: dateTasks.length,
       done,

@@ -145,9 +145,11 @@ export default function NotificationCenter({
                 </>
               )}
             </div>
-            <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[#7C818A]">
-              {item.body}
-            </p>
+            {item.body && (
+              <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[#7C818A]">
+                {item.body}
+              </p>
+            )}
             <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-medium text-[#8A94A6]">
               {item.teamName && (
                 <span className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-semibold text-[#475569]">

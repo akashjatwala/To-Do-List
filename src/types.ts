@@ -137,7 +137,7 @@ export interface UserInvite {
   createdAt: number
 }
 
-/** Result of moving an open note to the next working day. */
+/** Result of moving an open note to the next non-off date. */
 export interface TaskSkipResult {
   taskId: string
   fromDate: string

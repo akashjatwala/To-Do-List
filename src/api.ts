@@ -274,10 +274,6 @@ export function errorMessage(error: unknown): string {
   return 'Something went wrong.'
 }
 
-export function startOfDay(date: Date): number {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
-}
-
 export function endOfDay(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999).getTime()
 }

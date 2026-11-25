@@ -21,7 +21,7 @@ test('signs up, adds a task, completes it, then signs back in', async ({ page })
   await expect(page.getByRole('region', { name: 'Completed' }).getByText(title)).toBeVisible()
 })
 
-test('moves repeating and ordinary notes off an off day and skips to the next working day', async ({
+test('moves repeating and ordinary notes off an off day and skips to the next non-off date', async ({
   page,
 }) => {
   const email = `${unique('e2e-repeat')}@example.com`

@@ -132,7 +132,6 @@ export default function App() {
     repeatingTasks,
     overdueTasks,
     teamOverdueTasks,
-    memberOpenCounts,
     teamStats,
   } = useMemo(
     () =>
@@ -141,7 +140,6 @@ export default function App() {
   )
 
   const selectedTask = data?.tasks.find((task) => task.id === selectedId) ?? null
-  const selectedOnOffDay = offDayDates.has(selectedDate)
 
   const overdueTasksForScope =
     view.kind === 'collab' ? teamOverdueTasks : overdueTasks
@@ -432,7 +430,6 @@ export default function App() {
                     reminders={scopedReminders}
                     completedTasks={completedTasks}
                     repeatingTasks={repeatingTasks}
-                    memberOpenCounts={memberOpenCounts}
                     notify={notify}
                     refresh={refresh}
                     onCelebrated={() => setCheckinCelebrate(false)}
@@ -532,7 +529,6 @@ export default function App() {
           onSetAssignees={(userIds) => setAssignees(selectedTask, userIds)}
           onDelete={() => deleteTask(selectedTask)}
           selectedDate={selectedDate}
-          onOffDay={selectedOnOffDay}
           onSkipDay={() => skipTaskDay(selectedTask, selectedDate)}
           onAddSubtask={(text, assigneeId) => addSubtask(selectedTask, text, assigneeId)}
           onToggleSubtask={(subtask) => toggleSubtask(selectedTask, subtask)}

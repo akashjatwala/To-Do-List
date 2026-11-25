@@ -257,7 +257,7 @@ function seedScheduleExamples(db: DatabaseSync, userId: number, today: string): 
       kind: 'travel' as OffDayKind,
       startDate: offStart,
       endDate: offEnd,
-      note: 'Demo off period: open notes move to the next working day.',
+      note: null,
     },
     'generated',
   )

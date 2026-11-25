@@ -58,7 +58,6 @@ interface TaskDetailProps {
   onSetAssignees: (userIds: number[]) => Promise<boolean>
   onDelete: () => Promise<void>
   selectedDate?: string
-  onOffDay?: boolean
   onSkipDay?: () => Promise<void>
   onAddSubtask: (text: string, assigneeId: number | null) => Promise<boolean>
   onToggleSubtask: (subtask: Subtask) => void
@@ -80,7 +79,6 @@ export default function TaskDetail({
   onSetAssignees,
   onDelete,
   selectedDate = '',
-  onOffDay = false,
   onSkipDay = async () => undefined,
   onAddSubtask,
   onToggleSubtask,
@@ -524,11 +522,6 @@ export default function TaskDetail({
                       <CalendarIcon className="h-3.5 w-3.5" />
                       Skip for today
                     </button>
-                    {onOffDay && (
-                      <p className="text-[11px] text-[#7B8190]">
-                        Off day — open notes here move to the next working day.
-                      </p>
-                    )}
                   </>
                 )}
                 {canDelete && (

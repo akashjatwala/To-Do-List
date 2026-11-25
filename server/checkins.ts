@@ -3,7 +3,6 @@ import { db } from './db'
 import {
   CHECKIN_ANSWER_KEYS,
   checkinState,
-  deleteCheckins,
   getCheckin,
   listCheckins,
   parseAnswer,
@@ -90,12 +89,6 @@ router.post('/skip', (req: AuthedRequest, res) => {
   if (!date) return badRequest(res, 'Provide a valid local date as YYYY-MM-DD.')
   const row = skipCheckin(db, req.userId!, date)
   res.json(statusFor(row, date))
-})
-
-/** Delete all of this user's check-in data. */
-router.delete('/', (req: AuthedRequest, res) => {
-  deleteCheckins(db, req.userId!)
-  res.json({ ok: true })
 })
 
 export default router

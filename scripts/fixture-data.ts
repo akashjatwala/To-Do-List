@@ -680,30 +680,33 @@ function seedScheduleExamples(
       startDate: addDays(today, 1),
       endDate: addDays(today, 2),
       kind: 'travel' as OffDayKind,
-      note: 'Lead demo off period: open notes move to the next working day.',
+      note: null,
     },
     {
       userId: people.mate.id,
       startDate: addDays(today, 4),
       endDate: addDays(today, 5),
       kind: 'sick' as OffDayKind,
-      note: 'Mate demo off period: open notes move to the next working day.',
+      note: null,
     },
     {
       userId: people.priya.id,
       startDate: addDays(today, 8),
       endDate: addDays(today, 9),
       kind: 'holiday' as OffDayKind,
-      note: 'Priya demo off period: open notes move to the next working day.',
+      note: null,
     },
   ]
 
   for (const period of periods) {
     const existing = db
       .prepare('SELECT id FROM off_days WHERE user_id = ? AND start_date = ? AND end_date = ? ORDER BY id LIMIT 1')
-      .get(period.userId, period.startDate, period.endDate)
+      .get(period.userId, period.startDate, period.endDate) as { id: number } | undefined
     if (!existing) {
       createOffDay(db, period.userId, period, 'demo-fixture')
+    } else {
+      // Reseeding must also clear the old explanatory note from existing demo rows.
+      db.prepare('UPDATE off_days SET note = ? WHERE id = ?').run(period.note, existing.id)
     }
   }
   for (const period of periods) {

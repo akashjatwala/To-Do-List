@@ -358,16 +358,3 @@ export function skipCheckin(db: DatabaseSync, userId: number, date: string, now 
     throw error
   }
 }
-
-/** Delete every check-in and its edit trail for a user. */
-export function deleteCheckins(db: DatabaseSync, userId: number): void {
-  db.exec('BEGIN')
-  try {
-    db.prepare('DELETE FROM checkin_history WHERE user_id = ?').run(userId)
-    db.prepare('DELETE FROM checkins WHERE user_id = ?').run(userId)
-    db.exec('COMMIT')
-  } catch (error) {
-    db.exec('ROLLBACK')
-    throw error
-  }
-}

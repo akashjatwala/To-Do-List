@@ -634,12 +634,6 @@ export function activityStatistics(
 // Tag and priority statistics
 // ---------------------------------------------------------------------------
 
-export interface GroupStatisticsResult {
-  groups: Map<string, GroupStatistics>
-  /** Whether priority was associated with completion in the observed data. */
-  priorityAssociation: { associated: boolean; detail: string } | null
-}
-
 /**
  * Completion, duration and timing grouped by tag id or by priority, pooled over
  * every task that carried that group on a given day.
@@ -721,15 +715,6 @@ export function userTaskIds(db: DatabaseSync, userId: number): string[] {
       .prepare('SELECT id FROM tasks WHERE user_id = ? AND team_id IS NULL ORDER BY created_at')
       .all(userId) as unknown as Array<{ id: string }>
   ).map((row) => row.id)
-}
-
-/** Every priority the user has actually used, for grouping. */
-export function usedPriorities(days: LabelledDay[]): string[] {
-  const keys = new Set<string>()
-  for (const day of days) {
-    if (day.priority) keys.add(day.priority)
-  }
-  return [...keys].sort()
 }
 
 export { addDaysPure as addDays, nextDate }
