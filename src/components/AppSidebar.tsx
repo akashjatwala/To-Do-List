@@ -13,7 +13,11 @@ import OffDayCard from './OffDayCard'
 import PredictionPanel from './PredictionPanel'
 import OverdueCard from './OverdueCard'
 import { CompletedColumn, RepeatingColumn } from './StickyBoard'
-import { TeamInvitationsCard, TeamMembersCard } from './TeamSidebarCards'
+import {
+  TeamInvitationsCard,
+  TeamMembersCard,
+  TeamOffDaysCard,
+} from './TeamSidebarCards'
 
 interface AppSidebarProps {
   isCollab: boolean
@@ -118,6 +122,12 @@ export default function AppSidebar({
             openCounts={memberOpenCounts}
             notify={notify}
             onChanged={refresh}
+          />
+          <TeamOffDaysCard
+            team={currentTeam}
+            offDays={data.teammateOffDays}
+            currentUserId={data.user.id}
+            today={todayValue}
           />
           <TeamInvitationsCard
             team={currentTeam}

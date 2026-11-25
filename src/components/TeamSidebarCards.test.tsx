@@ -1,8 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { Team, UserInvite } from '@/types'
-import { TeamInvitationsCard, TeamMembersCard } from './TeamSidebarCards'
+import type { Team, TeammateOffDay, UserInvite } from '@/types'
+import {
+  TeamInvitationsCard,
+  TeamMembersCard,
+  TeamOffDaysCard,
+} from './TeamSidebarCards'
 
 const team: Team = {
   id: 'crew',
@@ -55,4 +59,90 @@ test('Invitations uses blush pink and drops the header count', () => {
   assert.match(html, /bg-\[#FBE4EC\]/)
   assert.match(html, /Invitations<\/h2>/)
   assert.doesNotMatch(html, /Invitations<\/h2><span/)
+})
+
+test('Off days shows active and upcoming teammates in this team only', () => {
+  const scopedTeam: Team = {
+    ...team,
+    members: [
+      { id: 1, email: 'me@example.com', role: 'host' },
+      { id: 2, email: 'asha@example.com', role: 'member' },
+      { id: 3, email: 'marco@example.com', role: 'member' },
+    ],
+  }
+  const offDays: TeammateOffDay[] = [
+    {
+      id: 1,
+      userId: 2,
+      name: 'Asha',
+      email: 'asha@example.com',
+      kind: 'sick',
+      startDate: '2026-11-24',
+      endDate: '2026-11-26',
+      note: 'Recovering',
+    },
+    {
+      id: 2,
+      userId: 3,
+      name: 'Marco',
+      email: 'marco@example.com',
+      kind: 'travel',
+      startDate: '2026-11-26',
+      endDate: '2026-11-27',
+      note: null,
+    },
+    {
+      id: 3,
+      userId: 4,
+      name: 'Outsider',
+      email: 'outsider@example.com',
+      kind: null,
+      startDate: '2026-11-25',
+      endDate: '2026-11-25',
+      note: null,
+    },
+    {
+      id: 4,
+      userId: 1,
+      name: 'Me',
+      email: 'me@example.com',
+      kind: null,
+      startDate: '2026-11-25',
+      endDate: '2026-11-25',
+      note: null,
+    },
+  ]
+
+  const html = renderToStaticMarkup(
+    <TeamOffDaysCard
+      team={scopedTeam}
+      offDays={offDays}
+      currentUserId={1}
+      today="2026-11-25"
+    />,
+  )
+
+  assert.match(html, /aria-label="Teammate off days"/)
+  assert.match(html, /bg-\[#EEF5F8\]/)
+  assert.match(html, /Asha/)
+  assert.match(html, /Sick/)
+  assert.match(html, /Today · Nov 24 – Nov 26/)
+  assert.match(html, /Recovering/)
+  assert.match(html, /Marco/)
+  assert.match(html, /From Nov 26 to Nov 27/)
+  assert.doesNotMatch(html, /Outsider/)
+  assert.doesNotMatch(html, /Me</)
+})
+
+test('Off days has a clear empty state', () => {
+  const html = renderToStaticMarkup(
+    <TeamOffDaysCard
+      team={team}
+      offDays={[]}
+      currentUserId={1}
+      today="2026-11-25"
+    />,
+  )
+  assert.match(html, /No teammate off days/)
+  assert.match(html, /Nobody in Launch crew has an off day announced\./)
 })

@@ -141,6 +141,7 @@ export interface BootstrapData {
   tasks: Task[]
   reminders?: Reminder[]
   offDays: OffDay[]
+  teammateOffDays: TeammateOffDay[]
 }
 
 export type View =
@@ -233,6 +234,18 @@ export interface OffDay {
   note: string | null
   createdAt: number
   updatedAt: number
+}
+
+/** A teammate's off period, visible to people who share at least one team. */
+export interface TeammateOffDay {
+  id: number
+  userId: number
+  name: string
+  email: string
+  kind: OffDayKind | null
+  startDate: string
+  endDate: string
+  note: string | null
 }
 
 /** The user's configurable prediction thresholds. */

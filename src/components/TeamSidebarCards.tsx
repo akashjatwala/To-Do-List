@@ -1,10 +1,50 @@
 import { useState } from 'react'
 import { api, errorMessage } from '@/api'
-import type { Team, ToastTone, UserInvite } from '@/types'
+import type { OffDayKind, Team, TeammateOffDay, ToastTone, UserInvite } from '@/types'
 import { Avatar } from './ui'
+import { offDayEmoji } from './OffDayCard'
 import { CheckIcon, MailIcon, TrashIcon, UserPlusIcon, XIcon } from './Icons'
 
 type Notify = (message: string, tone?: ToastTone) => void
+
+const OFF_KIND_LABELS: Record<OffDayKind, string> = {
+  sick: 'Sick',
+  travel: 'Travelling',
+  holiday: 'Holiday',
+  other: 'Off',
+}
+
+const MONTH_LABELS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+function shortDate(value: string): string {
+  const [, month, day] = value.split('-').map(Number)
+  return `${MONTH_LABELS[month - 1]} ${day}`
+}
+
+function offWindow(offDay: TeammateOffDay, today: string): string {
+  const active = offDay.startDate <= today && today <= offDay.endDate
+  if (active) {
+    return offDay.startDate === offDay.endDate
+      ? 'Today'
+      : `Today · ${shortDate(offDay.startDate)} – ${shortDate(offDay.endDate)}`
+  }
+  return offDay.startDate === offDay.endDate
+    ? `On ${shortDate(offDay.startDate)}`
+    : `From ${shortDate(offDay.startDate)} to ${shortDate(offDay.endDate)}`
+}
 
 /** Compact members card used on the right side of the Teams page. */
 export function TeamMembersCard({
@@ -115,6 +155,76 @@ export function TeamMembersCard({
           })}
         </ul>
       </div>
+    </section>
+  )
+}
+
+/** Current and upcoming off periods for teammates in this team. */
+export function TeamOffDaysCard({
+  team,
+  offDays,
+  currentUserId,
+  today,
+}: {
+  team: Team
+  offDays: TeammateOffDay[]
+  currentUserId: number
+  today: string
+}) {
+  const teammateIds = new Set(
+    team.members.filter((member) => member.id !== currentUserId).map((member) => member.id),
+  )
+  const visibleOffDays = offDays
+    .filter((offDay) => teammateIds.has(offDay.userId) && offDay.endDate >= today)
+    .sort((a, b) => {
+      const aActive = a.startDate <= today ? 0 : 1
+      const bActive = b.startDate <= today ? 0 : 1
+      return (
+        aActive - bActive ||
+        a.startDate.localeCompare(b.startDate) ||
+        a.name.localeCompare(b.name)
+      )
+    })
+
+  return (
+    <section
+      className="overflow-hidden rounded-[24px] border border-[#DCE9EE] bg-[#EEF5F8] p-5"
+      aria-label="Teammate off days"
+    >
+      <div className="mb-3">
+        <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Off days</h2>
+      </div>
+
+      {visibleOffDays.length === 0 ? (
+        <div className="rounded-2xl bg-white/70 px-4 py-5 text-center shadow-sm ring-1 ring-white/80">
+          <p className="text-sm font-semibold text-slate-700">No teammate off days</p>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            Nobody in {team.name} has an off day announced.
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-1 divide-y divide-slate-200/70 rounded-2xl bg-white/70 px-4 shadow-sm ring-1 ring-white/80 [&>li:first-child]:pt-3 [&>li:last-child]:pb-3">
+          {visibleOffDays.map((offDay) => (
+            <li key={offDay.id} className="flex items-start gap-3 py-2">
+              <span className="text-2xl" aria-hidden="true">
+                {offDayEmoji(offDay.kind)}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-baseline gap-x-1.5">
+                  <span className="text-sm font-semibold text-slate-700">{offDay.name}</span>
+                  <span className="text-[11px] font-medium text-slate-500">
+                    · {offDay.kind ? OFF_KIND_LABELS[offDay.kind] : 'Off'}
+                  </span>
+                </span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
+                  {offWindow(offDay, today)}
+                  {offDay.note ? ` · ${offDay.note}` : ''}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

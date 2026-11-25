@@ -19,7 +19,7 @@ Everything runs locally; there is no external service.
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Process health check. Returns `{ "ok": true }`. |
-| `GET` | `/api/bootstrap` | All data needed to render the app: user, teams, invites, tasks, notes, reminders and notifications. |
+| `GET` | `/api/bootstrap` | All data needed to render the app: user, teams, invites, tasks, notes, reminders, the user's off days and teammates' off days. |
 | `GET` | `/api/notifications` | The in-app notification feed, newest first. |
 
 ## Auth and account

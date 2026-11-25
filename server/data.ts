@@ -1,8 +1,9 @@
+import type { DatabaseSync } from 'node:sqlite'
 import { db, type TaskRow } from './db'
 import { getUserById } from './auth'
 import { remindersFor } from './reminders'
 import { readRecurrenceConfig, type RecurrenceConfig } from './recurrence'
-import { listOffDays, type OffDayRow } from './ml/off-days'
+import { listOffDays, type OffDayKind, type OffDayRow } from './ml/off-days'
 
 export interface SubtaskDTO {
   id: string
@@ -75,6 +76,18 @@ export interface UserDTO {
   id: number
   email: string
   name: string
+}
+
+/** A teammate's off period, shared through bootstrap for the Teams sidebar. */
+export interface TeammateOffDayDTO {
+  id: number
+  userId: number
+  name: string
+  email: string
+  kind: OffDayKind | null
+  startDate: string
+  endDate: string
+  note: string | null
 }
 
 interface SubtaskRow {
@@ -332,6 +345,38 @@ function offDayDTO(row: OffDayRow) {
   }
 }
 
+/** Off days from people who share at least one team with the signed-in user. */
+export function teammateOffDaysFor(userId: number, database: DatabaseSync = db): TeammateOffDayDTO[] {
+  const rows = database
+    .prepare(
+      `SELECT o.id, o.user_id, o.kind, o.start_date, o.end_date, o.note,
+              u.name, u.email
+       FROM off_days o
+       JOIN users u ON u.id = o.user_id
+       WHERE o.user_id <> ?
+         AND EXISTS (
+           SELECT 1 FROM team_members mine
+           JOIN team_members teammate ON teammate.team_id = mine.team_id
+           WHERE mine.user_id = ? AND teammate.user_id = o.user_id
+         )
+       ORDER BY COALESCE(NULLIF(TRIM(u.name), ''), u.email) ASC, o.start_date DESC, o.id DESC`,
+    )
+    .all(userId, userId) as unknown as Array<
+    OffDayRow & { user_id: number; name: string; email: string }
+  >
+
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    name: row.name.trim() || row.email.split('@')[0],
+    email: row.email,
+    kind: row.kind,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    note: row.note,
+  }))
+}
+
 export function bootstrap(userId: number) {
   const user = publicUser(userId)
   if (!user) return null
@@ -342,6 +387,7 @@ export function bootstrap(userId: number) {
     tasks: tasksFor(userId),
     reminders: remindersFor(userId),
     offDays: listOffDays(db, userId).map(offDayDTO),
+    teammateOffDays: teammateOffDaysFor(userId),
   }
 }
 
