@@ -17,7 +17,7 @@ function item(id: string, kind: AppNotification['kind'], createdAt: number): App
   }
 }
 
-test('groups invitations, reminders, and team activity', () => {
+test('groups invitations, reminders, your moves, and team activity', () => {
   const items = [
     item('a', 'invite', 6),
     item('b', 'comment', 5),
@@ -29,11 +29,13 @@ test('groups invitations, reminders, and team activity', () => {
     item('g', 'team-reminder', 0),
     item('j', 'task-skipped', 0),
     item('i', 'off-day', 0),
+    item('k', 'task-moved', 7),
   ]
   const groups = groupNotifications(items)
   assert.deepEqual(groups.invitations.map((entry) => entry.id), ['a'])
-  assert.deepEqual(groups.reminders.map((entry) => entry.id), ['c'])
-  assert.deepEqual(groups.activity.map((entry) => entry.id), ['b', 'h', 'd', 'e', 'f', 'g', 'j', 'i'])
+  assert.deepEqual(groups.reminders.map((entry) => entry.id), ['c', 'g'])
+  assert.deepEqual(groups.moves.map((entry) => entry.id), ['k'])
+  assert.deepEqual(groups.activity.map((entry) => entry.id), ['b', 'h', 'd', 'e', 'f', 'j', 'i'])
 })
 
 test('unread count only includes items newer than the local read marker', () => {

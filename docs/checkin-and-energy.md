@@ -72,4 +72,4 @@ its three internal groups still come from `readiness.ts`.
 
 - [data-model.md](data-model.md) — the `checkins` and `checkin_history` tables
 - [predictions.md](predictions.md) — how the check-in is used in a prediction
-- [privacy-and-limits.md](privacy-and-limits.md) — optional fields and deleting check-in history
+- [privacy-and-limits.md](privacy-and-limits.md) — optional fields and local retention

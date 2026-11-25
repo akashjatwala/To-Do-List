@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { db } from './db'
 import { localDateString } from './http'
+import { MOVE_UNDO_WINDOW_MS } from './task-move-events'
 
 /**
  * In-app notification centre.
@@ -19,7 +20,16 @@ export type NotificationKind =
   | 'task-added'
   | 'task-completed'
   | 'task-skipped'
+  | 'task-moved'
   | 'off-day'
+
+export interface NotificationMove {
+  eventId: number
+  reason: 'skip' | 'off-day'
+  fromDate: string
+  toDate: string
+  canUndo: boolean
+}
 
 export interface AppNotification {
   id: string
@@ -31,6 +41,8 @@ export interface AppNotification {
   teamId: string | null
   teamName: string | null
   actorName: string | null
+  /** Present only for the signed-in user's own automatic date moves. */
+  move?: NotificationMove
 }
 
 interface InviteRow {
@@ -103,6 +115,18 @@ interface TaskSkipEventRow {
   actor_id: number
   actor_name: string | null
   actor_email: string | null
+}
+
+interface OwnMoveRow {
+  id: number
+  task_id: string
+  from_date: string
+  to_date: string
+  created_at: number
+  reason: 'skip' | 'off-day'
+  team_id: string | null
+  team_name: string | null
+  task_text: string
 }
 
 interface OffDayNoticeRow {
@@ -450,7 +474,7 @@ export function notificationsFor(userId: number, database: DatabaseSync = db): A
        JOIN tasks t ON t.id = s.task_id
        JOIN teams tm ON tm.id = t.team_id
        JOIN users u ON u.id = s.actor_id
-       WHERE ${inMyTeams} AND s.actor_id <> ?
+       WHERE ${inMyTeams} AND s.actor_id <> ? AND s.undone = 0
        ORDER BY s.created_at DESC, s.id DESC
        LIMIT 25`,
     )
@@ -467,6 +491,45 @@ export function notificationsFor(userId: number, database: DatabaseSync = db): A
       teamId: row.team_id,
       teamName: row.team_name,
       actorName: actor,
+    })
+  }
+
+  // Your own automatic moves are shown as changes, not teammate activity. A
+  // recent skip can be undone from here; off-day moves are left as history.
+  const ownMoves = database
+    .prepare(
+      `SELECT s.id, s.task_id, s.from_date, s.to_date, s.created_at, s.reason,
+              t.team_id, tm.name AS team_name, t.text AS task_text
+       FROM task_skip_events s
+       JOIN tasks t ON t.id = s.task_id
+       LEFT JOIN teams tm ON tm.id = t.team_id
+       WHERE s.actor_id = ? AND s.undone = 0
+         AND ((t.team_id IS NULL AND t.user_id = ?) OR ${inMyTeams})
+       ORDER BY s.created_at DESC, s.id DESC
+       LIMIT 25`,
+    )
+    .all(userId, userId, userId) as unknown as OwnMoveRow[]
+  for (const row of ownMoves) {
+    const offDay = row.reason === 'off-day'
+    items.push({
+      id: `task-moved:${row.id}`,
+      kind: 'task-moved',
+      createdAt: row.created_at,
+      title: offDay ? 'An off day moved a task' : 'You skipped a task for today',
+      body: offDay
+        ? `“${shorten(row.task_text, 80)}” moved from ${dateLabel(row.from_date)} to ${dateLabel(row.to_date)} because you were off.`
+        : `“${shorten(row.task_text, 80)}” moved from ${dateLabel(row.from_date)} to ${dateLabel(row.to_date)}.`,
+      taskId: row.task_id,
+      teamId: row.team_id,
+      teamName: row.team_name,
+      actorName: null,
+      move: {
+        eventId: row.id,
+        reason: row.reason,
+        fromDate: row.from_date,
+        toDate: row.to_date,
+        canUndo: !offDay && row.created_at >= Date.now() - MOVE_UNDO_WINDOW_MS,
+      },
     })
   }
 

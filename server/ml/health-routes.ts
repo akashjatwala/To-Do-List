@@ -5,17 +5,15 @@ import { badRequest, localDateString, type AuthedRequest } from '../http'
 import { modelHealthView } from './health'
 import { refreshHealth, retrainStatus, maybeRetrain, lastRetrainAt } from './learning'
 import { driftSummary } from './drift'
-import { deleteCheckinHistory, privacySummary } from './privacy'
 
 /**
- * Learning health, drift and privacy routes.
+ * Learning health, drift and retraining routes.
  *
  * These are read-mostly, informational endpoints. `GET /health` re-evaluates the
  * live model health and returns a plain-words view — it never nags and never
  * hides a number it does not have. `POST /retrain` is the explicit, rate-limited
- * retrain (the same gate the scheduler uses). The privacy routes state what is
- * kept and let the user delete their check-in history. Nothing here records a
- * prediction as an outcome.
+ * retrain (the same gate the scheduler uses). Nothing here records a prediction
+ * as an outcome.
  */
 const router = Router()
 
@@ -36,17 +34,6 @@ router.get('/drift', (req: AuthedRequest, res) => {
   const today = parseLocalDate(req.query.today) ?? localDateString()
   const sinceDate = parseLocalDate(req.query.since) ?? undefined
   res.json({ drift: driftSummary(db, userId, today, { sinceDate }) })
-})
-
-/** What is kept, what is optional, and how to delete it. */
-router.get('/privacy', (req: AuthedRequest, res) => {
-  res.json({ privacy: privacySummary(db, req.userId!) })
-})
-
-/** Delete every check-in and its edit trail. Recorded activity is kept. */
-router.delete('/privacy/checkins', (req: AuthedRequest, res) => {
-  const result = deleteCheckinHistory(db, req.userId!)
-  res.json({ ok: true, deleted: result })
 })
 
 /** Explicitly retrain now (rate-limited unless `force` is set). */

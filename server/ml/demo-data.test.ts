@@ -148,7 +148,7 @@ test('demo data: current examples show off-day moves and skip events', () => {
   const result = generateDemoHistory(db, userId, { days: 30, holdoutDays: 7, seed: 41, today: '2026-11-24' })
 
   assert.equal(result.counts.offDays, 2)
-  assert.equal(result.counts.skipEvents, 2)
+  assert.equal(result.counts.skipEvents, 4)
   assert.equal(
     count(db, 'SELECT COUNT(*) AS n FROM tasks WHERE user_id = ? AND preferred_time IS NOT NULL', userId),
     0,
@@ -165,12 +165,26 @@ test('demo data: current examples show off-day moves and skip events', () => {
 
   const events = (
     db
-      .prepare('SELECT task_id, from_date, to_date FROM task_skip_events ORDER BY id')
-      .all() as unknown as Array<{ task_id: string; from_date: string; to_date: string }>
-  ).map((row) => ({ task_id: row.task_id, from_date: row.from_date, to_date: row.to_date }))
+      .prepare('SELECT task_id, reason, from_date, to_date, undone FROM task_skip_events ORDER BY id')
+      .all() as unknown as Array<{
+      task_id: string
+      reason: string
+      from_date: string
+      to_date: string
+      undone: number
+    }>
+  ).map((row) => ({
+    task_id: row.task_id,
+    reason: row.reason,
+    from_date: row.from_date,
+    to_date: row.to_date,
+    undone: row.undone,
+  }))
   assert.deepEqual(events, [
-    { task_id: 'demo-skipped-note', from_date: '2026-11-24', to_date: '2026-11-27' },
-    { task_id: 'demo-skipped-repeat', from_date: '2026-11-24', to_date: '2026-11-27' },
+    { task_id: 'demo-off-day-note', reason: 'off-day', from_date: '2026-11-25', to_date: '2026-11-27', undone: 0 },
+    { task_id: 'demo-off-day-repeat', reason: 'off-day', from_date: '2026-11-25', to_date: '2026-11-27', undone: 0 },
+    { task_id: 'demo-skipped-note', reason: 'skip', from_date: '2026-11-24', to_date: '2026-11-27', undone: 0 },
+    { task_id: 'demo-skipped-repeat', reason: 'skip', from_date: '2026-11-24', to_date: '2026-11-27', undone: 0 },
   ])
   db.close()
 })

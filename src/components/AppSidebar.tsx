@@ -43,6 +43,7 @@ interface AppSidebarProps {
   onOpenTask: (task: Task) => void
   onToggleTask: (task: Task) => void
   onDeleteTask: (task: Task) => void
+  onCreateSimilar: (task: Task) => void
   onAcceptInvite: (invite: UserInvite) => Promise<void>
   onDeclineInvite: (invite: UserInvite) => Promise<void>
   onViewAllOverdue: () => void
@@ -73,6 +74,7 @@ export default function AppSidebar({
   onOpenTask,
   onToggleTask,
   onDeleteTask,
+  onCreateSimilar,
   onAcceptInvite,
   onDeclineInvite,
   onViewAllOverdue,
@@ -153,6 +155,7 @@ export default function AppSidebar({
         onOpen={onOpenTask}
         onToggle={onToggleTask}
         onDelete={onDeleteTask}
+        onCreateSimilar={onCreateSimilar}
       />
 
       <RepeatingColumn

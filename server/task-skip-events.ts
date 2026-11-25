@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { dueAtDate, nextWorkingDate, offDayRanges } from './off-day-task-moves'
+import { nextWorkingDate, offDayRanges } from './off-day-task-moves'
+import { dueAtDate, recordTaskMove } from './task-move-events'
 import {
   localDateValue,
   parseRecurrence,
@@ -13,28 +14,12 @@ import {
  * Skipping is a real reschedule, not a hidden occurrence: the note's due date
  * moves to the first date after the skipped date that is not marked off. One
  * move produces one note on the target date, including for repeats. The event
- * row is kept only so teammates can see the change in the in-app notification
- * centre; it never hides a task or changes an occurrence on its own.
+ * row is kept so the move is visible in the notification centre and can be
+ * undone while it is recent; it never hides a task or changes an occurrence on
+ * its own.
  */
 
-export const TASK_SKIP_EVENTS_SCHEMA = `
-  CREATE TABLE IF NOT EXISTS task_skip_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id TEXT NOT NULL,
-    actor_id INTEGER NOT NULL,
-    from_date TEXT NOT NULL,
-    to_date TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
-    FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-  CREATE INDEX IF NOT EXISTS idx_task_skip_events_created ON task_skip_events(created_at DESC);
-  CREATE INDEX IF NOT EXISTS idx_task_skip_events_task ON task_skip_events(task_id);
-`
-
-export function createTaskSkipEventsSchema(database: DatabaseSync): void {
-  database.exec(TASK_SKIP_EVENTS_SCHEMA)
-}
+export { TASK_SKIP_EVENTS_SCHEMA, createTaskSkipEventsSchema } from './task-move-events'
 
 export interface SkippableTaskRow {
   id: string
@@ -77,16 +62,17 @@ export function skipTaskDate(
   if (!target || task.due === null) return null
 
   const movedDue = dueAtDate(task.due, target)
-  const now = Date.now()
   database.exec('BEGIN')
   try {
     database.prepare('UPDATE tasks SET due = ? WHERE id = ?').run(movedDue, task.id)
-    database
-      .prepare(
-        `INSERT INTO task_skip_events (task_id, actor_id, from_date, to_date, created_at)
-         VALUES (?, ?, ?, ?, ?)`,
-      )
-      .run(task.id, userId, date, target, now)
+    recordTaskMove(database, {
+      taskId: task.id,
+      actorId: userId,
+      fromDate: date,
+      toDate: target,
+      due: movedDue,
+      reason: 'skip',
+    })
     database.exec('COMMIT')
   } catch (error) {
     database.exec('ROLLBACK')

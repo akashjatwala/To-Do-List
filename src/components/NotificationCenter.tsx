@@ -39,6 +39,7 @@ interface NotificationCenterProps {
   onAcceptInvite: (invite: UserInvite) => void | Promise<void>
   onDeclineInvite: (invite: UserInvite) => void | Promise<void>
   onOpenTask: (taskId: string) => void
+  onUndoMove?: (taskId: string, eventId: number) => void | Promise<void>
   /** Used by static rendering tests; the app leaves this closed. */
   defaultOpen?: boolean
 }
@@ -51,6 +52,7 @@ export default function NotificationCenter({
   onAcceptInvite,
   onDeclineInvite,
   onOpenTask,
+  onUndoMove,
   defaultOpen = false,
 }: NotificationCenterProps) {
   const [open, setOpen] = useState(defaultOpen)
@@ -103,7 +105,7 @@ export default function NotificationCenter({
           ? CheckIcon
           : item.kind === 'comment' || item.kind === 'mention'
             ? MessageIcon
-            : item.kind === 'off-day' || item.kind === 'task-skipped'
+            : item.kind === 'off-day' || item.kind === 'task-skipped' || item.kind === 'task-moved'
               ? CalendarIcon
               : item.kind === 'reminder' || item.kind === 'team-reminder'
                 ? BellIcon
@@ -175,13 +177,27 @@ export default function NotificationCenter({
             )}
 
             {!invite && item.taskId && (
-              <button
-                type="button"
-                onClick={() => openTask(item.taskId!)}
-                className="mt-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-              >
-                Open task
-              </button>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => openTask(item.taskId!)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                >
+                  Open task
+                </button>
+                {item.move?.canUndo && onUndoMove && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void onUndoMove(item.taskId!, item.move!.eventId)
+                      setOpen(false)
+                    }}
+                    className="rounded-lg border border-[#D9C2F5] bg-[#F7F1FF] px-2.5 py-1 text-[11px] font-semibold text-[#5B3A8C] transition hover:bg-[#EFE4FF]"
+                  >
+                    Undo skip
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -242,6 +258,9 @@ export default function NotificationCenter({
                 </Section>
                 <Section title="Reminders" count={groups.reminders.length}>
                   {groups.reminders.map(renderItem)}
+                </Section>
+                <Section title="Your moves" count={groups.moves.length}>
+                  {groups.moves.map(renderItem)}
                 </Section>
                 <Section title="Team activity" count={groups.activity.length}>
                   {groups.activity.map(renderItem)}

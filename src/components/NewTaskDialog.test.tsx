@@ -8,6 +8,7 @@ const props = {
   open: true,
   onClose: () => {},
   teams: [{ id: 'team-1', name: 'Launch crew', createdAt: 0, role: 'host' as const, members: [] }],
+  userId: 1,
   defaultTeamId: 'team-1',
   defaultDue: '2026-11-21',
   onAdd: async () => true,
@@ -25,6 +26,8 @@ test('the new task dialog shows the reference sections and live preview', () => 
   assert.match(html, /Add to/)
   assert.match(html, /Launch crew/)
   assert.match(html, /Tags/)
+  assert.match(html, /aria-label="Favourites"/)
+  assert.match(html, /Favourite name/)
   assert.match(html, /Preview/)
   assert.doesNotMatch(html, /Suggested time/)
   assert.doesNotMatch(html, /Low confidence until it has more of your history/)

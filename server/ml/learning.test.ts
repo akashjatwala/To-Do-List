@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { randomUUID } from 'node:crypto'
-import { createCheckinSchema, saveCheckin, skipCheckin, CHECKIN_ANSWER_KEYS, type CheckinAnswerKey } from '../checkins-store'
+import { createCheckinSchema } from '../checkins-store'
 import { createFoundationSchema, createMlSchema, createPredictionSchema } from './schema'
 import { recordTaskConfig } from './task-config'
 import { createSession } from './sessions'
@@ -28,19 +28,17 @@ import {
   tagLevelStatistics,
 } from './learning'
 import { configChangesForTask, rateDriftForTask } from './drift'
-import { deleteCheckinHistory, privacySummary } from './privacy'
 import { runScenarioSuite } from './scenarios'
 
 /**
  * Continuous learning tests.
  *
- * These run the real continuous-learning, health, drift and privacy code on
- * small in-memory databases. They test the *machinery*: that recording stores
- * the linkage, that the retrain gate is rate-limited, that a deliberately
- * degraded model falls back to the baseline and that small noisy data does not
- * trigger a fallback, that a retrain clears the fallback, that drift is reported
- * as an association, and that deleting check-ins is real. No number here is an
- * accuracy claim.
+ * These run the real continuous-learning, health and drift code on small
+ * in-memory databases. They test the *machinery*: that recording stores the
+ * linkage, that the retrain gate is rate-limited, that a deliberately degraded
+ * model falls back to the baseline and that small noisy data does not trigger a
+ * fallback, that a retrain clears the fallback, and that drift is reported as an
+ * association. No number here is an accuracy claim.
  */
 
 const USER = 1
@@ -391,44 +389,5 @@ test('learning drift: a changed daily target is dated and described, and is not 
   assert.equal(target?.date, '2026-06-10')
   assert.match(target?.summary ?? '', /30/)
   assert.match(target?.summary ?? '', /60/)
-  db.close()
-})
-
-// ---------------------------------------------------------------------------
-// Privacy: deletion is real, activity is kept
-// ---------------------------------------------------------------------------
-
-function answers(values: Partial<Record<CheckinAnswerKey, number>>): Record<CheckinAnswerKey, number | null> {
-  const out = {} as Record<CheckinAnswerKey, number | null>
-  for (const key of CHECKIN_ANSWER_KEYS) out[key] = values[key] ?? null
-  return out
-}
-
-test('learning privacy: deleting check-in history clears the linkage state but keeps activity', () => {
-  const db = freshDb()
-  const task = insertTask(db)
-  const date = '2026-06-01'
-  saveCheckin(db, USER, { date, answers: answers({ feeling: 2, energy: 2 }), context: 'a private note' })
-  skipCheckin(db, USER, '2026-06-02')
-  addSession(db, task, date, 30)
-  recordActivityOutcome(db, USER, task, date, '2026-06-03')
-
-  const before = privacySummary(db, USER)
-  assert.equal(before.localOnly, true)
-  assert.equal(before.data.checkins, 2)
-  assert.equal(before.data.contextNotes, 1)
-  assert.equal(before.optionalFields.length, CHECKIN_ANSWER_KEYS.length)
-
-  const deleted = deleteCheckinHistory(db, USER)
-  assert.equal(deleted.checkinsDeleted, 2)
-  assert.ok(deleted.linksCleared >= 1)
-
-  const after = privacySummary(db, USER)
-  assert.equal(after.data.checkins, 0)
-  const link = listOutcomeLinks(db, USER, { taskId: task })[0]
-  assert.equal(link.checkin_state, 'not_asked')
-  // What the user actually did is untouched.
-  const sessions = db.prepare('SELECT COUNT(*) AS n FROM activity_sessions WHERE user_id = ?').get(USER) as unknown as { n: number }
-  assert.equal(sessions.n, 1)
   db.close()
 })

@@ -3,6 +3,7 @@ import { Router } from 'express'
 import { db, type SubtaskRow, type TaskRow } from './db'
 import { parseLocalDate } from './checkins-store'
 import { skipTaskDate } from './task-skip-events'
+import { undoTaskSkip } from './task-move-events'
 import {
   advanceDue,
   parseRecurrence,
@@ -335,6 +336,27 @@ router.post('/:taskId/skip', (req: AuthedRequest, res) => {
   const item = skipTaskDate(db, loaded.task, req.userId!, date)
   if (!item) return badRequest(res, 'Only an open note scheduled on that day can be skipped.')
   res.status(201).json({ item })
+})
+
+/**
+ * Undo a recent "Skip for today". The event id comes from the notification
+ * centre; the server rechecks ownership, age and that the note has not moved on.
+ */
+router.post('/:taskId/undo-skip', (req: AuthedRequest, res) => {
+  const loaded = loadTask(param(req, 'taskId'), req.userId!)
+  if (!loaded) return notFound(res, 'Task not found.')
+  const eventId = Number(req.body?.eventId)
+  const undone = undoTaskSkip(db, eventId, req.userId!, loaded.task.id)
+  if (!undone) return badRequest(res, 'That skip can no longer be undone.')
+  res.json({
+    ok: true,
+    item: {
+      taskId: undone.taskId,
+      fromDate: undone.fromDate,
+      toDate: undone.toDate,
+      due: undone.due,
+    },
+  })
 })
 
 router.patch('/:taskId', (req: AuthedRequest, res) => {

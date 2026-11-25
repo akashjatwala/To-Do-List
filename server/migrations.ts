@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { mergeTags } from './ml/tags'
-import { TASK_SKIP_EVENTS_SCHEMA } from './task-skip-events'
+import { TASK_SKIP_EVENTS_SCHEMA } from './task-move-events'
 
 /**
  * Versioned, idempotent schema migrations.
@@ -333,6 +333,30 @@ const migrations: Migration[] = [
     version: 19,
     name: 'task_skip_events',
     up: (db) => db.exec(TASK_SKIP_EVENTS_SCHEMA),
+  },
+  {
+    version: 20,
+    name: 'task_move_events',
+    // Older event rows were all skips. Add the reason, exact destination and
+    // undo flag so off-day moves can use the same visible, reversible history.
+    up: (db) => {
+      if (!hasColumn(db, 'task_skip_events', 'due')) {
+        addColumn(db, 'task_skip_events', 'due INTEGER NOT NULL DEFAULT 0')
+      }
+      if (!hasColumn(db, 'task_skip_events', 'reason')) {
+        addColumn(
+          db,
+          'task_skip_events',
+          "reason TEXT NOT NULL DEFAULT 'skip' CHECK (reason IN ('skip', 'off-day'))",
+        )
+      }
+      if (!hasColumn(db, 'task_skip_events', 'undone')) {
+        addColumn(db, 'task_skip_events', 'undone INTEGER NOT NULL DEFAULT 0')
+      }
+      db.exec(
+        'CREATE INDEX IF NOT EXISTS idx_task_skip_events_actor ON task_skip_events(actor_id, undone, created_at DESC)',
+      )
+    },
   },
 ]
 

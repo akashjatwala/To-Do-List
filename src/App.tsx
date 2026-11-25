@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from '@/api'
+import { api, errorMessage } from '@/api'
 import type { AppNotification, BootstrapData, Task } from '@/types'
 import { todayDateValue } from '@/lib/date'
 import { localDateString } from '@/lib/checkin'
@@ -10,7 +10,8 @@ import AppHeader from './components/AppHeader'
 import AppSidebar from './components/AppSidebar'
 import MyAccountDialog from './components/MyAccountDialog'
 import CheckinModal from './components/CheckinModal'
-import NewTaskDialog from './components/NewTaskDialog'
+import NewTaskDialog, { type NewTaskDraft } from './components/NewTaskDialog'
+import { taskFieldsFromTask } from './lib/taskFavourites'
 import OverdueTasksDialog from './components/OverdueTasksDialog'
 import SearchDialog from './components/SearchDialog'
 import { StickyBoard } from './components/StickyBoard'
@@ -29,6 +30,7 @@ export default function App() {
   const [data, setData] = useState<BootstrapData | null>(null)
   const [loading, setLoading] = useState(true)
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
+  const [taskDraft, setTaskDraft] = useState<NewTaskDraft | null>(null)
   const [overdueOpen, setOverdueOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
@@ -169,6 +171,7 @@ export default function App() {
     setSelectedId(null)
     setTeamModal(null)
     setTaskDialogOpen(false)
+    setTaskDraft(null)
     setOverdueOpen(false)
     setSearchOpen(false)
     resetViewState()
@@ -210,6 +213,19 @@ export default function App() {
   // unrelated dialog, check-in or toast state.
   const openTask = useCallback((task: Task) => setSelectedId(task.id), [])
   const openNotificationTask = useCallback((taskId: string) => setSelectedId(taskId), [setSelectedId])
+  const undoMove = useCallback(
+    async (taskId: string, eventId: number) => {
+      try {
+        const result = await api.undoTaskSkip(taskId, eventId)
+        await refresh()
+        setSelectedDate(result.item.fromDate)
+        notify('Skip undone. The task is back on its earlier date.', 'success')
+      } catch (error) {
+        notify(errorMessage(error), 'error')
+      }
+    },
+    [refresh, setSelectedDate, notify],
+  )
   const canDeleteTask = useCallback(
     (task: Task) => (data ? canDeleteTaskForUser(task, data.user.id, data.teams) : false),
     [data],
@@ -221,6 +237,17 @@ export default function App() {
     },
     [setSelectedId],
   )
+  const openNewTask = useCallback(() => {
+    setTaskDraft(null)
+    setTaskDialogOpen(true)
+  }, [])
+  const createSimilar = useCallback((task: Task) => {
+    setTaskDraft({
+      ...taskFieldsFromTask(task),
+      label: `“${task.text}”`,
+    })
+    setTaskDialogOpen(true)
+  }, [])
 
   if (loading) {
     return (
@@ -304,6 +331,7 @@ export default function App() {
           onAcceptInvite={acceptInvite}
           onDeclineInvite={declineInvite}
           onOpenNotificationTask={openNotificationTask}
+          onUndoMove={undoMove}
           onOpenSearch={() => setSearchOpen(true)}
           onOpenAccount={() => {
             setTaskDialogOpen(false)
@@ -313,7 +341,7 @@ export default function App() {
           onLogout={handleLogout}
           onSetSelectedDate={setSelectedDate}
           onNewTeam={() => setTeamModal({ teamId: null })}
-          onAddTask={() => setTaskDialogOpen(true)}
+          onAddTask={openNewTask}
         />
 
         <div>
@@ -413,6 +441,7 @@ export default function App() {
                     onOpenTask={openTask}
                     onToggleTask={(task) => void toggleTask(task)}
                     onDeleteTask={(task) => void deleteTask(task)}
+                    onCreateSimilar={createSimilar}
                     onAcceptInvite={acceptInvite}
                     onDeclineInvite={declineInvite}
                     onViewAllOverdue={() => setOverdueOpen(true)}
@@ -427,11 +456,17 @@ export default function App() {
 
       <NewTaskDialog
         open={taskDialogOpen}
-        onClose={() => setTaskDialogOpen(false)}
+        onClose={() => {
+          setTaskDialogOpen(false)
+          setTaskDraft(null)
+        }}
         teams={data.teams}
         historyTasks={data.tasks}
+        userId={data.user.id}
+        userEmail={data.user.email}
         defaultTeamId={currentTeam?.id ?? null}
         defaultDue={selectedDate}
+        initialDraft={taskDraft}
         onAdd={addTask}
       />
 

@@ -121,6 +121,11 @@ export const api = {
   deleteTask: (id: string) => del<{ ok: true }>(`/api/tasks/${id}`),
   skipTaskDay: (taskId: string, date: string) =>
     post<{ item: TaskSkipResult }>(`/api/tasks/${encodeURIComponent(taskId)}/skip`, { date }),
+  undoTaskSkip: (taskId: string, eventId: number) =>
+    post<{ ok: true; item: TaskSkipResult }>(
+      `/api/tasks/${encodeURIComponent(taskId)}/undo-skip`,
+      { eventId },
+    ),
   reorderTasks: (ids: string[]) => post<{ ok: true }>('/api/tasks/reorder', { ids }),
   setTaskAssignees: (id: string, userIds: number[]) =>
     put<{ ok: true }>(`/api/tasks/${id}/assignees`, { userIds }),

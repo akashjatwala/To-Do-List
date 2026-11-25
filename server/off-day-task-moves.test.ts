@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { createOffDay } from './ml/off-days'
 import { applyOffDayTaskMoves } from './off-day-task-moves'
+import { TASK_SKIP_EVENTS_SCHEMA } from './task-move-events'
 import { localDateValue } from './recurrence'
 
 const USER = 1
@@ -38,6 +39,7 @@ function freshDb(): DatabaseSync {
       updated_at INTEGER NOT NULL
     )
   `)
+  db.exec(TASK_SKIP_EVENTS_SCHEMA)
   return db
 }
 
@@ -98,6 +100,6 @@ test('several off days move tasks once, to the first date that is not marked off
 test('no off days leaves every due date unchanged', () => {
   const db = freshDb()
   insertTask(db, 'personal', '2026-11-25')
-  assert.deepEqual(applyOffDayTaskMoves(db, USER), { moved: 0 })
+  assert.deepEqual(applyOffDayTaskMoves(db, USER), { moved: 0, moves: [] })
   assert.equal(dueValue(db, 'personal'), '2026-11-25')
 })

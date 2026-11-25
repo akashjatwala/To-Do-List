@@ -84,7 +84,17 @@ export type NotificationKind =
   | 'task-added'
   | 'task-completed'
   | 'task-skipped'
+  | 'task-moved'
   | 'off-day'
+
+/** Metadata for the signed-in user's own automatic date move. */
+export interface NotificationMove {
+  eventId: number
+  reason: 'skip' | 'off-day'
+  fromDate: string
+  toDate: string
+  canUndo: boolean
+}
 
 /** A read-only item from the in-app notification centre. */
 export interface AppNotification {
@@ -97,6 +107,7 @@ export interface AppNotification {
   teamId: string | null
   teamName: string | null
   actorName: string | null
+  move?: NotificationMove
 }
 
 export interface Member {

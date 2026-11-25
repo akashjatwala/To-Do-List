@@ -28,6 +28,7 @@ interface AppHeaderProps {
   onAcceptInvite: (invite: UserInvite) => void | Promise<void>
   onDeclineInvite: (invite: UserInvite) => void | Promise<void>
   onOpenNotificationTask: (taskId: string) => void
+  onUndoMove: (taskId: string, eventId: number) => void | Promise<void>
   onOpenSearch: () => void
   onOpenAccount: () => void
   onLogout: () => void
@@ -57,6 +58,7 @@ export default function AppHeader({
   onAcceptInvite,
   onDeclineInvite,
   onOpenNotificationTask,
+  onUndoMove,
   onOpenSearch,
   onOpenAccount,
   onLogout,
@@ -129,6 +131,7 @@ export default function AppHeader({
             onAcceptInvite={onAcceptInvite}
             onDeclineInvite={onDeclineInvite}
             onOpenTask={onOpenNotificationTask}
+            onUndoMove={onUndoMove}
           />
           <AccountMenu
             name={user.name}

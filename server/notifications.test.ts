@@ -53,7 +53,9 @@ function fixture(): DatabaseSync {
     CREATE TABLE task_skip_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL,
       actor_id INTEGER NOT NULL, from_date TEXT NOT NULL,
-      to_date TEXT NOT NULL, created_at INTEGER NOT NULL
+      to_date TEXT NOT NULL, due INTEGER NOT NULL DEFAULT 0,
+      reason TEXT NOT NULL DEFAULT 'skip' CHECK (reason IN ('skip', 'off-day')),
+      undone INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
     );
   `)
   db.exec(`
@@ -200,7 +202,7 @@ test('teammates see an off-day notice, but people outside the team do not', () =
   db.close()
 })
 
-test('teammates see a task-skip notice, but the person who skipped it does not', () => {
+test('teammates see a task-skip notice; the skipper sees their own move', () => {
   const db = fixture()
   db.exec(`
     INSERT INTO task_skip_events (task_id, actor_id, from_date, to_date, created_at)
@@ -220,6 +222,31 @@ test('teammates see a task-skip notice, but the person who skipped it does not',
   assert.match(skips[0].body, /Jan 12/)
   assert.equal(skips[0].taskId, 'team')
   assert.equal(skips[0].teamName, 'Launch crew')
+  const own = ofKind(notificationsFor(2, db), 'task-moved')
   assert.equal(ofKind(notificationsFor(2, db), 'task-skipped').length, 0)
+  assert.equal(own.length, 1)
+  assert.match(own[0].title, /You skipped a task/)
+  assert.equal(own[0].move?.canUndo, false)
+  db.close()
+})
+
+test('a recent skip is visible with an undo flag; an off-day move has no undo', () => {
+  const db = fixture()
+  const now = Date.now()
+  db.exec(`
+    INSERT INTO task_skip_events (task_id, actor_id, from_date, to_date, due, reason, created_at)
+    VALUES
+      ('personal', 1, '2027-02-10', '2027-02-11', 0, 'skip', ${now - 1000}),
+      ('team', 1, '2027-03-10', '2027-03-11', 0, 'off-day', ${now - 2000});
+  `)
+
+  const moves = ofKind(notificationsFor(1, db), 'task-moved')
+  assert.equal(moves.length, 2)
+  assert.equal(moves[0].move?.reason, 'skip')
+  assert.equal(moves[0].move?.canUndo, true)
+  assert.match(moves[0].body, /Feb 10/)
+  assert.match(moves[0].body, /Feb 11/)
+  assert.equal(moves[1].move?.reason, 'off-day')
+  assert.equal(moves[1].move?.canUndo, false)
   db.close()
 })

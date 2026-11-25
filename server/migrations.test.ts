@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { createFoundationSchema } from './ml/schema'
 import { listTags } from './ml/tags'
-import { deduplicateTags, lowercaseTagNames } from './migrations'
+import { deduplicateTags, lowercaseTagNames, runMigrations } from './migrations'
+import { TASK_SKIP_EVENTS_SCHEMA } from './task-move-events'
 
 function legacyTagDb(): DatabaseSync {
   const db = new DatabaseSync(':memory:')
@@ -93,5 +94,53 @@ test('lowercaseTagNames canonicalises tag rows and task labels without changing 
     (db.prepare('SELECT tags FROM tasks WHERE id = ?').get('t1') as { tags: string }).tags,
     '["design","work"]',
   )
+  db.close()
+})
+
+test('legacy skip events gain move columns after the base schema is applied', () => {
+  const db = new DatabaseSync(':memory:')
+  db.exec(`
+    CREATE TABLE task_skip_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id TEXT NOT NULL,
+      actor_id INTEGER NOT NULL,
+      from_date TEXT NOT NULL,
+      to_date TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    INSERT INTO task_skip_events (task_id, actor_id, from_date, to_date, created_at)
+      VALUES ('t1', 1, '2026-11-25', '2026-11-26', 10);
+    CREATE TABLE schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at INTEGER NOT NULL
+    );
+  `)
+  const baseline = db.prepare(
+    'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
+  )
+  for (let version = 1; version <= 19; version += 1) baseline.run(version, 'baseline', 10)
+
+  // db.ts applies this base schema before running migrations. It must not touch
+  // the `undone` index until the migration has added that column.
+  db.exec(TASK_SKIP_EVENTS_SCHEMA)
+  runMigrations(db)
+
+  const columns = (
+    db.prepare('PRAGMA table_info(task_skip_events)').all() as Array<{ name: string }>
+  ).map((row) => row.name)
+  for (const column of ['due', 'reason', 'undone']) {
+    assert.ok(columns.includes(column), `missing ${column} column`)
+  }
+
+  const indexes = (
+    db.prepare('PRAGMA index_list(task_skip_events)').all() as Array<{ name: string }>
+  ).map((row) => row.name)
+  assert.ok(indexes.includes('idx_task_skip_events_actor'))
+
+  const migrated = db
+    .prepare('SELECT task_id, due, reason, undone FROM task_skip_events WHERE id = 1')
+    .get() as unknown as { task_id: string; due: number; reason: string; undone: number }
+  assert.deepEqual({ ...migrated }, { task_id: 't1', due: 0, reason: 'skip', undone: 0 })
   db.close()
 })

@@ -142,6 +142,15 @@ test('Completed keeps its green card but drops the header count', () => {
   assert.doesNotMatch(html, /Completed<\/h2><span/)
 })
 
+test('Completed offers Create similar without exposing a time label', () => {
+  const html = renderToStaticMarkup(
+    <CompletedColumn {...columnProps} onCreateSimilar={() => undefined} />,
+  )
+  assert.match(html, /aria-label="Create similar to Read a book"/)
+  assert.match(html, />Similar</)
+  assert.doesNotMatch(html, /\d{2}:\d{2}/)
+})
+
 test('Repeating uses its own light blue card and drops the header count', () => {
   const html = renderToStaticMarkup(<RepeatingColumn {...columnProps} />)
   assert.match(html, /bg-\[#E7F0F9\]/)

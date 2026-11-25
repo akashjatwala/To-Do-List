@@ -82,6 +82,24 @@ const notifications: AppNotification[] = [
     teamName: 'Launch crew',
     actorName: null,
   },
+  {
+    id: 'task-moved:1',
+    kind: 'task-moved',
+    createdAt: Date.now() - 30_000,
+    title: 'You skipped a task for today',
+    body: '“Pay bill” moved from Nov 25 to Nov 27.',
+    taskId: 'task-9',
+    teamId: null,
+    teamName: null,
+    actorName: null,
+    move: {
+      eventId: 1,
+      reason: 'skip',
+      fromDate: '2026-11-25',
+      toDate: '2026-11-27',
+      canUndo: true,
+    },
+  },
 ]
 
 const invites: UserInvite[] = [
@@ -102,6 +120,7 @@ function render(open: boolean) {
       onAcceptInvite={() => {}}
       onDeclineInvite={() => {}}
       onOpenTask={() => {}}
+      onUndoMove={() => {}}
       defaultOpen={open}
     />,
   )
@@ -121,6 +140,7 @@ test('panel groups invitations, reminders and activity with their actions', () =
   assert.match(html, /aria-label="Notifications"/)
   assert.match(html, /Invitations/)
   assert.match(html, /Reminders/)
+  assert.match(html, /Your moves/)
   assert.match(html, /Team activity/)
   assert.match(html, /Mark all read/)
   assert.match(html, /Team invitation/)
@@ -130,9 +150,10 @@ test('panel groups invitations, reminders and activity with their actions', () =
   assert.match(html, /You added a task/)
   assert.match(html, /Asha completed a task/)
   assert.match(html, /You sent a reminder/)
+  assert.match(html, /Undo skip/)
   assert.match(html, /Accept/)
   assert.match(html, /Decline/)
-  assert.equal(html.match(/Open task/g)?.length, 6)
+  assert.equal(html.match(/Open task/g)?.length, 7)
   assert.match(html, /Launch crew/)
   assert.doesNotMatch(html, /Invites, reminders and a recent team activity feed/)
   assert.doesNotMatch(html, /In-app only/)

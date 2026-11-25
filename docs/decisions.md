@@ -66,4 +66,4 @@
 
 - [architecture.md](architecture.md) — how the modules fit together
 - [ml.md](ml.md) — the algorithms and gates in detail
-- [privacy-and-limits.md](privacy-and-limits.md) — the privacy rules and known limits
+- [privacy-and-limits.md](privacy-and-limits.md) — local data rules and known limits

@@ -166,8 +166,6 @@ Related endpoints:
 | --- | --- |
 | `GET /api/ml/health` | Active models, last retrain, counts, fallback state |
 | `GET /api/ml/drift` | Recent-vs-long-term drift and dated configuration changes |
-| `GET /api/ml/privacy` | What is kept, what is optional, how to delete |
-| `DELETE /api/ml/privacy/checkins` | Delete every check-in and its edit trail (activity is kept) |
 | `POST /api/ml/retrain` | Retrain now (rate-limited unless `{"force": true}`) |
 
 ## Rollback procedure
@@ -195,4 +193,4 @@ file. Nothing is sent anywhere else. A logging failure never becomes a work fail
 ## Related docs
 
 - [ml.md](ml.md) — what the models do
-- [privacy-and-limits.md](privacy-and-limits.md) — retention and deletion
+- [privacy-and-limits.md](privacy-and-limits.md) — local data and honest limits

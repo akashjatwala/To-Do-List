@@ -1,11 +1,9 @@
 # Privacy and limits
 
-**Purpose.** What is stored, what stays on your machine, how to delete it, and the honest limits of the system.
+**Purpose.** What is stored, what stays on your machine, and the honest limits of the system.
 
 **Where in the code**
 
-- `server/ml/privacy.ts` — retention note, what is optional, deleting check-in history
-- `server/ml/health-routes.ts` — the `/api/ml/privacy` endpoints
 - `server/ml/logging.ts` — local-only logging
 - `server/checkins-store.ts` — the optional check-in fields and their edit trail
 - `server/db.ts` — the single local SQLite file
@@ -16,34 +14,18 @@
 - Every model, statistic and log line is derived from, and written back to, the local SQLite database (`server/data/todo.db`).
 - File logging is opt-in (`ML_LOG_FILE`) and stays local.
 - Reminders are local records in the same database; sending one never delivers an email, push notification or webhook.
-- The notification centre is a local view of invitations, reminders, comments and assignments. Its read marker is stored in your browser only; it does not create a delivery queue or external message.
+- The notification centre is a local view of invitations, reminders, comments, assignments and task moves. Its read marker is stored in your browser only; it does not create a delivery queue or external message.
 
 ## What is optional
 
 - **Every check-in question is optional.** Missing stays missing; answers are stored as given.
 - The free-text context note and the mood / body / workload answers are the most personal, and are never required to use the app.
-- Sensitive fields (kept as a named list in `server/ml/privacy.ts`): mood (`feeling`), stress, body, sleep and workload.
+- The most personal answers are mood (`feeling`), stress, body, sleep and workload.
 - Extra context questions are optional and off by default.
 
 ## Retention
 
-The retention note is returned by `GET /api/ml/privacy` so it can be read in the app:
-
-> Everything the learning system uses stays in this app's own local database on your machine.
-> No personal data is sent to any external ML service. Check-ins are kept until you delete them;
-> deleting them removes the check-ins and their edit trail, and clears the check-in state from
-> the outcome links. Your recorded activity and the models trained from it are kept until you
-> remove them.
-
-## Deleting your check-in history
-
-```bash
-DELETE /api/ml/privacy/checkins
-```
-
-This removes every check-in and its edit trail, and resets the derived check-in state in the
-outcome links to "not asked". It **never** deletes your recorded activity — what you actually
-did is yours to keep. `GET /api/ml/privacy` returns counts only (no check-in content).
+Check-ins, their edit trail and everything the learning system derives from them stay in the app's own local database. Nothing is uploaded. There is no in-app privacy panel or check-in deletion workflow; data is changed only through the app's own local records.
 
 ## Mood and energy are inputs, not a diagnosis
 
@@ -84,4 +66,3 @@ flexible time categories, and a preferred time is never treated as a deadline.
 - [data-model.md](data-model.md) — where each kind of data lives
 - [checkin-and-energy.md](checkin-and-energy.md) — the optional check-in fields
 - [ml.md](ml.md) — the models and why real accuracy is not claimed
-- [operations.md](operations.md) — the privacy endpoints and logging controls

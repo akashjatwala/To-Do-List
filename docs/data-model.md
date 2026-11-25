@@ -136,4 +136,4 @@ erDiagram
 - [architecture.md](architecture.md) — how the layers use these tables
 - [checkin-and-energy.md](checkin-and-energy.md) — the check-in tables in use
 - [predictions.md](predictions.md) — the prediction log and feedback
-- [privacy-and-limits.md](privacy-and-limits.md) — retention and deletion
+- [privacy-and-limits.md](privacy-and-limits.md) — local data and honest limits

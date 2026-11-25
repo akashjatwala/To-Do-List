@@ -136,8 +136,6 @@ Sensitive check-in answers are optional; `null` is kept as missing.
 | `GET` | `/api/predictions/statistics` | Grouped statistics for the current user. |
 | `GET` | `/api/ml/health` | Active models, fallback state and labelled-day counts. |
 | `GET` | `/api/ml/drift` | Recent-vs-long-term drift and dated configuration changes. |
-| `GET` | `/api/ml/privacy` | What is stored, what is optional and how to delete it. |
-| `DELETE` | `/api/ml/privacy/checkins` | Delete check-in history. |
 | `POST` | `/api/ml/retrain` | Retrain when the gate allows it; `{"force": true}` bypasses the rate limit. |
 
 Prediction routes are personal-only: team tasks are excluded. The UI text for a completion

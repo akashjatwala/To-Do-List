@@ -32,6 +32,8 @@ interface BoardProps {
   onDelete: (task: Task) => void
   /** Enables the reminder action, used only on the all-pending overview. */
   onRemind?: (task: Task) => void
+  /** Completed notes can prefill the new-task dialog with their reusable fields. */
+  onCreateSimilar?: (task: Task) => void
 }
 
 /** The small time/date label on a note, including legacy preferred times. */
@@ -564,6 +566,7 @@ export function CompletedColumn({
   onOpen,
   onToggle,
   onDelete,
+  onCreateSimilar,
 }: BoardProps) {
   const { confirm, dialog } = useConfirm()
 
@@ -629,6 +632,18 @@ export function CompletedColumn({
                   )}
                 </div>
 
+                {onCreateSimilar && (
+                  <button
+                    type="button"
+                    onClick={() => onCreateSimilar(task)}
+                    className="rounded p-1 text-[10px] font-semibold text-[#2F4A37]/70 opacity-80 transition hover:text-[#2F6B45] focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                    aria-label={`Create similar to ${task.text}`}
+                    title="Create similar"
+                  >
+                    Similar
+                  </button>
+                )}
+
                 {canDelete(task) && (
                   <button
                     type="button"
@@ -660,7 +675,7 @@ export function CompletedColumn({
   )
 }
 
-/** Repeating tasks shown below Completed, matching the template's compact card. */
+/** Repeating tasks shown below Completed, matching the compact note style. */
 export function RepeatingColumn({
   tasks,
   currentUserId,

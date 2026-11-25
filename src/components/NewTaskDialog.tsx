@@ -3,6 +3,13 @@ import type { Priority, Recurrence, RecurrenceConfig, Task, Team } from '@/types
 import { dueFromDateInput, formatDateValue } from '@/lib/date'
 import { parseQuickAdd } from '@/lib/quickAdd'
 import {
+  newFavouriteId,
+  readTaskFavourites,
+  writeTaskFavourites,
+  type TaskFavourite,
+  type TaskFavouriteFields,
+} from '@/lib/taskFavourites'
+import {
   COMMON_TAGS,
   PRIORITY_META,
   PRIORITY_VALUES,
@@ -32,6 +39,9 @@ export interface NewTaskInput {
   duration: number | null
   teamId: string | null
 }
+
+/** Prefill used by saved favourites and the completed-note "Create similar" action. */
+export type NewTaskDraft = Partial<TaskFavouriteFields> & { label?: string }
 
 const DURATION_MAX = 60 * 24 * 7
 const DURATION_PRESETS = [15, 30, 45, 60, 120]
@@ -102,16 +112,22 @@ export default function NewTaskDialog({
   onClose,
   teams,
   historyTasks = [],
+  userId,
+  userEmail,
   defaultTeamId,
   defaultDue,
+  initialDraft,
   onAdd,
 }: {
   open: boolean
   onClose: () => void
   teams: Team[]
   historyTasks?: Task[]
+  userId: number
+  userEmail?: string
   defaultTeamId: string | null
   defaultDue: string
+  initialDraft?: NewTaskDraft | null
   onAdd: (input: NewTaskInput) => Promise<boolean>
 }) {
   const [text, setText] = useState('')
@@ -129,6 +145,9 @@ export default function NewTaskDialog({
   const [busy, setBusy] = useState(false)
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const [highlight, setHighlight] = useState(-1)
+  const [favourites, setFavourites] = useState<TaskFavourite[]>([])
+  const [favouriteName, setFavouriteName] = useState('')
+  const [favouriteNote, setFavouriteNote] = useState('')
   const textRef = useRef<HTMLInputElement>(null)
 
   const suggestions = useMemo(
@@ -139,23 +158,28 @@ export default function NewTaskDialog({
 
   useEffect(() => {
     if (!open) return
-    setText('')
+    const draftDuration = initialDraft?.duration ?? null
+    const custom = draftDuration !== null && !DURATION_PRESETS.includes(draftDuration)
+    setText(initialDraft?.text ?? '')
     setDue(defaultDue)
     setQuickFillNote('')
-    setPriority('none')
-    setRecurrence('none')
-    setDuration(null)
-    setCustomDuration('')
-    setCustomOpen(false)
-    setTags([])
+    setPriority(initialDraft?.priority ?? 'none')
+    setRecurrence(initialDraft?.recurrence ?? 'none')
+    setDuration(custom ? null : draftDuration)
+    setCustomDuration(custom && draftDuration !== null ? String(draftDuration) : '')
+    setCustomOpen(custom)
+    setTags([...(initialDraft?.tags ?? [])].slice(0, TAG_LIMIT))
     setTagDraft('')
-    setTeamId(defaultTeamId)
+    setTeamId(initialDraft?.teamId ?? defaultTeamId)
     setAddAnother(false)
     setSuggestionsOpen(false)
     setHighlight(-1)
+    setFavourites(readTaskFavourites(userId, userEmail))
+    setFavouriteName('')
+    setFavouriteNote(initialDraft?.label ? `Prefilled from ${initialDraft.label}.` : '')
     const timer = window.setTimeout(() => textRef.current?.focus(), 0)
     return () => window.clearTimeout(timer)
-  }, [open, defaultDue, defaultTeamId])
+  }, [open, defaultDue, defaultTeamId, initialDraft, userId, userEmail])
 
   const toggleTag = (rawTag: string) => {
     const tag = rawTag.trim().replace(/\s+/g, ' ').toLowerCase()
@@ -189,6 +213,60 @@ export default function NewTaskDialog({
     setSuggestionsOpen(false)
     setHighlight(-1)
     textRef.current?.focus()
+  }
+
+  const applyFavourite = (favourite: TaskFavourite) => {
+    const custom = favourite.duration !== null && !DURATION_PRESETS.includes(favourite.duration)
+    setText(favourite.text)
+    setPriority(favourite.priority)
+    setTags([...favourite.tags].slice(0, TAG_LIMIT))
+    setRecurrence(favourite.recurrence)
+    setDuration(custom ? null : favourite.duration)
+    setCustomDuration(custom && favourite.duration !== null ? String(favourite.duration) : '')
+    setCustomOpen(custom)
+    setTeamId(
+      teams.some((team) => team.id === favourite.teamId) ? favourite.teamId : defaultTeamId,
+    )
+    setQuickFillNote('')
+    setFavouriteNote(`Applied “${favourite.name}”.`)
+    setSuggestionsOpen(false)
+    setHighlight(-1)
+    textRef.current?.focus()
+  }
+
+  const saveFavourite = () => {
+    const value = text.trim()
+    if (!value) {
+      setFavouriteNote('Type a task before saving a favourite.')
+      return
+    }
+    const name = favouriteName.trim() || value
+    const customMinutes = Number.parseInt(customDuration, 10)
+    const minutes =
+      duration ??
+      (Number.isFinite(customMinutes) && customMinutes > 0
+        ? Math.min(customMinutes, DURATION_MAX)
+        : null)
+    const draftTag = tagDraft.trim().replace(/\s+/g, ' ').toLowerCase()
+    const nextTags =
+      draftTag && !tags.includes(draftTag) ? [...tags, draftTag].slice(0, TAG_LIMIT) : tags
+    const entry: TaskFavourite = {
+      id: newFavouriteId(),
+      name,
+      text: value,
+      priority,
+      tags: [...nextTags],
+      recurrence,
+      duration: minutes,
+      teamId,
+    }
+    const next = [
+      entry,
+      ...favourites.filter((favourite) => favourite.name.toLowerCase() !== name.toLowerCase()),
+    ]
+    setFavourites(writeTaskFavourites(userId, next))
+    setFavouriteName('')
+    setFavouriteNote(`Saved “${name}” as a favourite.`)
   }
 
   const quickFill = () => {
@@ -595,8 +673,62 @@ export default function NewTaskDialog({
             </section>
           </div>
 
-          <aside className="min-w-0">
-            <p className={FIELD_LABEL}>Preview</p>
+          <aside className="min-w-0 space-y-5">
+            <section aria-label="Favourites">
+              <div className="flex items-center justify-between gap-2">
+                <p className={`${FIELD_LABEL} mb-0`}>Favourites</p>
+                <span className="text-[11px] text-slate-400">{favourites.length}/12</span>
+              </div>
+              {favourites.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {favourites.map((favourite) => (
+                    <button
+                      key={favourite.id}
+                      type="button"
+                      onClick={() => applyFavourite(favourite)}
+                      className="rounded-lg border border-[#E3E1DC] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#6B4F1D] transition hover:border-[#D9480F]/40 hover:bg-[#FDF3E7]"
+                      title={favourite.text}
+                    >
+                      {favourite.name}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-[11px] leading-snug text-slate-400">
+                  Save a filled task, then reuse its title, tags and choices in one tap.
+                </p>
+              )}
+              <div className="mt-2 flex gap-1.5">
+                <label className="sr-only" htmlFor="new-task-favourite-name">
+                  Favourite name
+                </label>
+                <input
+                  id="new-task-favourite-name"
+                  value={favouriteName}
+                  onChange={(event) => setFavouriteName(event.target.value)}
+                  placeholder="Favourite name (optional)"
+                  maxLength={40}
+                  className="field min-w-0 flex-1 py-1.5! text-xs"
+                  aria-label="Favourite name"
+                />
+                <button
+                  type="button"
+                  onClick={saveFavourite}
+                  disabled={!text.trim()}
+                  className="shrink-0 rounded-lg border border-[#D9480F]/40 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#8A3210] transition hover:bg-[#FDF3E7] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Save
+                </button>
+              </div>
+              {favouriteNote && (
+                <p aria-live="polite" className="mt-1 text-[11px] font-medium text-[#8A3210]">
+                  {favouriteNote}
+                </p>
+              )}
+            </section>
+
+            <section>
+              <p className={FIELD_LABEL}>Preview</p>
             <div className="rounded-2xl bg-[#FDF3E7] p-5 text-[#15181E] shadow-sm ring-1 ring-[#D9480F]/15">
               {priority !== 'none' && (
                 <span
@@ -628,6 +760,7 @@ export default function NewTaskDialog({
               <RepeatIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               {formatDateValue(due) || 'Pick a date'} · {getListLabel(teamId, teams)}
             </p>
+            </section>
           </aside>
         </div>
 

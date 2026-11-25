@@ -3,17 +3,20 @@ import type { AppNotification } from '@/types'
 export interface NotificationGroups {
   invitations: AppNotification[]
   reminders: AppNotification[]
+  moves: AppNotification[]
   activity: AppNotification[]
 }
 
-/** Split the flat server list into the three sections shown in the panel. */
+/** Split the flat server list into the sections shown in the panel. */
 export function groupNotifications(items: AppNotification[]): NotificationGroups {
   return {
     invitations: items.filter((item) => item.kind === 'invite'),
-    reminders: items.filter((item) => item.kind === 'reminder'),
+    reminders: items.filter(
+      (item) => item.kind === 'reminder' || item.kind === 'team-reminder',
+    ),
+    moves: items.filter((item) => item.kind === 'task-moved'),
     activity: items.filter((item) =>
       [
-        'team-reminder',
         'comment',
         'mention',
         'assignment',

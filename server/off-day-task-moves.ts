@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { addDays, listOffDays } from './ml/off-days'
 import { localDateValue } from './recurrence'
+import { dueAtDate, recordTaskMove } from './task-move-events'
 
 /**
  * Off-day task handling.
@@ -12,7 +13,8 @@ import { localDateValue } from './recurrence'
  * day. This keeps one instance per repeat instead of spawning a duplicate.
  *
  * Only open tasks move. Completed tasks keep their original due date because it
- * is part of the activity history and must not be rewritten.
+ * is part of the activity history and must not be rewritten. Each change is
+ * recorded so the notification centre can show what moved.
  */
 
 interface VisibleTaskRow {
@@ -20,14 +22,24 @@ interface VisibleTaskRow {
   due: number
 }
 
+export interface OffDayMove {
+  taskId: string
+  fromDate: string
+  toDate: string
+  due: number
+}
+
 export interface OffDayMoveResult {
   moved: number
+  moves: OffDayMove[]
 }
 
 export interface OffDayRange {
   start: string
   end: string
 }
+
+export { dueAtDate } from './task-move-events'
 
 /** Off periods for one user, reduced to the date spans the movers need. */
 export function offDayRanges(database: DatabaseSync, userId: number): OffDayRange[] {
@@ -47,28 +59,13 @@ export function nextWorkingDate(ranges: OffDayRange[], date: string): string | n
   return isOffDate(ranges, candidate) ? null : candidate
 }
 
-/** Move a timestamp to a local date while preserving its time of day. */
-export function dueAtDate(timestamp: number, dateValue: string): number {
-  const source = new Date(timestamp)
-  const [year, month, day] = dateValue.split('-').map(Number)
-  return new Date(
-    year,
-    month - 1,
-    day,
-    source.getHours(),
-    source.getMinutes(),
-    source.getSeconds(),
-    source.getMilliseconds(),
-  ).getTime()
-}
-
 /**
  * Move open tasks due on a marked-off date to the next non-off date.
  * Team tasks a user can see move too, so the shared board agrees for everyone.
  */
 export function applyOffDayTaskMoves(database: DatabaseSync, userId: number): OffDayMoveResult {
   const ranges = offDayRanges(database, userId)
-  if (ranges.length === 0) return { moved: 0 }
+  if (ranges.length === 0) return { moved: 0, moves: [] }
 
   const tasks = database
     .prepare(
@@ -82,15 +79,24 @@ export function applyOffDayTaskMoves(database: DatabaseSync, userId: number): Of
     )
     .all(userId, userId) as unknown as VisibleTaskRow[]
 
-  let moved = 0
+  const moves: OffDayMove[] = []
   const update = database.prepare('UPDATE tasks SET due = ? WHERE id = ?')
   for (const task of tasks) {
     const dueValue = localDateValue(task.due)
     if (!isOffDate(ranges, dueValue)) continue
     const target = nextWorkingDate(ranges, dueValue)
     if (!target) continue
-    update.run(dueAtDate(task.due, target), task.id)
-    moved += 1
+    const due = dueAtDate(task.due, target)
+    update.run(due, task.id)
+    recordTaskMove(database, {
+      taskId: task.id,
+      actorId: userId,
+      fromDate: dueValue,
+      toDate: target,
+      due,
+      reason: 'off-day',
+    })
+    moves.push({ taskId: task.id, fromDate: dueValue, toDate: target, due })
   }
-  return { moved }
+  return { moved: moves.length, moves }
 }

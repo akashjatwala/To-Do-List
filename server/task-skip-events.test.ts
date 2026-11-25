@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { createOffDay } from './ml/off-days'
 import { canSkipTaskOnDate, skipTaskDate, type SkippableTaskRow } from './task-skip-events'
+import { TASK_SKIP_EVENTS_SCHEMA, undoTaskSkip } from './task-move-events'
 import { localDateValue } from './recurrence'
 
 const USER = 1
@@ -37,16 +38,7 @@ function freshDb(): DatabaseSync {
       updated_at INTEGER NOT NULL
     )
   `)
-  db.exec(`
-    CREATE TABLE task_skip_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      task_id TEXT NOT NULL,
-      actor_id INTEGER NOT NULL,
-      from_date TEXT NOT NULL,
-      to_date TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    )
-  `)
+  db.exec(TASK_SKIP_EVENTS_SCHEMA)
   return db
 }
 
@@ -163,4 +155,47 @@ test('skip uses the next calendar day when no off day covers it', () => {
     count: number
   }
   assert.equal(count.count, 1)
+})
+
+test('a recent skip can be undone back to its original date and time', () => {
+  const db = freshDb()
+  insertTask(db, 'personal', '2026-11-25')
+  skipTaskDate(db, load(db, 'personal'), USER, '2026-11-25')
+  assert.equal(dueValue(db, 'personal'), '2026-11-26')
+  const eventId = Number(
+    (db.prepare('SELECT id FROM task_skip_events').get() as { id: number }).id,
+  )
+
+  const undone = undoTaskSkip(db, eventId, USER, 'personal')
+  assert.equal(undone?.fromDate, '2026-11-25')
+  assert.equal(undone?.undone, true)
+  assert.equal(dueValue(db, 'personal'), '2026-11-25')
+  const time = new Date((db.prepare('SELECT due FROM tasks WHERE id = ?').get('personal') as { due: number }).due)
+  assert.equal(time.getHours(), 9)
+  assert.equal(time.getMinutes(), 30)
+  assert.equal(
+    (db.prepare('SELECT undone FROM task_skip_events WHERE id = ?').get(eventId) as { undone: number }).undone,
+    1,
+  )
+  assert.equal(undoTaskSkip(db, eventId, USER, 'personal'), null)
+  db.close()
+})
+
+test('undo refuses a skip by someone else or a task that has moved on', () => {
+  const db = freshDb()
+  db.exec("INSERT INTO users (email) VALUES ('other@example.com')")
+  insertTask(db, 'personal', '2026-11-25')
+  skipTaskDate(db, load(db, 'personal'), USER, '2026-11-25')
+  const eventId = Number(
+    (db.prepare('SELECT id FROM task_skip_events').get() as { id: number }).id,
+  )
+  assert.equal(undoTaskSkip(db, eventId, 2, 'personal'), null)
+  assert.equal(undoTaskSkip(db, eventId, USER, 'other'), null)
+
+  db.prepare("UPDATE tasks SET due = ? WHERE id = 'personal'").run(
+    new Date(2026, 10, 29, 9, 30).getTime(),
+  )
+  assert.equal(undoTaskSkip(db, eventId, USER, 'personal'), null)
+  assert.equal(dueValue(db, 'personal'), '2026-11-29')
+  db.close()
 })
