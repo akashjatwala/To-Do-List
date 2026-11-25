@@ -17,9 +17,6 @@ const insertSession = db.prepare(
 const deleteSessionByHash = db.prepare(
   "DELETE FROM auth_tokens WHERE token_hash = ? AND kind = 'session'",
 )
-const deleteSessionsForUser = db.prepare(
-  "DELETE FROM auth_tokens WHERE user_id = ? AND kind = 'session'",
-)
 const deleteOtherSessionsForUser = db.prepare(
   "DELETE FROM auth_tokens WHERE user_id = ? AND kind = 'session' AND token_hash != ?",
 )
@@ -50,11 +47,6 @@ export function createSession(userId: number, remember: boolean): string {
 
 export function destroySession(token: string): void {
   deleteSessionByHash.run(sha256(token))
-}
-
-/** Invalidate every session for a user, e.g. after a password change. */
-export function destroyAllSessions(userId: number): void {
-  deleteSessionsForUser.run(userId)
 }
 
 /** Invalidate every session for a user except the one making the request. */

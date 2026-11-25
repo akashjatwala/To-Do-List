@@ -34,7 +34,7 @@ interface BoardProps {
   onRemind?: (task: Task) => void
 }
 
-/** The small time label on a note, matching the sticky-note reference layout. */
+/** The small time/date label on a note, including legacy preferred times. */
 function noteTime(task: Task): string {
   if (task.preferredTime) return task.preferredTime
   if (task.due !== null) {

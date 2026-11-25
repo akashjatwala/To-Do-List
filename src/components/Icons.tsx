@@ -176,13 +176,6 @@ export const SettingsIcon = (props: IconProps) => (
   </Icon>
 )
 
-export const InboxIcon = (props: IconProps) => (
-  <Icon {...props}>
-    <path d="M22 12h-6l-2 3h-4l-2-3H2" />
-    <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z" />
-  </Icon>
-)
-
 export const BellIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
@@ -201,20 +194,6 @@ export const GaugeIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="m12 14 4-4" />
     <path d="M3.34 19a10 10 0 1 1 17.32 0" />
-  </Icon>
-)
-
-export const FlagIcon = (props: IconProps) => (
-  <Icon {...props}>
-    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1Z" />
-    <path d="M4 22v-7" />
-  </Icon>
-)
-
-export const DownloadIcon = (props: IconProps) => (
-  <Icon {...props}>
-    <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
-    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
   </Icon>
 )
 
