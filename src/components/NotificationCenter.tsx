@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AppNotification, UserInvite } from '@/types'
 import { timeAgo } from '@/lib/date'
 import { groupNotifications, unreadCount } from '@/lib/notifications'
-import { BellIcon, CheckIcon, MessageIcon, PlusIcon, UsersIcon } from './Icons'
+import { BellIcon, CalendarIcon, CheckIcon, MessageIcon, PlusIcon, UsersIcon } from './Icons'
 
 const storageKey = (userId: number) => `duit.notifications.read.${userId}`
 
@@ -103,9 +103,11 @@ export default function NotificationCenter({
           ? CheckIcon
           : item.kind === 'comment' || item.kind === 'mention'
             ? MessageIcon
-            : item.kind === 'reminder' || item.kind === 'team-reminder'
-              ? BellIcon
-              : UsersIcon
+            : item.kind === 'off-day' || item.kind === 'task-skipped'
+              ? CalendarIcon
+              : item.kind === 'reminder' || item.kind === 'team-reminder'
+                ? BellIcon
+                : UsersIcon
     const unreadItem = item.createdAt > lastRead
     const invite = item.kind === 'invite' ? inviteFor(item.teamId) : undefined
 

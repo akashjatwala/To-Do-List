@@ -66,7 +66,7 @@ its three internal groups still come from `readiness.ts`.
 - The check-in does **not** gate the plan: `/api/predictions/plan` returns today's predictions straight away. An unanswered check-in is treated as missing context, not a barrier, so Nudge works for today's tasks immediately.
 - When the check-in is present, its answers are features (a neutral, zero-centred "goodness" per field, plus an explicit missing indicator per field) for both the baseline and the served champion. Completing or editing the check-in therefore refreshes Nudge with an updated value; it never hides the number.
 - The relationship is reported as an **association**, never a cause. Mood and energy are predictive inputs, not a diagnosis or a measure of worth.
-- A skipped check-in widens uncertainty; it never becomes an invented value. The Nudge card no longer prints a sentence about the skip — the uncertainty is still in the prediction itself.
+- A skipped check-in widens uncertainty. The Nudge card no longer prints a sentence about the skip — the uncertainty is still in the prediction itself.
 
 ## Related docs
 

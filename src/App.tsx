@@ -4,7 +4,7 @@ import type { AppNotification, BootstrapData, Task } from '@/types'
 import { todayDateValue } from '@/lib/date'
 import { localDateString } from '@/lib/checkin'
 import { RefreshCoalescer } from '@/lib/refreshCoalescer'
-import { canDeleteTaskForUser, selectBoardModel } from '@/lib/taskBoard'
+import { canDeleteTaskForUser, offDayDateSet, selectBoardModel } from '@/lib/taskBoard'
 import AuthScreen from './components/AuthScreen'
 import AppHeader from './components/AppHeader'
 import AppSidebar from './components/AppSidebar'
@@ -121,6 +121,7 @@ export default function App() {
   }, [data, selectedId])
 
   const todayValue = todayDateValue()
+  const offDayDates = useMemo(() => offDayDateSet(data?.offDays ?? []), [data?.offDays])
   const {
     viewTasks,
     dateTasks,
@@ -132,11 +133,13 @@ export default function App() {
     memberOpenCounts,
     teamStats,
   } = useMemo(
-    () => selectBoardModel(data?.tasks ?? [], view, selectedDate),
-    [data, view, selectedDate],
+    () =>
+      selectBoardModel(data?.tasks ?? [], view, selectedDate, { offDayDates }),
+    [data?.tasks, offDayDates, view, selectedDate],
   )
 
   const selectedTask = data?.tasks.find((task) => task.id === selectedId) ?? null
+  const selectedOnOffDay = offDayDates.has(selectedDate)
 
   const overdueTasksForScope =
     view.kind === 'collab' ? teamOverdueTasks : overdueTasks
@@ -189,6 +192,7 @@ export default function App() {
     addTask,
     toggleTask,
     deleteTask,
+    skipTaskDay,
     reorderTasks,
     updateTask,
     setAssignees,
@@ -492,6 +496,9 @@ export default function App() {
           onUpdate={(patch) => updateTask(selectedTask, patch)}
           onSetAssignees={(userIds) => setAssignees(selectedTask, userIds)}
           onDelete={() => deleteTask(selectedTask)}
+          selectedDate={selectedDate}
+          onOffDay={selectedOnOffDay}
+          onSkipDay={() => skipTaskDay(selectedTask, selectedDate)}
           onAddSubtask={(text, assigneeId) => addSubtask(selectedTask, text, assigneeId)}
           onToggleSubtask={(subtask) => toggleSubtask(selectedTask, subtask)}
           onAssignSubtask={(subtask, assigneeId) => assignSubtask(selectedTask, subtask, assigneeId)}

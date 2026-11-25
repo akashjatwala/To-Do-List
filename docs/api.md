@@ -62,6 +62,7 @@ Login, signup and password routes are rate-limited.
 | `PATCH` | `/api/tasks/:taskId` | Partial task fields | Edits or completes a task. Completing a recurring task rolls it forward. |
 | `POST` | `/api/tasks/reorder` | `{ ids: string[] }` | Persists the visible sticky-note order. |
 | `POST` | `/api/tasks/:taskId/remind` | — | Creates a local reminder. No external delivery. |
+| `POST` | `/api/tasks/:taskId/skip` | `{ date }` | Moves any open note scheduled on `date` (`YYYY-MM-DD`) to the next non-off date. Repeats are not duplicated; team notes notify teammates in-app. |
 | `DELETE` | `/api/tasks/:taskId` | — | Creator or team host only. |
 | `PUT` | `/api/tasks/:taskId/assignees` | `{ userIds: number[] }` | Replaces team-task assignees. Every id must be a teammate. |
 | `POST` | `/api/tasks/:taskId/subtasks` | `{ text, assigneeId? }` | Adds a subtask. |
@@ -81,13 +82,12 @@ Login, signup and password routes are rate-limited.
   "recurrence": "none",
   "recurrenceConfig": null,
   "duration": 30,
-  "preferredTime": "15:00",
   "teamId": null
 }
 ```
 
 `priority` is one of `none`, `low`, `medium`, `high`. `duration` is in minutes.
-`preferredTime` is a 24-hour `HH:mm` string. `due` may be `null`.
+`due` may be `null`. New tasks are created without a preferred time; `PATCH /api/tasks/:taskId` still accepts an optional 24-hour `HH:mm` `preferredTime` for older tasks.
 
 ## Check-ins
 
@@ -99,7 +99,7 @@ Login, signup and password routes are rate-limited.
 | `POST` | `/api/checkins/skip` | Marks the date as skipped. |
 | `DELETE` | `/api/checkins` | Deletes this user's check-ins. |
 
-Sensitive check-in answers are optional; `null` stays missing and is never defaulted.
+Sensitive check-in answers are optional; `null` is kept as missing.
 
 ## Learning data and preferences
 
@@ -120,9 +120,9 @@ Sensitive check-in answers are optional; `null` stays missing and is never defau
 | `GET` / `PUT` | `/api/state/prefs` | User preferences. |
 | `GET` / `PUT` | `/api/state/review` | Evening review. |
 | `PUT` | `/api/state/suggestions` | Suggestion feedback. |
-| `GET` / `POST` | `/api/off-days` | List or add off days. |
+| `GET` / `POST` | `/api/off-days` | List or add off days. Adding one moves open tasks due on those dates to the next non-off date and shows an off-day notice to teammates. |
 | `GET` | `/api/off-days/day?date=…` | Off-day status for a date. |
-| `PATCH` / `DELETE` | `/api/off-days/:id` | Edit or remove an off day. |
+| `PATCH` / `DELETE` | `/api/off-days/:id` | Edit or remove an off day. Task moves are recalculated from the dates still marked off. |
 | `GET` / `PUT` | `/api/off-days/settings` | Off-day defaults. |
 
 ## Predictions and model health

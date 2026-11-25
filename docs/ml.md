@@ -18,7 +18,6 @@
 - `server/ml/learning.ts` — the retrain gate, rate limit and scheduler
 - `server/ml/health.ts` — live model health and automatic fallback
 - `server/ml/drift.ts` — recent-vs-long-term drift and dated config changes
-- `server/ml/demo-data.ts` — repeatable synthetic history and a chronological backtest
 
 > **Schema note (2026-11-18).** The cleanup that removed unused planning/target/weekly scaffold
 > tables did not touch any ML table or model module. `ml_models`, `ml_shadow`,
@@ -83,38 +82,6 @@ chronological validation (and gradient boosting must beat logistic by a margin t
 - **Minimum rows** before a model is trained at all: completion 40, target 40, duration 20, and at least 5 rows per feature. Early models use an 18-column compact set; the full vector is only used once there is enough evidence for every column. The chosen set and the time grid are stored in the artifact.
 - **Validation** uses chronological folds whose boundaries fall on date edges, so all prediction-time rows for one day stay on the same side. The baseline and the current champion are scored on the same held-out days.
 - **Calibration is scored honestly.** For each fold the calibrator is fitted only on out-of-fold rows from *earlier* folds, so reported Brier/ECE never reuse rows that fitted the curve. The last fold stays a genuine untouched window. Brier and ECE use the same sample weights.
-
-## Generating local test data
-
-`server/ml/demo-data.ts` can fill an isolated database or a separate demo account with
-**synthetic but realistically mixed** history: six personal tasks, versioned config
-changes, daily check-ins with later edits, timed sessions (including late logs), explicit
-skipped/postponed days and off periods. Everything is written through the real app stores,
-so the same dataset, feature and training paths are exercised.
-
-```bash
-# Recreate server/data/ml-backtest.db, run a holdout backtest, then train demo champions.
-npm run seed:ml
-
-# Same generator against the running app's local DB, creating only the demo account.
-npm run seed:ml:app
-```
-
-Both commands accept `--days`, `--holdout`, `--seed` and `--db` when called directly, e.g.
-`node --import tsx server/ml/demo-data.ts --target isolated --days 120 --holdout 30`.
-
-The backtest trains **only** on days before a final untouched holdout window. Holdout rows
-use the exact feature vocabulary and prediction grid recorded by the trained artifact, and
-the baseline probabilities are built as of the same cutoff, so later edits and late-logged
-sessions cannot leak into an earlier score. The report prints Brier, ECE, AUC and threshold
-accuracy for the classifiers, and MAE for duration, beside the baseline.
-
-The isolated target recreates `server/data/ml-backtest.db` on every run. The app target
-recreates only `ml-demo@example.com` (password `demo12345`); other accounts are untouched.
-Sign in as that user to see a Nudge backed by real registered champions.
-
-These numbers describe the generator's synthetic habits. They prove the pipeline can learn
-a signal when one exists; they are **not** an accuracy figure for your own recorded days.
 
 ## Calibration gate
 
@@ -198,10 +165,9 @@ See [operations.md](operations.md) for the commands.
 ## Evaluation on real data — not yet available
 
 There is **no** accuracy figure for your own data. The dataset is fresh, so there is not enough
-history to train or validate a personal model yet. No accuracy number is invented, and none is
-claimed. The synthetic backtest in [Generating local test data](#generating-local-test-data) is
-a pipeline check, not this evaluation. As you record activity, the health view will report real
-numbers, per task and per tag, never as one blended score.
+history to train or validate a personal model yet, so no accuracy number is claimed.
+As you record activity, the health view will report real numbers, per task and per tag,
+never as one blended score.
 
 ## Related docs
 

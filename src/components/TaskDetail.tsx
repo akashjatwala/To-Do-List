@@ -11,7 +11,14 @@ import type {
   Task,
 } from '@/types'
 import { dateInputValue, formatDateValue, fullDate } from '@/lib/date'
-import { COMMON_TAGS, PRIORITY_META, TAG_LIMIT, describeRecurrence, tagTint } from '@/lib/taskmeta'
+import {
+  COMMON_TAGS,
+  PRIORITY_META,
+  TAG_LIMIT,
+  describeRecurrence,
+  repeatsOnDate,
+  tagTint,
+} from '@/lib/taskmeta'
 import { Spinner, useBodyScrollLock, useConfirm } from './ui'
 import {
   CalendarIcon,
@@ -50,6 +57,9 @@ interface TaskDetailProps {
   }) => Promise<boolean>
   onSetAssignees: (userIds: number[]) => Promise<boolean>
   onDelete: () => Promise<void>
+  selectedDate?: string
+  onOffDay?: boolean
+  onSkipDay?: () => Promise<void>
   onAddSubtask: (text: string, assigneeId: number | null) => Promise<boolean>
   onToggleSubtask: (subtask: Subtask) => void
   onAssignSubtask: (subtask: Subtask, assigneeId: number | null) => Promise<boolean>
@@ -69,6 +79,9 @@ export default function TaskDetail({
   onUpdate,
   onSetAssignees,
   onDelete,
+  selectedDate = '',
+  onOffDay = false,
+  onSkipDay = async () => undefined,
   onAddSubtask,
   onToggleSubtask,
   onAssignSubtask,
@@ -257,6 +270,12 @@ export default function TaskDetail({
         ? 'Repeats daily'
         : `Repeats ${description.toLowerCase()}`
   const dueLabel = task.due === null ? 'No due date' : formatDateValue(dateInputValue(task.due))
+  const canSkipDay =
+    !task.done &&
+    task.due !== null &&
+    (task.recurrence === 'none'
+      ? dateInputValue(task.due) === selectedDate
+      : repeatsOnDate(task.due, task.recurrence, task.recurrenceConfig, selectedDate))
 
   return (
     <>
@@ -493,7 +512,25 @@ export default function TaskDetail({
 
           <footer className="shrink-0 border-t border-slate-200/80 bg-white px-5 py-3 sm:px-7">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-3">
+                {canSkipDay && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void onSkipDay()}
+                      className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold text-[#35506B] transition hover:bg-[#EAF2FB]"
+                      aria-label="Skip for today"
+                    >
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      Skip for today
+                    </button>
+                    {onOffDay && (
+                      <p className="text-[11px] text-[#7B8190]">
+                        Off day — open notes here move to the next working day.
+                      </p>
+                    )}
+                  </>
+                )}
                 {canDelete && (
                   <button
                     type="button"

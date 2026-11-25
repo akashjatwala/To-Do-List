@@ -13,7 +13,6 @@
     "preview": "vite preview",
     "test": "node --env-file=.env.test --import tsx --test \"server/**/*.test.ts\" \"src/**/*.test.ts\" \"src/**/*.test.tsx\"",
     "test:e2e": "npm run build && playwright test",
-    "docs:screenshots": "npm run build && node --env-file=.env.screenshots --import tsx scripts/capture-screenshots.ts",
     "seed:ml": "node --import tsx server/ml/demo-data.ts --target isolated",
     "seed:ml:app": "node --import tsx server/ml/demo-data.ts --target app",
     "demo:team": "node --import tsx scripts/seed-demo-team.ts",

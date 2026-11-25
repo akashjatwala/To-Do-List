@@ -19,7 +19,7 @@ const DECOR_NOTES = [
   {
     text: 'Finish quarterly report',
     tag: 'work',
-    time: '09:00',
+    time: 'Anytime',
     meta: '1 h 30',
     note: 'bg-[#FBD0CA] text-[#7f1d1d]',
     tape: 'bg-rose-100/90',
@@ -31,7 +31,7 @@ const DECOR_NOTES = [
   {
     text: 'Review pull requests',
     tag: 'code',
-    time: '11:30',
+    time: 'Anytime',
     meta: '45 min',
     note: 'bg-[#FCDDB8] text-[#713f12]',
     tape: 'bg-amber-100/90',

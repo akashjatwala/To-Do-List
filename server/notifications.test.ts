@@ -44,6 +44,17 @@ function fixture(): DatabaseSync {
       team_id TEXT NOT NULL, email TEXT NOT NULL, invited_by INTEGER NOT NULL,
       created_at INTEGER NOT NULL, PRIMARY KEY (team_id, email)
     );
+    CREATE TABLE off_days (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+      kind TEXT, start_date TEXT NOT NULL, end_date TEXT NOT NULL,
+      note TEXT, source TEXT NOT NULL DEFAULT 'user',
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE task_skip_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL,
+      actor_id INTEGER NOT NULL, from_date TEXT NOT NULL,
+      to_date TEXT NOT NULL, created_at INTEGER NOT NULL
+    );
   `)
   db.exec(`
     INSERT INTO users (id, email, name, password_hash, created_at) VALUES
@@ -165,5 +176,50 @@ test('comments that @mention the viewer create a mention notification', () => {
   assert.equal(mentions[0].taskId, 'team')
   assert.equal(mentions[0].teamName, 'Launch crew')
   assert.match(mentions[0].body, /Can @me review this\?/)
+  db.close()
+})
+
+test('teammates see an off-day notice, but people outside the team do not', () => {
+  const db = fixture()
+  db.exec(`
+    INSERT INTO off_days (user_id, kind, start_date, end_date, note, source, created_at, updated_at)
+    VALUES
+      (2, 'travel', '2027-01-10', '2027-01-12', NULL, 'user', 6000, 6000),
+      (4, NULL, '2027-01-15', '2027-01-15', NULL, 'user', 6100, 6100);
+  `)
+
+  const items = notificationsFor(1, db)
+  const offDays = ofKind(items, 'off-day')
+  assert.deepEqual(
+    offDays.map((item) => item.title),
+    ['Asha is off from Jan 10 to Jan 12'],
+  )
+  assert.equal(offDays[0].actorName, 'Asha')
+  assert.equal(offDays[0].teamId, null)
+  assert.equal(ofKind(notificationsFor(4, db), 'off-day').length, 0)
+  db.close()
+})
+
+test('teammates see a task-skip notice, but the person who skipped it does not', () => {
+  const db = fixture()
+  db.exec(`
+    INSERT INTO task_skip_events (task_id, actor_id, from_date, to_date, created_at)
+    VALUES
+      ('team', 2, '2027-01-10', '2027-01-12', 7000),
+      ('hidden', 4, '2027-01-13', '2027-01-14', 7100);
+  `)
+
+  const items = notificationsFor(1, db)
+  const skips = ofKind(items, 'task-skipped')
+  assert.deepEqual(
+    skips.map((item) => item.title),
+    ['Asha skipped a task'],
+  )
+  assert.match(skips[0].body, /Shared task/)
+  assert.match(skips[0].body, /Jan 10/)
+  assert.match(skips[0].body, /Jan 12/)
+  assert.equal(skips[0].taskId, 'team')
+  assert.equal(skips[0].teamName, 'Launch crew')
+  assert.equal(ofKind(notificationsFor(2, db), 'task-skipped').length, 0)
   db.close()
 })

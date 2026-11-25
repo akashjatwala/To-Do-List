@@ -6,7 +6,6 @@ import { TAG_LIMIT } from './taskmeta'
 export interface QuickAddResult {
   text: string
   due: string | null
-  preferredTime: string | null
   tags: string[]
   duration: number | null
   teamId: string | null
@@ -208,19 +207,6 @@ function findDate(input: string, now: Date): DateMatch | null {
   return null
 }
 
-function timeFrom(hour: number, minute: number, period?: string): string | null {
-  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null
-  if (minute < 0 || minute > 59) return null
-  let normalized = hour
-  if (period) {
-    if (hour < 1 || hour > 12) return null
-    normalized = hour % 12 + (period.toLowerCase() === 'pm' ? 12 : 0)
-  } else if (hour < 0 || hour > 23) {
-    return null
-  }
-  return `${`${normalized}`.padStart(2, '0')}:${`${minute}`.padStart(2, '0')}`
-}
-
 function cleanTitle(value: string): string {
   return value
     .replace(/\s+/g, ' ')
@@ -241,32 +227,12 @@ export function parseQuickAdd(
 ): QuickAddResult {
   let text = input.trim().replace(/\s+/g, ' ')
   let due: string | null = null
-  const tonight = /\btonight\b/i.test(text)
 
   const dateMatch = findDate(text, now)
   if (dateMatch?.value) {
     due = dateMatch.value
     text = text.replace(dateMatch.pattern, ' ')
   }
-
-  let preferredTime: string | null = null
-  text = text.replace(/\b(noon|midnight)\b/gi, (match) => {
-    if (preferredTime === null) preferredTime = match.toLowerCase() === 'noon' ? '12:00' : '00:00'
-    return ' '
-  })
-  text = text.replace(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/gi, (match, hour, minute, period) => {
-    const value = timeFrom(Number(hour), minute ? Number(minute) : 0, period)
-    if (value === null || preferredTime !== null) return match
-    preferredTime = value
-    return ' '
-  })
-  text = text.replace(/\b(\d{1,2}):(\d{2})\b/g, (match, hour, minute) => {
-    const value = timeFrom(Number(hour), Number(minute))
-    if (value === null || preferredTime !== null) return match
-    preferredTime = value
-    return ' '
-  })
-  if (preferredTime === null && tonight) preferredTime = '20:00'
 
   let duration: number | null = null
   text = text.replace(
@@ -313,7 +279,6 @@ export function parseQuickAdd(
   return {
     text: cleanTitle(text),
     due,
-    preferredTime,
     tags,
     duration,
     teamId,

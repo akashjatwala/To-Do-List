@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Task } from '@/types'
 import { dateInputValue, dueFromDateInput, todayDateValue } from './date'
-import { selectBoardModel } from './taskBoard'
+import { offDayDateSet, selectBoardModel } from './taskBoard'
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
@@ -71,5 +71,43 @@ test('overdue board lists past-due tasks only, never today’s pending tasks', (
   assert.deepEqual(
     team.teamOverdueTasks.map((task) => task.id),
     ['team-overdue'],
+  )
+})
+
+test('off days hide repeating tasks but keep ordinary tasks', () => {
+  const date = '2026-11-25'
+  const due = dueFromDateInput(date)
+  const tasks = [
+    makeTask({ id: 'repeat', recurrence: 'daily', due }),
+    makeTask({ id: 'ordinary', due }),
+    makeTask({ id: 'team-repeat', recurrence: 'daily', due, teamId: 'crew', teamName: 'Crew' }),
+  ]
+
+  const board = selectBoardModel(tasks, { kind: 'my' }, date, {
+    offDayDates: offDayDateSet([{ startDate: date, endDate: date }]),
+  })
+  assert.deepEqual(
+    board.dateTasks.map((task) => task.id),
+    ['ordinary'],
+  )
+  assert.deepEqual(
+    board.repeatingTasks.map((task) => task.id),
+    ['repeat'],
+  )
+
+  const nextDay = selectBoardModel(tasks, { kind: 'my' }, '2026-11-26', {
+    offDayDates: offDayDateSet([{ startDate: date, endDate: date }]),
+  })
+  assert.deepEqual(
+    nextDay.dateTasks.map((task) => task.id),
+    ['repeat'],
+  )
+
+  const teamBoard = selectBoardModel(tasks, { kind: 'collab', teamId: 'crew' }, date, {
+    offDayDates: new Set([date]),
+  })
+  assert.deepEqual(
+    teamBoard.dateTasks.map((task) => task.id),
+    [],
   )
 })

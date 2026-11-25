@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { Router } from 'express'
 import { db, type SubtaskRow, type TaskRow } from './db'
+import { parseLocalDate } from './checkins-store'
+import { skipTaskDate } from './task-skip-events'
 import {
   advanceDue,
   parseRecurrence,
@@ -244,8 +246,8 @@ router.post('/', (req: AuthedRequest, res) => {
   }
   const tags = parseTags(req.body?.tags)
   if (tags === null) return badRequest(res, 'Those tags are not valid.')
-  const preferredTime = parsePreferredTime(req.body?.preferredTime)
-  if (preferredTime === undefined) return badRequest(res, 'That preferred time is not valid.')
+  // New tasks never get a preferred time. Existing rows may still carry one.
+  const preferredTime = null
 
   const id = randomUUID()
   const now = Date.now()
@@ -318,6 +320,21 @@ router.post('/:taskId/remind', (req: AuthedRequest, res) => {
   const reminder = createReminder(loaded.task.id, req.userId!)
   if (!reminder) return badRequest(res, 'Reminders are for pending tasks.')
   res.status(201).json(reminder)
+})
+
+/**
+ * Skip for today: any open note visible on the selected date moves to the next
+ * date that is not marked off. Team notes get an in-app notice for teammates.
+ */
+router.post('/:taskId/skip', (req: AuthedRequest, res) => {
+  const loaded = loadTask(param(req, 'taskId'), req.userId!)
+  if (!loaded) return notFound(res, 'Task not found.')
+  const date = parseLocalDate(req.body?.date)
+  if (!date) return badRequest(res, 'Provide a valid date.')
+
+  const item = skipTaskDate(db, loaded.task, req.userId!, date)
+  if (!item) return badRequest(res, 'Only an open note scheduled on that day can be skipped.')
+  res.status(201).json({ item })
 })
 
 router.patch('/:taskId', (req: AuthedRequest, res) => {

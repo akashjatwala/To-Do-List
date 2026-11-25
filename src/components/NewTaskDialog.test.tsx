@@ -111,7 +111,7 @@ test('quick fill sits beside the task field without changing the autocomplete ru
   assert.match(html, /role="tooltip"/)
   assert.match(html, /id="quick-fill-hint"/)
   assert.match(html, /aria-describedby="quick-fill-hint"/)
-  assert.match(html, /Try “Submit report tomorrow 3pm 30m #work !high”/)
+  assert.match(html, /Try “Submit report tomorrow 30m #work !high”/)
   assert.doesNotMatch(html, /Ctrl\/⌘ \+ Enter/)
   assert.match(html, /role="combobox"/)
   assert.match(html, /aria-autocomplete="list"/)

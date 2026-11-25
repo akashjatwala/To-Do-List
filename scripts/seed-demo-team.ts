@@ -24,6 +24,7 @@ seedRichTeams({
 })
 
 console.log('Rich demo teams seeded in the main app DB (demo accounts only).')
+console.log('Includes demo off days, moved notes and team/personal skip events.')
 console.log(`  ml-demo@example.com / ${PASSWORD} (host, 3 teams + 1 invitation)`)
 console.log(`  ml-demo-mate@example.com / ${PASSWORD} (host/member)`)
 console.log(`  ml-demo-priya@example.com / ${PASSWORD} (host/member)`)

@@ -67,10 +67,20 @@ export async function loginViaUi(
   await skipCheckin(page)
 }
 
-export async function addTaskViaDialog(page: Page, title: string): Promise<void> {
+export async function addTaskViaDialog(
+  page: Page,
+  title: string,
+  options: { repeatDaily?: boolean } = {},
+): Promise<void> {
   await page.getByRole('button', { name: 'Add task' }).first().click()
   const dialog = page.getByRole('dialog', { name: 'New task' })
   await dialog.getByLabel('New task', { exact: true }).fill(title)
+  if (options.repeatDaily) {
+    await dialog
+      .getByRole('group', { name: 'Repeats' })
+      .getByRole('button', { name: 'Daily' })
+      .click()
+  }
   await dialog.getByRole('button', { name: 'Add task' }).click()
   await expect(page.getByText(title, { exact: true })).toBeVisible()
 }

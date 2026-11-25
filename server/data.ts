@@ -2,6 +2,7 @@ import { db, type TaskRow } from './db'
 import { getUserById } from './auth'
 import { remindersFor } from './reminders'
 import { readRecurrenceConfig, type RecurrenceConfig } from './recurrence'
+import { listOffDays, type OffDayRow } from './ml/off-days'
 
 export interface SubtaskDTO {
   id: string
@@ -319,6 +320,18 @@ function parseTagList(value: string | null | undefined): string[] {
   }
 }
 
+function offDayDTO(row: OffDayRow) {
+  return {
+    id: row.id,
+    kind: row.kind,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    note: row.note,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
 export function bootstrap(userId: number) {
   const user = publicUser(userId)
   if (!user) return null
@@ -328,6 +341,7 @@ export function bootstrap(userId: number) {
     invites: invitesFor(user.email),
     tasks: tasksFor(userId),
     reminders: remindersFor(userId),
+    offDays: listOffDays(db, userId).map(offDayDTO),
   }
 }
 

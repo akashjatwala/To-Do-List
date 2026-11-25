@@ -12,7 +12,7 @@ import type {
   UserInvite,
   View,
 } from '@/types'
-import { dueFromDateInput } from '@/lib/date'
+import { dueFromDateInput, formatDateValue } from '@/lib/date'
 import type { NewTaskInput } from '@/components/NewTaskDialog'
 
 interface UseTaskMutationsArgs {
@@ -44,7 +44,6 @@ export function useTaskMutations({
           recurrence: input.recurrence,
           recurrenceConfig: input.recurrenceConfig,
           duration: input.duration,
-          preferredTime: input.preferredTime,
         })
         await refresh()
         return true
@@ -99,6 +98,20 @@ export function useTaskMutations({
         setSelectedId((current) => (current === task.id ? null : current))
         await refresh()
         notify('Task deleted.', 'info')
+      } catch (error) {
+        notify(errorMessage(error), 'error')
+      }
+    },
+    [notify, refresh, setSelectedId],
+  )
+
+  const skipTaskDay = useCallback(
+    async (task: Task, date: string) => {
+      try {
+        const result = await api.skipTaskDay(task.id, date)
+        setSelectedId((current) => (current === task.id ? null : current))
+        await refresh()
+        notify(`Moved “${task.text}” to ${formatDateValue(result.item.toDate)}.`, 'success')
       } catch (error) {
         notify(errorMessage(error), 'error')
       }
@@ -278,6 +291,7 @@ export function useTaskMutations({
     addTask,
     toggleTask,
     deleteTask,
+    skipTaskDay,
     reorderTasks,
     updateTask,
     moveOverdueToToday,

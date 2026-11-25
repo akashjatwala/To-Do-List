@@ -63,7 +63,7 @@ flowchart LR
 ```
 
 - **Own history** — completion rate, recent rate, a recency-decayed rate, consistency, days since last completion, recent misses, weekday rate, target rate, duration mean/median/trend.
-- **Tags** — the weighted completion rate and duration of the task's tags, shrunk toward your overall rate. Tag history is used, never invented.
+- **Tags** — the weighted completion rate and duration of the task's tags, shrunk toward your overall rate. Tag history is used as recorded.
 - **Priority** — the priority that applied **on that day** (from the versioned config), shrunk toward your overall rate.
 - **Check-in** — a small, bounded adjustment from the answered fields, plus the free-time budget.
 - **Off days** — excluded from statistics; after an off period, confidence is reduced for a configurable number of days.
@@ -76,7 +76,7 @@ Two stages, with a per-user threshold (`stage2_min_days`, default 10 labelled da
 - **Stage 1** — no personal history for the activity. The prediction comes from the target, the day's check-in and the tag statistics, shrunk to your overall rate, and is labelled *insufficient personal history*. Confidence is never above low.
 - **Stage 2** — the activity's own statistics drive the prediction.
 
-Confidence drops when the check-in was skipped (wider uncertainty, never an invented value)
+Confidence drops when the check-in was skipped (the uncertainty stays wider)
 and in the reduced-confidence window after an off day. The Nudge card no longer prints a
 sentence about the skip; the uncertainty is still part of the prediction.
 
@@ -94,7 +94,8 @@ See [ml.md](ml.md) for how a champion is trained, promoted and watched.
 
 - `GET /api/predictions/plan` always returns a plan for the requested date. An unanswered check-in is just one missing input; the response stays `gate: false` and shows numbers straight away.
 - Predictions are **personal tasks only**. Team tasks are never predicted, never appear in Nudge, and never feed the history, statistics or training data behind a prediction. The single-task and statistics endpoints also refuse team tasks and other users' tasks.
-- An off day returns `offDay: true` with **no** predictions at all.
+- An off day returns `offDay: true` with **no** predictions at all. The dated board hides repeating occurrences for the whole off span and moves open tasks actually due on those dates to the next non-off date; no duplicate repeat is created on that next day.
+- **Skip for today** moves any open note scheduled for that date to the next non-off date, so the same note appears once on the new date in the board and Nudge. It does not mark the note done or create a duplicate occurrence; skipping a team note also creates an in-app notice for teammates.
 - The plan only considers open **personal** tasks scheduled on the requested date: tasks due that day and repeating tasks whose next occurrence falls on that date. Team tasks, tasks due on other dates and tasks with no due date are never part of it. It ranks them by probability, priority, what is left of the target and how much time is left. The ranking is a suggestion; it never changes a probability.
 - The same `/plan` response also carries `schedule` (a proposed flow and workload warning) and `reschedules` (ideas for another day). Both are still computed as **display-only** data — nothing is written to a task's date — but the current UI does not show them. An off day suppresses both.
 - Low-confidence, low-priority, sufficiently-labelled tasks may still produce **Worth a look** suggestions. They are offered as ideas, never forced.

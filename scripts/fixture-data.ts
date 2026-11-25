@@ -1,8 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import bcrypt from 'bcryptjs'
+import { applyOffDayTaskMoves } from '../server/off-day-task-moves'
+import { addDays, createOffDay, type OffDayKind } from '../server/ml/off-days'
+import { localDateValue, type Recurrence } from '../server/recurrence'
+import { skipTaskDate, type SkippableTaskRow } from '../server/task-skip-events'
 
-/** A richer, repeatable team fixture shared by the demo seed and screenshots. */
+/** A richer, repeatable team fixture for the isolated demo accounts. */
 export interface FixtureOptions {
   db: DatabaseSync
   prefix: string
@@ -28,14 +32,14 @@ interface CommentSpec {
 }
 
 interface TaskSpec {
-  teamId: string
+  id?: string
+  teamId: string | null
   creator: string
   text: string
   due?: number | null
   priority?: Priority
   tags?: string[]
   duration?: number | null
-  preferredTime?: string | null
   position?: number
   done?: boolean
   completedAt?: number | null
@@ -43,7 +47,29 @@ interface TaskSpec {
   assignees?: string[]
   subtasks?: SubtaskSpec[]
   comments?: CommentSpec[]
+  recurrence?: Recurrence
+  recurrenceConfig?: string | null
 }
+
+/** Stable ids let a reseed replace its own schedule examples without touching user notes. */
+const personalTaskIds = (prefix: string, person?: string) => {
+  const base = person ? `${prefix}-${person}` : prefix
+  return {
+    skippedNote: `${base}-skipped-note`,
+    skippedRepeat: `${base}-skipped-repeat`,
+    offDayNote: `${base}-off-day-note`,
+    offDayRepeat: `${base}-off-day-repeat`,
+    plainNote: `${base}-one-off-note`,
+  }
+}
+
+/** Stable ids for ordinary, non-repeating team tasks in each demo team. */
+const teamOneOffIds = (prefix: string) => ({
+  launch: `${prefix}-launch-one-off`,
+  product: `${prefix}-product-one-off`,
+  ops: `${prefix}-ops-one-off`,
+  design: `${prefix}-design-one-off`,
+})
 
 function atOffset(days: number, hour = 9, minute = 0): number {
   const date = new Date()
@@ -71,6 +97,17 @@ export function seedRichTeams({
   const hash = bcrypt.hashSync(password, 10)
   const now = Date.now()
   const userIds = new Map<string, number>()
+  const leadTaskIds = personalTaskIds(prefix)
+  const mateTaskIds = personalTaskIds(prefix, 'mate')
+  const priyaTaskIds = personalTaskIds(prefix, 'priya')
+  const oneOffTeamTaskIds = teamOneOffIds(prefix)
+  const fixtureTaskIds = [leadTaskIds, mateTaskIds, priyaTaskIds].flatMap((ids) =>
+    Object.values(ids),
+  )
+  let leadId = 0
+  let mateId: number
+  let priyaId: number
+  let launchTaskId: string
 
   db.exec('BEGIN')
   try {
@@ -80,6 +117,9 @@ export function seedRichTeams({
       ).run(teamId)
       db.prepare(
         'DELETE FROM task_reminders WHERE task_id IN (SELECT id FROM tasks WHERE team_id = ?)',
+      ).run(teamId)
+      db.prepare(
+        'DELETE FROM task_skip_events WHERE task_id IN (SELECT id FROM tasks WHERE team_id = ?)',
       ).run(teamId)
       db.prepare(
         'DELETE FROM comments WHERE task_id IN (SELECT id FROM tasks WHERE team_id = ?)',
@@ -115,10 +155,18 @@ export function seedRichTeams({
       userIds.set(person.email, id)
       return id
     }
-    const leadId = upsertUser(lead)
-    const mateId = upsertUser(mate)
-    const priyaId = upsertUser(priya)
+    leadId = upsertUser(lead)
+    mateId = upsertUser(mate)
+    priyaId = upsertUser(priya)
     const idFor = (email: string) => userIds.get(email) ?? leadId
+
+    for (const userId of [leadId, mateId, priyaId]) {
+      db.prepare("DELETE FROM off_days WHERE user_id = ? AND source = 'demo-fixture'").run(userId)
+    }
+    for (const id of Object.values(fixtureTaskIds)) {
+      db.prepare('DELETE FROM task_skip_events WHERE task_id = ?').run(id)
+      db.prepare('DELETE FROM tasks WHERE id = ?').run(id)
+    }
 
     const addTeam = (
       id: string,
@@ -183,8 +231,8 @@ export function seedRichTeams({
       atOffset(-6),
     )
 
-    const addTask = (spec: TaskSpec) => {
-      const id = randomUUID()
+    const addTask = (spec: TaskSpec): string => {
+      const id = spec.id ?? randomUUID()
       const subtasks = spec.subtasks ?? []
       const doneCount = subtasks.filter((subtask) => subtask.done).length
       const progress = spec.done
@@ -194,8 +242,9 @@ export function seedRichTeams({
           : 0
       db.prepare(
         `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, completed_at, completed_by,
-                            due, position, progress, priority, tags, recurrence, duration, preferred_time)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'none', ?, ?)`,
+                            due, position, progress, priority, tags, recurrence, recurrence_config,
+                            duration, preferred_time)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         idFor(spec.creator),
@@ -210,8 +259,10 @@ export function seedRichTeams({
         progress,
         spec.priority ?? 'none',
         JSON.stringify(spec.tags ?? []),
+        spec.recurrence ?? 'none',
+        spec.recurrenceConfig ?? null,
         spec.duration ?? null,
-        spec.preferredTime ?? null,
+        null,
       )
 
       for (const [index, subtask] of subtasks.entries()) {
@@ -236,10 +287,11 @@ export function seedRichTeams({
           'INSERT INTO comments (id, task_id, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)',
         ).run(randomUUID(), id, idFor(comment.author), comment.text, comment.at)
       }
+      return id
     }
 
     // Launch Crew: active work, a completed history and two pending sends.
-    addTask({
+    launchTaskId = addTask({
       teamId: teamIds.launch,
       creator: lead.email,
       text: 'Ship onboarding refresh',
@@ -247,7 +299,6 @@ export function seedRichTeams({
       priority: 'high',
       tags: ['launch', 'design'],
       duration: 90,
-      preferredTime: '15:00',
       position: 50,
       assignees: [lead.email, mate.email],
       subtasks: [
@@ -274,7 +325,6 @@ export function seedRichTeams({
       priority: 'medium',
       tags: ['launch'],
       duration: 45,
-      preferredTime: '11:30',
       position: 40,
       assignees: [priya.email],
       subtasks: [
@@ -289,6 +339,18 @@ export function seedRichTeams({
           at: atOffset(-1, 14),
         },
       ],
+    })
+    addTask({
+      id: oneOffTeamTaskIds.launch,
+      teamId: teamIds.launch,
+      creator: lead.email,
+      text: 'Send launch status update',
+      due: atOffset(0, 12),
+      priority: 'medium',
+      tags: ['launch', 'update'],
+      duration: 20,
+      position: 32,
+      assignees: [lead.email, mate.email],
     })
     addTask({
       teamId: teamIds.launch,
@@ -330,6 +392,42 @@ export function seedRichTeams({
       leadId,
       atOffset(-5, 9),
     )
+    addTask({
+      teamId: teamIds.launch,
+      creator: lead.email,
+      text: 'Daily launch check',
+      due: atOffset(1, 9),
+      priority: 'low',
+      tags: ['launch', 'habit'],
+      duration: 15,
+      position: 35,
+      recurrence: 'daily',
+      assignees: [lead.email],
+    })
+    addTask({
+      id: `${prefix}-mate-off-day-team-note`,
+      teamId: teamIds.launch,
+      creator: mate.email,
+      text: 'Draft launch FAQ',
+      due: atOffset(4, 11),
+      priority: 'medium',
+      tags: ['launch'],
+      duration: 45,
+      position: 34,
+      assignees: [mate.email, lead.email],
+    })
+    addTask({
+      id: `${prefix}-mate-skipped-team-note`,
+      teamId: teamIds.launch,
+      creator: mate.email,
+      text: 'Confirm launch assets',
+      due: atOffset(3, 10),
+      priority: 'medium',
+      tags: ['launch'],
+      duration: 30,
+      position: 33,
+      assignees: [mate.email, lead.email],
+    })
 
     // Product Release: a heavier task with several assignees and a longer history.
     addTask({
@@ -340,7 +438,6 @@ export function seedRichTeams({
       priority: 'high',
       tags: ['release', 'backend'],
       duration: 120,
-      preferredTime: '10:00',
       position: 60,
       assignees: [lead.email, priya.email],
       subtasks: [
@@ -362,13 +459,36 @@ export function seedRichTeams({
       priority: 'medium',
       tags: ['docs'],
       duration: 30,
-      preferredTime: '16:30',
       position: 50,
       assignees: [priya.email],
       subtasks: [
         { text: 'Document task routes', done: true, assignee: priya.email },
         { text: 'Add notification examples', assignee: lead.email },
       ],
+    })
+    addTask({
+      id: oneOffTeamTaskIds.product,
+      teamId: teamIds.product,
+      creator: priya.email,
+      text: 'Review release notes draft',
+      due: atOffset(0, 14),
+      priority: 'medium',
+      tags: ['release', 'docs'],
+      duration: 30,
+      position: 44,
+      assignees: [priya.email, lead.email],
+    })
+    addTask({
+      id: `${prefix}-priya-off-day-team-note`,
+      teamId: teamIds.product,
+      creator: priya.email,
+      text: 'Review localization notes',
+      due: atOffset(8, 13),
+      priority: 'medium',
+      tags: ['release', 'docs'],
+      duration: 45,
+      position: 45,
+      assignees: [priya.email, lead.email],
     })
     addTask({
       teamId: teamIds.product,
@@ -401,7 +521,6 @@ export function seedRichTeams({
       priority: 'medium',
       tags: ['ops', 'handover'],
       duration: 30,
-      preferredTime: '17:00',
       position: 50,
       assignees: [lead.email, mate.email],
       subtasks: [
@@ -421,6 +540,18 @@ export function seedRichTeams({
           at: atOffset(0, 9, 15),
         },
       ],
+    })
+    addTask({
+      id: oneOffTeamTaskIds.ops,
+      teamId: teamIds.ops,
+      creator: mate.email,
+      text: 'Archive last week’s incident log',
+      due: atOffset(3, 10),
+      priority: 'low',
+      tags: ['ops', 'handover'],
+      duration: 25,
+      position: 44,
+      assignees: [mate.email, lead.email],
     })
     addTask({
       teamId: teamIds.ops,
@@ -445,13 +576,24 @@ export function seedRichTeams({
       priority: 'low',
       tags: ['design'],
       duration: 60,
-      preferredTime: '14:00',
       position: 50,
       assignees: [priya.email],
       subtasks: [
         { text: 'Collect examples', done: true, assignee: priya.email },
         { text: 'Sketch three variants', assignee: mate.email },
       ],
+    })
+    addTask({
+      id: oneOffTeamTaskIds.design,
+      teamId: teamIds.design,
+      creator: mate.email,
+      text: 'Collect onboarding screenshots',
+      due: atOffset(3, 11),
+      priority: 'low',
+      tags: ['design'],
+      duration: 30,
+      position: 44,
+      assignees: [mate.email, priya.email],
     })
     db.prepare('INSERT INTO team_invites (team_id, email, invited_by, created_at) VALUES (?, ?, ?, ?)').run(
       teamIds.design,
@@ -460,9 +602,133 @@ export function seedRichTeams({
       atOffset(-1, 11),
     )
 
+    const personalExamples: Array<{
+      id: string
+      creator: string
+      text: string
+      due: number
+      recurrence: Recurrence
+    }> = [
+      { id: leadTaskIds.plainNote, creator: lead.email, text: 'Pay electricity bill', due: atOffset(0, 18), recurrence: 'none' },
+      { id: leadTaskIds.skippedNote, creator: lead.email, text: 'Skipped personal note', due: atOffset(0, 9, 30), recurrence: 'none' },
+      { id: leadTaskIds.skippedRepeat, creator: lead.email, text: 'Skipped daily habit', due: atOffset(0, 8), recurrence: 'daily' },
+      { id: leadTaskIds.offDayNote, creator: lead.email, text: 'Off-day moved note', due: atOffset(1, 14), recurrence: 'none' },
+      { id: leadTaskIds.offDayRepeat, creator: lead.email, text: 'Off-day daily check', due: atOffset(1, 7, 30), recurrence: 'daily' },
+      { id: mateTaskIds.plainNote, creator: mate.email, text: 'Book dentist follow-up', due: atOffset(0, 16), recurrence: 'none' },
+      { id: mateTaskIds.skippedNote, creator: mate.email, text: 'Mate skipped note', due: atOffset(3, 9, 30), recurrence: 'none' },
+      { id: mateTaskIds.skippedRepeat, creator: mate.email, text: 'Mate skipped habit', due: atOffset(3, 8), recurrence: 'daily' },
+      { id: mateTaskIds.offDayNote, creator: mate.email, text: 'Mate off-day note', due: atOffset(4, 14), recurrence: 'none' },
+      { id: mateTaskIds.offDayRepeat, creator: mate.email, text: 'Mate off-day check', due: atOffset(4, 7, 30), recurrence: 'daily' },
+      { id: priyaTaskIds.plainNote, creator: priya.email, text: 'Renew design licence', due: atOffset(0, 15), recurrence: 'none' },
+      { id: priyaTaskIds.skippedNote, creator: priya.email, text: 'Priya skipped note', due: atOffset(7, 9, 30), recurrence: 'none' },
+      { id: priyaTaskIds.skippedRepeat, creator: priya.email, text: 'Priya skipped habit', due: atOffset(7, 8), recurrence: 'daily' },
+      { id: priyaTaskIds.offDayNote, creator: priya.email, text: 'Priya off-day note', due: atOffset(8, 14), recurrence: 'none' },
+      { id: priyaTaskIds.offDayRepeat, creator: priya.email, text: 'Priya off-day check', due: atOffset(8, 7, 30), recurrence: 'daily' },
+    ]
+    for (const example of personalExamples) {
+      addTask({
+        id: example.id,
+        teamId: null,
+        creator: example.creator,
+        text: example.text,
+        due: example.due,
+        recurrence: example.recurrence,
+        priority: 'medium',
+        tags: ['demo'],
+        duration: 30,
+        position: 10,
+      })
+    }
+
     db.exec('COMMIT')
   } catch (error) {
     db.exec('ROLLBACK')
     throw error
   }
+
+  seedScheduleExamples(db, {
+    lead: { id: leadId, taskIds: leadTaskIds, launchTaskId },
+    mate: { id: mateId, taskIds: mateTaskIds, skippedTeamTaskId: `${prefix}-mate-skipped-team-note` },
+    priya: { id: priyaId, taskIds: priyaTaskIds },
+  })
+}
+
+/**
+ * Off-day and skip rows that make the new behaviour visible in demo accounts.
+ *
+ * Each demo member gets a separate off period so signing in as any of them shows
+ * their own moved notes and the teammates' off-day notices. This runs after the
+ * main fixture transaction because the skip store writes its own transaction.
+ */
+interface SchedulePerson {
+  id: number
+  taskIds: ReturnType<typeof personalTaskIds>
+}
+
+function seedScheduleExamples(
+  db: DatabaseSync,
+  people: {
+    lead: SchedulePerson & { launchTaskId: string }
+    mate: SchedulePerson & { skippedTeamTaskId: string }
+    priya: SchedulePerson
+  },
+): void {
+  const today = localDateValue(Date.now())
+  const periods = [
+    {
+      userId: people.lead.id,
+      startDate: addDays(today, 1),
+      endDate: addDays(today, 2),
+      kind: 'travel' as OffDayKind,
+      note: 'Lead demo off period: open notes move to the next working day.',
+    },
+    {
+      userId: people.mate.id,
+      startDate: addDays(today, 4),
+      endDate: addDays(today, 5),
+      kind: 'sick' as OffDayKind,
+      note: 'Mate demo off period: open notes move to the next working day.',
+    },
+    {
+      userId: people.priya.id,
+      startDate: addDays(today, 8),
+      endDate: addDays(today, 9),
+      kind: 'holiday' as OffDayKind,
+      note: 'Priya demo off period: open notes move to the next working day.',
+    },
+  ]
+
+  for (const period of periods) {
+    const existing = db
+      .prepare('SELECT id FROM off_days WHERE user_id = ? AND start_date = ? AND end_date = ? ORDER BY id LIMIT 1')
+      .get(period.userId, period.startDate, period.endDate)
+    if (!existing) {
+      createOffDay(db, period.userId, period, 'demo-fixture')
+    }
+  }
+  for (const period of periods) {
+    applyOffDayTaskMoves(db, period.userId)
+  }
+
+  const load = (id: string) =>
+    db
+      .prepare('SELECT id, done, due, recurrence, recurrence_config FROM tasks WHERE id = ?')
+      .get(id) as SkippableTaskRow | undefined
+  const skip = (id: string, userId: number, date: string) => {
+    const task = load(id)
+    if (task) skipTaskDate(db, task, userId, date)
+  }
+
+  skip(people.lead.launchTaskId, people.lead.id, today)
+  skip(people.lead.taskIds.skippedNote, people.lead.id, today)
+  skip(people.lead.taskIds.skippedRepeat, people.lead.id, today)
+
+  const mateSkipDate = addDays(today, 3)
+  skip(people.mate.skippedTeamTaskId, people.mate.id, mateSkipDate)
+  skip(people.mate.taskIds.skippedNote, people.mate.id, mateSkipDate)
+  skip(people.mate.taskIds.skippedRepeat, people.mate.id, mateSkipDate)
+
+  const priyaSkipDate = addDays(today, 7)
+  skip(people.priya.taskIds.skippedNote, people.priya.id, priyaSkipDate)
+  skip(people.priya.taskIds.skippedRepeat, people.priya.id, priyaSkipDate)
 }

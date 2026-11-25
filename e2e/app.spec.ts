@@ -21,6 +21,51 @@ test('signs up, adds a task, completes it, then signs back in', async ({ page })
   await expect(page.getByRole('region', { name: 'Completed' }).getByText(title)).toBeVisible()
 })
 
+test('moves repeating and ordinary notes off an off day and skips to the next working day', async ({
+  page,
+}) => {
+  const email = `${unique('e2e-repeat')}@example.com`
+  const dailyTitle = 'E2E daily run'
+  const plainTitle = 'E2E plain note'
+
+  await signupViaUi(page, 'E2E Repeat', email)
+
+  await addTaskViaDialog(page, dailyTitle, { repeatDaily: true })
+  const dailyNote = page.locator('[data-note-id]').filter({ hasText: dailyTitle })
+  await expect(dailyNote).toBeVisible()
+
+  const offDay = page.getByRole('region', { name: 'Off Day' })
+  await offDay.getByRole('button', { name: 'Mark today off' }).click()
+  await page.getByRole('button', { name: 'Save off day' }).click()
+  await expect(dailyNote).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Next day' }).click()
+  await expect(dailyNote).toBeVisible()
+  await page.getByRole('button', { name: 'Previous day' }).click()
+  await offDay.getByRole('button', { name: 'Remove off-day record' }).click()
+  await expect(dailyNote).toHaveCount(0)
+
+  await addTaskViaDialog(page, plainTitle)
+  const plainNote = page.locator('[data-note-id]').filter({ hasText: plainTitle })
+  await expect(plainNote).toBeVisible()
+  await plainNote.click()
+  await page.getByRole('button', { name: 'Skip for today' }).click()
+  await expect(plainNote).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Next day' }).click()
+  await expect(plainNote).toBeVisible()
+  await expect(dailyNote).toBeVisible()
+
+  await dailyNote.click()
+  await page.getByRole('button', { name: 'Skip for today' }).click()
+  await expect(dailyNote).toHaveCount(0)
+  await expect(plainNote).toBeVisible()
+
+  await page.getByRole('button', { name: 'Next day' }).click()
+  await expect(dailyNote).toBeVisible()
+  await expect(plainNote).toHaveCount(0)
+})
+
 test('creates a team, accepts an invite, and shares a task with notifications', async ({
   browser,
   page,
@@ -76,6 +121,26 @@ test('creates a team, accepts an invite, and shares a task with notifications', 
   await matePage.getByRole('button', { name: 'Notifications' }).first().click()
   await expect(matePage.getByRole('dialog', { name: 'Notifications' }).getByText(/assigned you/)).toBeVisible()
   await expect(matePage.getByRole('dialog', { name: 'Notifications' }).getByText(/mentioned you/)).toBeVisible()
+
+  await page.locator('[data-note-id]').filter({ hasText: title }).click()
+  await page.getByRole('button', { name: 'Skip for today' }).click()
+
+  await matePage.reload()
+  await matePage.getByRole('button', { name: 'Notifications' }).first().click()
+  await expect(
+    matePage.getByRole('dialog', { name: 'Notifications' }).getByText(/skipped a task/),
+  ).toBeVisible()
+
+  await page.getByRole('button', { name: 'My tasks' }).click()
+  const hostOffDay = page.getByRole('region', { name: 'Off Day' })
+  await hostOffDay.getByRole('button', { name: 'Mark today off' }).click()
+  await page.getByRole('button', { name: 'Save off day' }).click()
+
+  await matePage.reload()
+  await matePage.getByRole('button', { name: 'Notifications' }).first().click()
+  await expect(
+    matePage.getByRole('dialog', { name: 'Notifications' }).getByText(new RegExp(`${hostName} is off`)),
+  ).toBeVisible()
 
   await mateContext.close()
 })

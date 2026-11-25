@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { db } from './db'
+import { localDateString } from './http'
 
 /**
  * In-app notification centre.
@@ -17,6 +18,8 @@ export type NotificationKind =
   | 'assignment'
   | 'task-added'
   | 'task-completed'
+  | 'task-skipped'
+  | 'off-day'
 
 export interface AppNotification {
   id: string
@@ -88,6 +91,29 @@ interface TaskEventRow {
   actor_email: string | null
 }
 
+interface TaskSkipEventRow {
+  id: number
+  task_id: string
+  team_id: string
+  team_name: string
+  task_text: string
+  from_date: string
+  to_date: string
+  created_at: number
+  actor_id: number
+  actor_name: string | null
+  actor_email: string | null
+}
+
+interface OffDayNoticeRow {
+  id: number
+  start_date: string
+  end_date: string
+  updated_at: number
+  actor_name: string | null
+  actor_email: string | null
+}
+
 function displayName(name: string | null | undefined, email: string | null | undefined): string {
   if (name?.trim()) return name.trim()
   return email?.trim() ? email.split('@')[0] : 'a teammate'
@@ -117,6 +143,21 @@ function shorten(value: string, max: number): string {
   const clean = value.trim().replace(/\s+/g, ' ')
   if (clean.length <= max) return clean
   return `${clean.slice(0, Math.max(1, max - 1)).trimEnd()}…`
+}
+
+function dateLabel(value: string): string {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
+function offDayPhrase(start: string, end: string): string {
+  const today = localDateString()
+  if (start === end) return start === today ? 'today' : `on ${dateLabel(start)}`
+  return `from ${dateLabel(start)} to ${dateLabel(end)}`
 }
 
 /** Names and email forms that a teammate may use after an @ in a comment. */
@@ -397,6 +438,66 @@ export function notificationsFor(userId: number, database: DatabaseSync = db): A
       teamId: row.team_id,
       teamName: row.team_name,
       actorName: mine ? null : displayName(row.actor_name, row.actor_email),
+    })
+  }
+
+  const taskSkips = database
+    .prepare(
+      `SELECT s.id, s.task_id, s.from_date, s.to_date, s.created_at, s.actor_id,
+              t.team_id, tm.name AS team_name, t.text AS task_text,
+              u.name AS actor_name, u.email AS actor_email
+       FROM task_skip_events s
+       JOIN tasks t ON t.id = s.task_id
+       JOIN teams tm ON tm.id = t.team_id
+       JOIN users u ON u.id = s.actor_id
+       WHERE ${inMyTeams} AND s.actor_id <> ?
+       ORDER BY s.created_at DESC, s.id DESC
+       LIMIT 25`,
+    )
+    .all(userId, userId) as unknown as TaskSkipEventRow[]
+  for (const row of taskSkips) {
+    const actor = displayName(row.actor_name, row.actor_email)
+    items.push({
+      id: `task-skipped:${row.id}`,
+      kind: 'task-skipped',
+      createdAt: row.created_at,
+      title: `${actor} skipped a task`,
+      body: `“${shorten(row.task_text, 80)}” moved from ${dateLabel(row.from_date)} to ${dateLabel(row.to_date)}.`,
+      taskId: row.task_id,
+      teamId: row.team_id,
+      teamName: row.team_name,
+      actorName: actor,
+    })
+  }
+
+  const offDays = database
+    .prepare(
+      `SELECT o.id, o.start_date, o.end_date, o.updated_at,
+              u.name AS actor_name, u.email AS actor_email
+       FROM off_days o
+       JOIN users u ON u.id = o.user_id
+       WHERE o.user_id <> ?
+         AND EXISTS (
+           SELECT 1 FROM team_members mine
+           JOIN team_members actor ON actor.team_id = mine.team_id
+           WHERE mine.user_id = ? AND actor.user_id = o.user_id
+         )
+       ORDER BY o.updated_at DESC, o.id DESC
+       LIMIT 25`,
+    )
+    .all(userId, userId) as unknown as OffDayNoticeRow[]
+  for (const row of offDays) {
+    const actor = displayName(row.actor_name, row.actor_email)
+    items.push({
+      id: `off-day:${row.id}`,
+      kind: 'off-day',
+      createdAt: row.updated_at,
+      title: `${actor} is off ${offDayPhrase(row.start_date, row.end_date)}`,
+      body: 'Open tasks for those dates moved to the next working day.',
+      taskId: null,
+      teamId: null,
+      teamName: null,
+      actorName: actor,
     })
   }
 

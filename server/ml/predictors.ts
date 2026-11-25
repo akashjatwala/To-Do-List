@@ -620,16 +620,16 @@ export function buildPlan(
   const dayStart = startOfLocalDay(date)
   const dayEnd = endOfLocalDay(date)
   const openTasks = openTaskRows
-    .filter((task) =>
-      task.recurrence === 'none'
+    .filter((task) => {
+      return task.recurrence === 'none'
         ? task.due >= dayStart && task.due <= dayEnd
         : repeatsOnDate(
             task.due,
             task.recurrence as Recurrence,
             readRecurrenceConfig(task.recurrence_config),
             date,
-          ),
-    )
+          )
+    })
     .map((task) => ({ id: task.id }))
 
   const context: PredictContext = {

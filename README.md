@@ -8,27 +8,6 @@ The learning system is a separate layer on top of the existing app: it records w
 you actually do, learns from it locally, and sends no personal data to third-party
 services.
 
-## Screenshots
-
-These images are generated from a disposable, synthetic QA database with
-`npm run docs:screenshots`; they contain no real user data.
-
-**Day board** — sticky notes, Nudge and completed tasks:
-
-![DUIT day board with sticky notes and completed tasks](docs/screenshots/board.png)
-
-**Team list** — shared tasks for the selected team:
-
-![DUIT Teams view with multiple shared teams and tasks](docs/screenshots/teams.png)
-
-**Task details** — assignees, priority, tags and `@mention` comments:
-
-![DUIT task details with assignees and a mention comment](docs/screenshots/task-details.png)
-
-**Notifications** — in-app assignment and mention activity:
-
-![DUIT notifications panel with assignment and mention activity](docs/screenshots/notifications.png)
-
 ## Features
 
 **Lists and tasks**
@@ -38,7 +17,7 @@ These images are generated from a disposable, synthetic QA database with
 - Personal to-do lists
 - Shared team lists with host/member roles
 - Email invitations (accept or decline in-app)
-- **Notifications** beside your name collects invitations, reminders, and a recent **Team activity** feed of task adds, completions, comments and assignments — including your own — in one in-app panel; read state is browser-local and nothing is emailed, pushed or webhooked
+- **Notifications** beside your name collects invitations, reminders, teammate off-day and task-skip notices, and a recent **Team activity** feed of task adds, completions, comments and assignments — including your own — in one in-app panel; read state is browser-local and nothing is emailed, pushed or webhooked
 - Two top-level views — **My tasks** (only your private personal tasks) and **Teams** (team lists; pick a team from the row underneath, and use **New team** to create one)
 - A day-by-day board: sticky notes for the selected day, with a calendar picker and prev/next-day controls
 - Priority-colored sticky notes — low = soft green, medium = cream, high = soft red
@@ -49,8 +28,8 @@ These images are generated from a disposable, synthetic QA database with
 - Completed tasks collect in a list on the right, scoped to the same day
 - Create personal tasks in **My tasks**, or open a team in **Teams** — new tasks are filed into the list you are viewing
 - **Add task** opens a centered dialog. In **My tasks**, the Off days and Today's plan cards sit in the right-hand column above Completed, leaving more room for the notes
-- **Quick fill** in the New Task dialog turns “Submit report tomorrow 3pm #work !high” into a title, due date, preferred time, tag and priority. It also understands weekdays, `next Monday`, `in 3 days`, `25/11/26`, a trailing team name such as `launch crew`, `30m`/`1h` and extra `#tags`; the existing title autocomplete is unchanged. `!low`, `!medium` and `!high` set priority; unsupported `!words` stay in the title
-- Recurring tasks (daily, weekly, monthly, or custom weekly weekdays / nth-weekday monthly); completing one automatically creates the next occurrence
+- **Quick fill** in the New Task dialog turns “Submit report tomorrow #work !high 30m” into a title, due date, tag, priority and duration. It also understands weekdays, `next Monday`, `in 3 days`, `25/11/26`, a trailing team name such as `launch crew` and extra `#tags`; the existing title autocomplete is unchanged. Time words are left in the title — adding a task never adds a time. `!low`, `!medium` and `!high` set priority; unsupported `!words` stay in the title
+- Recurring tasks (daily, weekly, monthly, or custom weekly weekdays / nth-weekday monthly); completing one automatically creates the next occurrence. **Skip for today** moves any open note — repeating or not — to the next date not marked off, and teammates see an in-app notice when a shared note moves
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking
 - Task comments
@@ -64,10 +43,10 @@ These images are generated from a disposable, synthetic QA database with
 - Activity logging: timed sessions and one-tap per-day statuses (completed / partial / skipped / postponed)
 - Per-activity statistics, a readiness/energy view, and similar-day context
 - Nudge shows each personal task's chance you'll work on it today (any logged activity counts)
-- Off days (just off / sick / travelling / holiday / other), each with its own emoji, that reduce confidence rather than inventing data
+- Off days (just off / sick / travelling / holiday / other), each with its own emoji: open tasks due on those dates move to the next non-off date, repeating occurrences are skipped for the off span, teammates get an in-app notice, and confidence is reduced when you are away
 - The **Nudge** card shows only open personal tasks scheduled on the selected day, including repeating occurrences; team tasks and other days are excluded
 - Display-only **Worth a look** suggestions. The server still computes the proposed flow, workload warning and "better days" ideas, but they are no longer shown in the UI; none of them change a task's date
-- Versioned tags, priority, target duration and preferred time, with full history
+- Versioned tags, priority, target duration and preferred time, with full history. New tasks are created without a time; the field is only retained for older/edited tasks and local learning history
 - **My Account → Tags** adds, renames and deletes tags; names are always lower case, every task updates immediately, and past history stays linked to the original tag ids
 - Local model training, versioning, promotion, rollback and a plain-words model health view
 - Trained champions are served for completion, target and duration when healthy; with no model yet, the starting estimates are shown instead
@@ -89,23 +68,6 @@ npm run dev
 ```
 
 Then open <http://localhost:5173>. The API runs on <http://localhost:3001>.
-
-### Try the ML pipeline with generated data
-
-```bash
-npm run seed:ml        # isolated DB + chronological holdout report
-npm run seed:ml:app    # separate demo account in the local app DB
-npm run demo:team      # rich multi-team demo on the demo accounts only
-```
-
-The app demo signs in with `ml-demo@example.com` / `demo12345`. Two teammates are
-also available: `ml-demo-mate@example.com` and `ml-demo-priya@example.com` with the
-same password. No other account is touched.
-
-Open **Teams** after `npm run demo:team` to see a realistic fixture: three joined
-teams plus one pending invitation, historical completed work, multi-assignee tasks
-with subtasks and notes, sent invitations and incoming invites. All of it is
-synthetic; see [docs/ml.md](docs/ml.md#generating-local-test-data) for the ML caveats.
 
 ### Production
 
@@ -134,7 +96,7 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 | [docs/ml.md](docs/ml.md) | Features, algorithms and why they were chosen, training, versioning, health and drift |
 | [docs/operations.md](docs/operations.md) | Running, training, retraining, health checks and rollback |
 | [docs/api.md](docs/api.md) | HTTP routes, request bodies and authentication |
-| [docs/testing.md](docs/testing.md) | Unit, browser and QA checks, seed/reset scripts and performance smoke test |
+| [docs/testing.md](docs/testing.md) | Unit, browser and QA checks |
 | [docs/privacy-and-limits.md](docs/privacy-and-limits.md) | What is stored, what stays local, and the honest limits |
 | [docs/decisions.md](docs/decisions.md) | The main design choices and their reasons |
 
@@ -148,10 +110,6 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 | `npm run preview` | Preview the Vite build |
 | `npm test` | Run the whole test suite (server + frontend) |
 | `npm run test:e2e` | Build, start an isolated server and run the Chrome browser flows |
-| `npm run qa:seed` | Seed the isolated QA database with two users, a team and sample activity |
-| `npm run qa:reset` | Delete the isolated QA database |
-| `npm run perf:check` | Seed 5,000 tasks in a disposable DB and report bootstrap timings |
-| `npm run docs:screenshots` | Regenerate the synthetic screenshots embedded above |
 
 ## Development notes
 

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { createCheckinSchema } from './checkins-store'
 import { runMigrations } from './migrations'
 import { createFoundationSchema, createMlSchema, createPredictionSchema, createStateSchema } from './ml/schema'
+import { TASK_SKIP_EVENTS_SCHEMA } from './task-skip-events'
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), 'data')
 // Tests point this at an isolated file so they never open the live database.
@@ -140,6 +141,8 @@ db.exec(`
     FOREIGN KEY (reminder_id) REFERENCES task_reminders(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  ${TASK_SKIP_EVENTS_SCHEMA}
 
   CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);

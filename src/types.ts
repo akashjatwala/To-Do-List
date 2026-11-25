@@ -83,6 +83,8 @@ export type NotificationKind =
   | 'assignment'
   | 'task-added'
   | 'task-completed'
+  | 'task-skipped'
+  | 'off-day'
 
 /** A read-only item from the in-app notification centre. */
 export interface AppNotification {
@@ -124,12 +126,21 @@ export interface UserInvite {
   createdAt: number
 }
 
+/** Result of moving an open note to the next working day. */
+export interface TaskSkipResult {
+  taskId: string
+  fromDate: string
+  toDate: string
+  due: number
+}
+
 export interface BootstrapData {
   user: User
   teams: Team[]
   invites: UserInvite[]
   tasks: Task[]
   reminders?: Reminder[]
+  offDays: OffDay[]
 }
 
 export type View =

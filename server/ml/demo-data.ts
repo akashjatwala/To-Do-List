@@ -13,6 +13,8 @@ import {
   skipCheckin,
   type CheckinAnswerKey,
 } from '../checkins-store'
+import { applyOffDayTaskMoves } from '../off-day-task-moves'
+import { skipTaskDate, type SkippableTaskRow } from '../task-skip-events'
 import { addDays, createOffDay, getPredictionSettings, type OffDayKind } from './off-days'
 import { configForDate, configTagIds, recordTaskConfig, type TaskLike } from './task-config'
 import { syncTaskTags } from './tags'
@@ -68,6 +70,7 @@ export interface DemoDataResult {
     lateSessions: number
     statuses: number
     offDays: number
+    skipEvents: number
     checkins: number
     checkinEdits: number
     configVersions: number
@@ -175,7 +178,7 @@ function addTask(db: DatabaseSync, userId: number, spec: TaskSpec, from: string)
     epochAtMinute(from, 0),
     spec.priority,
     spec.targetMinutes,
-    preferredTime(spec.preferredMinute),
+    null,
   )
   const tagIds = syncTaskTags(db, userId, id, spec.tags)
   const task: TaskLike = {
@@ -187,22 +190,16 @@ function addTask(db: DatabaseSync, userId: number, spec: TaskSpec, from: string)
     recurrence: 'daily',
     recurrence_config: null,
     duration: spec.targetMinutes,
-    preferred_time: preferredTime(spec.preferredMinute),
+    preferred_time: null,
   }
   recordTaskConfig(db, task, tagIds, epochAtMinute(from, 0))
   return id
 }
 
-function preferredTime(minute: number): string {
-  const hours = `${Math.floor(minute / 60)}`.padStart(2, '0')
-  const minutes = `${minute % 60}`.padStart(2, '0')
-  return `${hours}:${minutes}`
-}
-
 function reconfigure(db: DatabaseSync, userId: number, taskId: string, date: string): void {
   const row = db
-    .prepare('SELECT text, priority, duration, preferred_time FROM tasks WHERE id = ? AND user_id = ?')
-    .get(taskId, userId) as unknown as { text: string; priority: string; duration: number; preferred_time: string }
+    .prepare('SELECT text FROM tasks WHERE id = ? AND user_id = ?')
+    .get(taskId, userId) as unknown as { text: string }
   const latest = configForDate(db, taskId, date)
   const tagIds = latest ? configTagIds(db, latest.id) : []
   const task: TaskLike = {
@@ -214,11 +211,66 @@ function reconfigure(db: DatabaseSync, userId: number, taskId: string, date: str
     recurrence: 'daily',
     recurrence_config: null,
     duration: 75,
-    preferred_time: '09:00',
+    preferred_time: null,
   }
-  db.prepare('UPDATE tasks SET priority = ?, duration = ?, preferred_time = ? WHERE id = ? AND user_id = ?')
-    .run('high', 75, '09:00', taskId, userId)
+  db.prepare('UPDATE tasks SET priority = ?, duration = ? WHERE id = ? AND user_id = ?')
+    .run('high', 75, taskId, userId)
   recordTaskConfig(db, task, tagIds, epochAtMinute(date, 0))
+}
+
+/**
+ * Current off-day and skip examples for the demo board.
+ *
+ * These tasks are deliberately outside `result.taskIds`, so the chronological
+ * backtest and champion training still use only the generated habit history.
+ */
+function seedScheduleExamples(db: DatabaseSync, userId: number, today: string): void {
+  const offStart = addDays(today, 1)
+  const offEnd = addDays(today, 2)
+  const examples = [
+    { id: 'demo-off-day-note', text: 'Off-day moved note', due: epochAtMinute(offStart, 14 * 60), recurrence: 'none' },
+    { id: 'demo-off-day-repeat', text: 'Off-day daily check', due: epochAtMinute(offStart, 7 * 60 + 30), recurrence: 'daily' },
+    { id: 'demo-skipped-note', text: 'Skipped personal note', due: epochAtMinute(today, 9 * 60), recurrence: 'none' },
+    { id: 'demo-skipped-repeat', text: 'Skipped daily habit', due: epochAtMinute(today, 8 * 60), recurrence: 'daily' },
+  ] as const
+
+  for (const example of examples) {
+    db.prepare(
+      `INSERT INTO tasks
+         (id, user_id, text, done, created_at, due, position, priority, tags,
+          recurrence, duration, preferred_time)
+       VALUES (?, ?, ?, 0, ?, ?, 0, 'medium', '[]', ?, 30, NULL)`,
+    ).run(
+      example.id,
+      userId,
+      example.text,
+      epochAtMinute(addDays(today, -1), 0),
+      example.due,
+      example.recurrence,
+    )
+  }
+
+  createOffDay(
+    db,
+    userId,
+    {
+      kind: 'travel' as OffDayKind,
+      startDate: offStart,
+      endDate: offEnd,
+      note: 'Demo off period: open notes move to the next working day.',
+    },
+    'generated',
+  )
+  applyOffDayTaskMoves(db, userId)
+
+  const load = (id: string) =>
+    db
+      .prepare('SELECT id, done, due, recurrence, recurrence_config FROM tasks WHERE id = ?')
+      .get(id) as SkippableTaskRow | undefined
+  for (const id of ['demo-skipped-note', 'demo-skipped-repeat']) {
+    const task = load(id)
+    if (task) skipTaskDate(db, task, userId, today)
+  }
 }
 
 /** Fill an existing demo user's history. Existing rows for that user are removed first. */
@@ -261,11 +313,17 @@ export function generateDemoHistory(db: DatabaseSync, userId: number, options: D
       // A table may not exist in an older database; newer stores are authoritative.
     }
   }
+  try {
+    db.prepare('DELETE FROM task_skip_events WHERE actor_id = ?').run(userId)
+  } catch {
+    // An older database may not have the skip-event table yet.
+  }
   db.prepare('DELETE FROM tasks WHERE user_id = ?').run(userId)
 
   const taskIds = TASK_SPECS.map((spec) => addTask(db, userId, spec, from))
   const changeDate = addDays(from, Math.floor(days * 0.65))
   reconfigure(db, userId, taskIds[1], changeDate)
+  seedScheduleExamples(db, userId, today)
 
   const offPeriods: Array<{ startDate: string; endDate: string; kind: OffDayKind; note: string }> = [
     { startDate: addDays(from, 18), endDate: addDays(from, 20), kind: 'sick' as OffDayKind, note: 'Down with a cold.' },
@@ -379,7 +437,8 @@ export function generateDemoHistory(db: DatabaseSync, userId: number, options: D
     sessions,
     lateSessions,
     statuses,
-    offDays: offPeriods.length,
+    offDays: (db.prepare('SELECT COUNT(*) AS n FROM off_days WHERE user_id = ?').get(userId) as unknown as { n: number }).n,
+    skipEvents: (db.prepare('SELECT COUNT(*) AS n FROM task_skip_events WHERE actor_id = ?').get(userId) as unknown as { n: number }).n,
     checkins,
     checkinEdits,
     configVersions: (db.prepare('SELECT COUNT(*) AS n FROM task_configs WHERE user_id = ?').get(userId) as unknown as { n: number }).n,
@@ -629,7 +688,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   console.log(`Target: ${args.target}`)
   console.log(`Demo user: ${result.email} / ${DEMO_PASSWORD}`)
   console.log(`History: ${result.from} → ${result.to} (${args.days} days), holdout ${result.holdoutFrom} → ${result.to}`)
-  console.log(`Written: ${result.counts.tasks} tasks, ${result.counts.sessions} sessions (${result.counts.lateSessions} late), ${result.counts.statuses} statuses, ${result.counts.checkins} check-ins, ${result.counts.offDays} off periods`)
+  console.log(`Written: ${result.counts.tasks} tasks, ${result.counts.sessions} sessions (${result.counts.lateSessions} late), ${result.counts.statuses} statuses, ${result.counts.checkins} check-ins, ${result.counts.offDays} off periods, ${result.counts.skipEvents} skips`)
   console.log(`Features: ${report.featureCount} columns, compact=${report.compact}, grid=${report.predictionMinutes.join('/')}`)
   console.log('')
   console.log('Synthetic chronological holdout (lower Brier/MAE is better):')

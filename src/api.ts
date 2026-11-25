@@ -18,6 +18,7 @@ import type {
   RecurrenceConfig,
   Reminder,
   TaskConfig,
+  TaskSkipResult,
   Team,
   User,
   UserTag,
@@ -100,7 +101,6 @@ export const api = {
     recurrence?: Recurrence
     recurrenceConfig?: RecurrenceConfig | null
     duration?: number | null
-    preferredTime?: string | null
   }) => post<{ id: string }>('/api/tasks', input),
   updateTask: (
     id: string,
@@ -119,6 +119,8 @@ export const api = {
     },
   ) => patch<{ ok: true; spawnedId: string | null }>(`/api/tasks/${id}`, patchBody),
   deleteTask: (id: string) => del<{ ok: true }>(`/api/tasks/${id}`),
+  skipTaskDay: (taskId: string, date: string) =>
+    post<{ item: TaskSkipResult }>(`/api/tasks/${encodeURIComponent(taskId)}/skip`, { date }),
   reorderTasks: (ids: string[]) => post<{ ok: true }>('/api/tasks/reorder', { ids }),
   setTaskAssignees: (id: string, userIds: number[]) =>
     put<{ ok: true }>(`/api/tasks/${id}/assignees`, { userIds }),

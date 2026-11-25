@@ -11,11 +11,10 @@
 
 | Decision | Why |
 | --- | --- |
-| Fresh dataset only; no imported history | The user starts clean, so the system never pretends to know habits it has not seen |
-| Never fabricate a training row in user data | A made-up row in someone's own history would make the system look better than it is; synthetic rows are confined to the isolated backtest DB and the separate demo account |
-| Never claim accuracy without real evidence | A synthetic chronological backtest can verify the pipeline, but an accuracy figure for a person's own habits is only claimed after their own history is measured |
-| Synthetic demo data stays clearly separate | The generator writes to an isolated DB or a separate demo account, and its report says plainly that the numbers describe synthetic habits |
-| Missing stays missing | A blank answer, an absent priority and a skipped day are real facts, and are stored as such, never defaulted |
+| Fresh dataset only; no imported history | The user starts clean, so the system learns only from habits it has observed here |
+| Training rows come only from recorded activity | A user's history is built from what they actually do |
+| Never claim accuracy without real evidence | An accuracy figure for a person's own habits is only claimed after their own history is measured |
+| Missing stays missing | A blank answer, an absent priority and a skipped day are real facts, and are stored as given |
 | `not_asked` is different from `skipped` | "I did not open the app" and "I chose to skip" are different, and conflating them would corrupt the labels |
 | A prediction is never an outcome | Predictions and outcomes live in separate tables; the label columns are filled only from observed activity |
 | Remove unreferenced scaffold tables | Nine planning/target/weekly tables held no rows and had no references in `server/` or `src/`; keeping them made the data model look more complex than the app actually is |
@@ -54,7 +53,7 @@
 | Decision | Why |
 | --- | --- |
 | Tags and priority are inputs, with versioned history | They change over time, so the value that applied on a given day is kept |
-| Never invent a tag or priority value | A missing value is missing; guessing would bias the model |
+| Missing tag and priority values stay missing | Keeping an absent value absent avoids biasing the model |
 | No fixed / preferred / flexible time categories | Preferred time is only an optional hint, never a deadline; timing is learned from when you actually do the thing |
 | Mood is a predictive input, never a diagnosis | Associations are explained; causes are never claimed |
 | Sensitive questions are optional | Personal context helps predictions but must never be required |

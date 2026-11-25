@@ -37,7 +37,7 @@ check-in, task, prediction or ML table was removed, and the model code was left 
 | --- | --- |
 | `users` | Account email and password hash |
 | `auth_tokens` | Login sessions only. Only token **hashes** are stored; the former reset-code rows were removed by migration 12 |
-| `schema_migrations` | Applied migration versions; migration 13 records the reminder tables, migration 14 the assignment metadata, migration 15 the completion metadata and migration 16 the duplicate-tag consolidation |
+| `schema_migrations` | Applied migration versions; migration 13 records the reminder tables, migration 14 the assignment metadata, migration 15 the completion metadata, migration 16 the duplicate-tag consolidation, migration 17 lower-case/deletable tags, migration 18 the old skip-date table and migration 19 skip events |
 | `teams`, `team_members`, `team_invites` | Teams, membership roles, pending invites |
 | `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration, preferred time. `completed_at` and `completed_by` timestamp a real change to done for the activity feed and stay blank for old completed rows. `team_id NULL` means a personal task |
 | `subtasks` | Subtasks with position, done and an optional assignee (a member of the task's team; `NULL` on personal tasks) |
@@ -45,6 +45,8 @@ check-in, task, prediction or ML table was removed, and the model code was left 
 | `task_assignees` | Team tasks assigned to several teammates. The task's `user_id` stays the creator/owner; any team member can edit this list. `assigned_at` and `assigned_by` record who made each assignment and when, for the notification centre |
 | `task_reminders` | One row per reminder sent from an overdue sticky note: task, sender and timestamp. Deleting the task or sender removes the reminder |
 | `task_reminder_recipients` | Who was notified for a team reminder. Empty for personal reminders; a snapshot of assignees, or all team members when the task has no assignees |
+| `task_skips` | Legacy table from the old hide-a-date skip. Kept for existing databases only; the app no longer reads it |
+| `task_skip_events` | One row per **Skip for today** move: task, actor, old date, new date and timestamp. Drives teammate notices in the in-app notification centre; the move itself is stored on `tasks.due` |
 
 ### Check-ins — `server/checkins-store.ts`
 
@@ -81,7 +83,7 @@ The display preferences used by this layer live in `user_settings` (foundation g
 
 | Table | Holds |
 | --- | --- |
-| `off_days` | One row per off period: kind (optional), start, end, note |
+| `off_days` | One row per off period: kind (optional), start, end, note. Also drives teammate off-day notices in the in-app notification centre; completed tasks and recorded activity are never rewritten |
 | `predictions` | The prediction **log**: source (baseline / model), model version, check-in state, probabilities, durations, recommended window, confidence, stage, explanation. Written by the server only |
 | `prediction_feedback` | Whether a suggestion was shown, exploratory, and followed — stored apart from both predictions and outcomes |
 

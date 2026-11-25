@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { mergeTags } from './ml/tags'
+import { TASK_SKIP_EVENTS_SCHEMA } from './task-skip-events'
 
 /**
  * Versioned, idempotent schema migrations.
@@ -308,6 +309,30 @@ const migrations: Migration[] = [
       }
       lowercaseTagNames(db)
     },
+  },
+  {
+    version: 18,
+    name: 'task_skips',
+    // Kept for databases that already ran the old hide-a-date migration. The
+    // app no longer reads it; skips now move dates via task_skip_events.
+    up: (db) =>
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS task_skips (
+          task_id TEXT NOT NULL,
+          user_id INTEGER NOT NULL,
+          date TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          PRIMARY KEY (task_id, user_id, date),
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_task_skips_user_date ON task_skips(user_id, date);
+      `),
+  },
+  {
+    version: 19,
+    name: 'task_skip_events',
+    up: (db) => db.exec(TASK_SKIP_EVENTS_SCHEMA),
   },
 ]
 

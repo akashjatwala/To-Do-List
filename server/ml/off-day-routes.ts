@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { db } from '../db'
 import { parseLocalDate } from '../checkins-store'
+import { applyOffDayTaskMoves } from '../off-day-task-moves'
 import { badRequest, localDateString, notFound, param, type AuthedRequest } from '../http'
 import {
   createOffDay,
@@ -59,7 +60,9 @@ router.get('/day', (req: AuthedRequest, res) => {
 router.post('/', (req: AuthedRequest, res) => {
   const input = parseOffDayInput(req.body)
   if (!input) return badRequest(res, 'Provide a start date, an optional end date and an optional reason.')
-  res.status(201).json({ offDay: offDayDTO(createOffDay(db, req.userId!, input)) })
+  const offDay = createOffDay(db, req.userId!, input)
+  applyOffDayTaskMoves(db, req.userId!)
+  res.status(201).json({ offDay: offDayDTO(offDay) })
 })
 
 router.patch('/:id', (req: AuthedRequest, res) => {
@@ -68,13 +71,16 @@ router.patch('/:id', (req: AuthedRequest, res) => {
   if (!getOffDay(db, req.userId!, id)) return notFound(res, 'Off-day record not found.')
   const input = parseOffDayInput(req.body)
   if (!input) return badRequest(res, 'Provide a start date, an optional end date and an optional reason.')
-  res.json({ offDay: offDayDTO(updateOffDay(db, req.userId!, id, input)!) })
+  const offDay = updateOffDay(db, req.userId!, id, input)!
+  applyOffDayTaskMoves(db, req.userId!)
+  res.json({ offDay: offDayDTO(offDay) })
 })
 
 router.delete('/:id', (req: AuthedRequest, res) => {
   const id = Number.parseInt(param(req, 'id'), 10)
   if (!Number.isInteger(id)) return badRequest(res, 'That off-day id is not valid.')
   if (!deleteOffDay(db, req.userId!, id)) return notFound(res, 'Off-day record not found.')
+  applyOffDayTaskMoves(db, req.userId!)
   res.json({ ok: true })
 })
 

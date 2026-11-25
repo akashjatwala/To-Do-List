@@ -30,7 +30,6 @@ export interface NewTaskInput {
   recurrence: Recurrence
   recurrenceConfig: RecurrenceConfig | null
   duration: number | null
-  preferredTime: string | null
   teamId: string | null
 }
 
@@ -117,7 +116,6 @@ export default function NewTaskDialog({
 }) {
   const [text, setText] = useState('')
   const [due, setDue] = useState(defaultDue)
-  const [preferredTime, setPreferredTime] = useState<string | null>(null)
   const [quickFillNote, setQuickFillNote] = useState('')
   const [priority, setPriority] = useState<Priority>('none')
   const [recurrence, setRecurrence] = useState<Recurrence>('none')
@@ -143,7 +141,6 @@ export default function NewTaskDialog({
     if (!open) return
     setText('')
     setDue(defaultDue)
-    setPreferredTime(null)
     setQuickFillNote('')
     setPriority('none')
     setRecurrence('none')
@@ -196,7 +193,7 @@ export default function NewTaskDialog({
 
   const quickFill = () => {
     if (!text.trim()) {
-      setQuickFillNote('Type a task first, e.g. “Submit report tomorrow 3pm #work”.')
+      setQuickFillNote('Type a task first, e.g. “Submit report tomorrow #work”.')
       return
     }
     const parsed = parseQuickAdd(text, undefined, teams)
@@ -209,7 +206,6 @@ export default function NewTaskDialog({
 
     setText(parsed.text)
     if (parsed.due) setDue(parsed.due)
-    if (parsed.preferredTime) setPreferredTime(parsed.preferredTime)
     if (parsed.priority) setPriority(parsed.priority)
     if (parsed.teamId) setTeamId(parsed.teamId)
     setTags(nextTags)
@@ -230,7 +226,6 @@ export default function NewTaskDialog({
     const parts: string[] = []
     if (parsed.text !== text.trim().replace(/\s+/g, ' ')) parts.push('title')
     if (parsed.due) parts.push('date')
-    if (parsed.preferredTime) parts.push('time')
     if (parsed.priority && parsed.priority !== 'none') parts.push(`priority: ${parsed.priority}`)
     if (addedTags.length) parts.push(addedTags.map((tag) => `#${tag}`).join(', '))
     if (parsed.duration !== null) parts.push(`${parsed.duration} min`)
@@ -241,7 +236,7 @@ export default function NewTaskDialog({
     setQuickFillNote(
       parts.length > 0
         ? `Filled ${parts.join(', ')}.`
-        : 'No date, time, priority, tags, duration or team found.',
+        : 'No date, priority, tags, duration or team found.',
     )
     textRef.current?.focus()
   }
@@ -286,7 +281,6 @@ export default function NewTaskDialog({
     const ok = await onAdd({
       text: value,
       due: dueFromDateInput(due),
-      preferredTime,
       priority,
       tags: nextTags,
       recurrence,
@@ -299,7 +293,6 @@ export default function NewTaskDialog({
     if (!ok) return
     if (addAnother) {
       setText('')
-      setPreferredTime(null)
       setQuickFillNote('')
       setTags([])
       setTagDraft('')
@@ -342,7 +335,7 @@ export default function NewTaskDialog({
                     role="tooltip"
                     className="pointer-events-none absolute top-full right-0 z-40 mt-1 hidden w-max max-w-[16rem] rounded-lg border border-[#E3E1DC] bg-white px-3 py-2 text-left text-[11px] leading-snug text-slate-500 shadow-lg group-hover:block group-focus-within:block"
                   >
-                    Try “Submit report tomorrow 3pm 30m #work !high”
+                    Try “Submit report tomorrow 30m #work !high”
                   </div>
                 </div>
               </div>
@@ -621,10 +614,7 @@ export default function NewTaskDialog({
                 </p>
               )}
               <div className="mt-4 space-y-1.5 text-xs font-medium text-[#6B4F1D]">
-                <p>
-                  {previewDate(due)}
-                  {preferredTime ? ` · ${preferredTime}` : ''}
-                </p>
+                <p>{previewDate(due)}</p>
                 <p>{selectedDuration ? `${selectedDuration} min` : 'No duration yet'}</p>
                 {recurrence !== 'none' && <p>{RECURRENCE_META[recurrence].label}</p>}
                 <p>

@@ -684,6 +684,29 @@ test('plan includes repeating personal tasks projected onto the selected date', 
   db.close()
 })
 
+test('plan follows a task whose date was moved by Skip for today', () => {
+  const db = freshDb()
+  const tomorrow = addDays(TODAY, 1)
+  const moved = insertTask(db, { text: 'Moved run', due: endOfLocalDay(tomorrow), recurrence: 'daily' })
+  const stayed = insertTask(db, {
+    text: 'Stayed put',
+    due: endOfLocalDay(addDays(TODAY, -2)),
+    recurrence: 'daily',
+  })
+
+  const todayIds = buildPlan(db, USER, TODAY, TODAY, 480, 'completed').entries.map(
+    (entry) => entry.taskId,
+  )
+  assert.ok(!todayIds.includes(moved))
+  assert.ok(todayIds.includes(stayed))
+
+  const nextIds = buildPlan(db, USER, tomorrow, tomorrow, 480, 'completed').entries.map(
+    (entry) => entry.taskId,
+  )
+  assert.ok(nextIds.includes(moved))
+  db.close()
+})
+
 test('plan never includes team tasks', () => {
   const db = freshDb()
   const personal = insertTask(db, { text: 'Personal' })

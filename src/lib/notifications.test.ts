@@ -27,11 +27,13 @@ test('groups invitations, reminders, and team activity', () => {
     item('e', 'task-added', 2),
     item('f', 'task-completed', 1),
     item('g', 'team-reminder', 0),
+    item('j', 'task-skipped', 0),
+    item('i', 'off-day', 0),
   ]
   const groups = groupNotifications(items)
   assert.deepEqual(groups.invitations.map((entry) => entry.id), ['a'])
   assert.deepEqual(groups.reminders.map((entry) => entry.id), ['c'])
-  assert.deepEqual(groups.activity.map((entry) => entry.id), ['b', 'h', 'd', 'e', 'f', 'g'])
+  assert.deepEqual(groups.activity.map((entry) => entry.id), ['b', 'h', 'd', 'e', 'f', 'g', 'j', 'i'])
 })
 
 test('unread count only includes items newer than the local read marker', () => {

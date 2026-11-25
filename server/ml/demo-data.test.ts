@@ -7,6 +7,8 @@ import { configForDate } from './task-config'
 import { addDays } from './off-days'
 import { buildTrainingSet } from './dataset'
 import { epochAtMinute } from './predictors'
+import { localDateValue } from '../recurrence'
+import { TASK_SKIP_EVENTS_SCHEMA } from '../task-skip-events'
 import {
   backtestDemoData,
   createDemoUser,
@@ -35,6 +37,13 @@ function freshDb(): DatabaseSync {
     )
   `)
   db.exec(`
+    CREATE TABLE team_members (
+      team_id TEXT NOT NULL, user_id INTEGER NOT NULL,
+      role TEXT NOT NULL, joined_at INTEGER NOT NULL,
+      PRIMARY KEY (team_id, user_id)
+    )
+  `)
+  db.exec(`
     CREATE TABLE tasks (
       id TEXT PRIMARY KEY,
       user_id INTEGER NOT NULL,
@@ -60,6 +69,7 @@ function freshDb(): DatabaseSync {
   createStateSchema(db)
   createPredictionSchema(db)
   createMlSchema(db)
+  db.exec(TASK_SKIP_EVENTS_SCHEMA)
   return db
 }
 
@@ -129,6 +139,39 @@ test('demo data: generated history uses the real stores and can be reconstructed
   const set = buildTrainingSet(db, userId, result.taskIds, result.from, result.to, result.today)
   assert.ok(set.rows.length > 0)
   assert.ok(set.rows.every((row) => row.date <= result.to))
+  db.close()
+})
+
+test('demo data: current examples show off-day moves and skip events', () => {
+  const db = freshDb()
+  const userId = createDemoUser(db)
+  const result = generateDemoHistory(db, userId, { days: 30, holdoutDays: 7, seed: 41, today: '2026-11-24' })
+
+  assert.equal(result.counts.offDays, 2)
+  assert.equal(result.counts.skipEvents, 2)
+  assert.equal(
+    count(db, 'SELECT COUNT(*) AS n FROM tasks WHERE user_id = ? AND preferred_time IS NOT NULL', userId),
+    0,
+  )
+  assert.equal(
+    count(db, 'SELECT COUNT(*) AS n FROM task_configs WHERE user_id = ? AND preferred_time IS NOT NULL', userId),
+    0,
+  )
+  const dueOf = (id: string) =>
+    localDateValue((db.prepare('SELECT due FROM tasks WHERE id = ?').get(id) as { due: number }).due)
+  for (const id of ['demo-off-day-note', 'demo-off-day-repeat', 'demo-skipped-note', 'demo-skipped-repeat']) {
+    assert.equal(dueOf(id), '2026-11-27', `${id} should land on the next working day`)
+  }
+
+  const events = (
+    db
+      .prepare('SELECT task_id, from_date, to_date FROM task_skip_events ORDER BY id')
+      .all() as unknown as Array<{ task_id: string; from_date: string; to_date: string }>
+  ).map((row) => ({ task_id: row.task_id, from_date: row.from_date, to_date: row.to_date }))
+  assert.deepEqual(events, [
+    { task_id: 'demo-skipped-note', from_date: '2026-11-24', to_date: '2026-11-27' },
+    { task_id: 'demo-skipped-repeat', from_date: '2026-11-24', to_date: '2026-11-27' },
+  ])
   db.close()
 })
 
