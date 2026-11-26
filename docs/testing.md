@@ -19,8 +19,11 @@ for `node:sqlite`.
 ### Unit and integration tests
 
 `npm test` covers API routes, authentication, teams, tasks, notifications, the
-ML pipeline, parsers and React components. It uses `.env.test`, so SQLite is
-pointed at a throwaway test database. Tests do not call external services.
+completion ML pipeline, parsers and React components. It uses `.env.test`, so SQLite is
+pointed at a throwaway test database. Tests do not call external services. The ML tests cover
+training, promotion, health fallback and the live predictor for completion only; target
+probability and expected duration are baseline estimates. They also check that the boosted-tree
+challenger is deterministic and that the demo generator honours explicit train/test windows.
 
 ### Browser tests
 
@@ -31,7 +34,7 @@ with:
 
 - `DUIT_DB_PATH=./server/data/todo.e2e.db` — an isolated SQLite file
 - `NODE_ENV=development` — keeps the session cookie usable over plain HTTP
-- `ML_DISABLE_SCHEDULER=1` — stops background retraining during a run
+- `ML_DISABLE_SCHEDULER=1` — stops background completion retraining during a run
 
 The three specs in `e2e/app.spec.ts` verify:
 

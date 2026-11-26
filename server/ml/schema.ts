@@ -344,7 +344,7 @@ export function createMlSchema(db: DatabaseSync): void {
     CREATE TABLE IF NOT EXISTS ml_models (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('completion', 'target', 'duration', 'timing')),
+      kind TEXT NOT NULL CHECK (kind IN ('completion')),
       version TEXT NOT NULL,
       status TEXT NOT NULL CHECK (status IN ('candidate', 'champion', 'retired', 'rejected')),
       train_from TEXT NOT NULL,
@@ -417,10 +417,10 @@ export function createMlSchema(db: DatabaseSync): void {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
-    -- Live model health log. Each time a model is served, its
-    -- probability/duration is stored beside the baseline's for the same
-    -- (kind, day, task). The label is the observed outcome and stays NULL until
-    -- the day is labelled — a prediction is never written back as an outcome.
+    -- Live model health log. Each time a model is served, its probability is
+    -- stored beside the baseline's for the same (kind, day, task). The label is
+    -- the observed outcome and stays NULL until the day is labelled — a
+    -- prediction is never written back as an outcome.
     CREATE TABLE IF NOT EXISTS ml_health_predictions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -430,10 +430,7 @@ export function createMlSchema(db: DatabaseSync): void {
       model_version TEXT NOT NULL,
       model_probability REAL,
       baseline_probability REAL,
-      model_duration REAL,
-      baseline_duration REAL,
       label INTEGER,
-      label_duration REAL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       UNIQUE (user_id, kind, local_date, task_id),
@@ -452,8 +449,6 @@ export function createMlSchema(db: DatabaseSync): void {
       baseline_brier REAL,
       model_ece REAL,
       baseline_ece REAL,
-      model_mae REAL,
-      baseline_mae REAL,
       fallback INTEGER NOT NULL DEFAULT 0,
       reason TEXT,
       evaluated_at INTEGER NOT NULL,

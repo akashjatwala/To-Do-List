@@ -36,7 +36,7 @@ Check-ins, their edit trail and everything the learning system derives from them
 ## Predictions are never outcomes
 
 - Predictions live in their own tables (`predictions`, `ml_shadow`, `ml_health_predictions`).
-- Predictions are for your personal tasks only. Team tasks are never predicted and never feed the model's training data or statistics.
+- Predictions are for your personal tasks only. Team tasks are never predicted and never feed the completion model's training data or statistics.
 - Check-in answers are an optional prediction input: Nudge shows a value without them and refreshes when they are answered.
 - Outcomes come only from your recorded activity (`activity_sessions`, `daily_activity_status`, `activity_outcome_links`).
 - A stored prediction is **never** written back as an observed result. This is enforced in code and checked by the test suite.
@@ -54,10 +54,11 @@ flexible time categories, and a preferred time is never treated as a deadline.
 
 ## Known limits
 
-- **No real accuracy figure yet.** The dataset is fresh. There is not enough history to train or validate a personal model, so no accuracy number is claimed for your own habits.
-- **Fresh dataset only.** No historical data was imported into your account. Training uses only the activity you record here.
-- **Timing has no registered model.** The recommended window comes from a timing profile, not a trained model, so it is not versioned or gated like completion/target/duration. It is logged with the prediction but is not shown in Nudge.
-- **Nudge is deliberately compact.** It shows the completion probability as a percentage beside the task name with a bar below; confidence, target probability, expected duration and recommended time are still computed and logged, but are not displayed there.
+- **No real accuracy figure yet.** The dataset is fresh. There is not enough history to train or validate a personal completion model, so no accuracy number is claimed for your own habits.
+- **Fresh dataset only.** No historical data was imported into your account. Completion training uses only the activity you record here.
+- **Only completion is a trained model.** Target probability and expected duration are baseline/statistical estimates from your recorded durations and history; they are not trained, versioned or gated like the completion champion.
+- **Timing has no registered model.** The recommended window comes from a timing profile, not a trained model, so it is not versioned or gated like the completion champion. It is logged with the prediction but is not shown in Nudge.
+- **Nudge is deliberately compact.** It shows the completion probability as a percentage beside the task name with a bar below; confidence, baseline target probability, expected duration and recommended time are still computed and logged, but are not displayed there.
 - **The learning system needs data to personalise.** Stage 1 predictions are starting estimates; personalisation begins only once the stage-2 threshold is met.
 - **Sensitive questions are optional**, so a prediction may run on less context than it could — which widens uncertainty.
 
@@ -65,4 +66,4 @@ flexible time categories, and a preferred time is never treated as a deadline.
 
 - [data-model.md](data-model.md) — where each kind of data lives
 - [checkin-and-energy.md](checkin-and-energy.md) — the optional check-in fields
-- [ml.md](ml.md) — the models and why real accuracy is not claimed
+- [ml.md](ml.md) — the completion model and why real accuracy is not claimed

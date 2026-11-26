@@ -210,9 +210,75 @@ test('demo data: backtest trains before the holdout and reports honest held-out 
   assert.ok(report.completion.n > 0)
   assert.ok(report.completion.modelBrier !== null && Number.isFinite(report.completion.modelBrier))
   assert.ok(report.completion.baselineBrier !== null && Number.isFinite(report.completion.baselineBrier))
-  assert.ok(report.target.n > 0)
-  assert.ok(report.duration.n > 0)
-  assert.ok(report.duration.modelMae !== null && Number.isFinite(report.duration.modelMae))
-  assert.ok(report.duration.baselineMae !== null && Number.isFinite(report.duration.baselineMae))
+  db.close()
+})
+
+test('demo data: an explicit end date creates synthetic future history', () => {
+  const db = freshDb()
+  const userId = createDemoUser(db)
+  const result: DemoDataResult = generateDemoHistory(db, userId, {
+    days: 40,
+    holdoutDays: 10,
+    seed: 7,
+    today: '2026-11-26',
+    through: '2026-12-31',
+  })
+
+  assert.equal(result.to, '2026-12-31')
+  assert.equal(result.from, addDays(result.to, -39))
+  assert.equal(result.holdoutFrom, '2026-12-22')
+  const latest = db
+    .prepare('SELECT MAX(local_date) AS date FROM activity_sessions WHERE user_id = ?')
+    .get(userId) as unknown as { date: string | null }
+  assert.equal(latest.date, '2026-12-31')
+  db.close()
+})
+
+test('demo data: explicit train/test windows override the default holdout', () => {
+  const db = freshDb()
+  const userId = createDemoUser(db)
+  const windows = {
+    trainFrom: '2025-01-01',
+    trainTo: '2026-07-31',
+    testFrom: '2026-08-01',
+    testTo: '2026-10-30',
+  }
+  const result: DemoDataResult = generateDemoHistory(db, userId, {
+    from: '2025-01-01',
+    through: '2026-12-31',
+    seed: 7,
+    today: '2026-11-26',
+    windows,
+  })
+  const report = backtestDemoData(db, userId, result)
+
+  assert.equal(result.from, '2025-01-01')
+  assert.equal(result.to, '2026-12-31')
+  assert.equal(report.trainFrom, windows.trainFrom)
+  assert.equal(report.trainTo, windows.trainTo)
+  assert.equal(report.holdoutFrom, windows.testFrom)
+  assert.equal(report.holdoutTo, windows.testTo)
+  assert.ok(report.completion.n > 0)
+  db.close()
+})
+
+test('demo data: invalid explicit windows are rejected', () => {
+  const db = freshDb()
+  const userId = createDemoUser(db)
+  assert.throws(
+    () => generateDemoHistory(db, userId, {
+      from: '2025-01-01',
+      through: '2026-12-31',
+      seed: 7,
+      today: '2026-11-26',
+      windows: {
+        trainFrom: '2025-01-01',
+        trainTo: '2026-11-01',
+        testFrom: '2026-08-01',
+        testTo: '2026-10-30',
+      },
+    }),
+    /test window must start after training ends/,
+  )
   db.close()
 })

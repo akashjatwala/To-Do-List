@@ -120,7 +120,7 @@ function addSession(db: DatabaseSync, taskId: string, date: string, minutes: num
   }, 'user', startedAt)
 }
 
-function reg(db: DatabaseSync, kind: 'completion' | 'target' | 'duration', version: string, metrics: RegistryMetrics) {
+function reg(db: DatabaseSync, kind: 'completion', version: string, metrics: RegistryMetrics) {
   return registerModel(db, USER, {
     kind,
     version,
@@ -223,7 +223,7 @@ test('learning retrain: a first model is due, and a second attempt is rate-limit
   const status = retrainStatus(db, USER)
   const completion = status.find((row) => row.kind === 'completion')
   assert.equal(completion?.should, true)
-  assert.ok(status.every((row) => row.kind !== 'timing'), 'timing has no model and is never gated here')
+  assert.deepEqual(status.map((row) => row.kind), ['completion'])
 
   const first = maybeRetrain(db, USER, { force: true })
   assert.equal(first.ran, true)

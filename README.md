@@ -49,9 +49,10 @@ services.
 - Display-only **Worth a look** suggestions. The server still computes the proposed flow, workload warning and "better days" ideas, but they are no longer shown in the UI; none of them change a task's date
 - Versioned tags, priority, target duration and preferred time, with full history. New tasks are created without a time; the field is only retained for older/edited tasks and local learning history
 - **My Account → Tags** adds, renames and deletes tags; names are always lower case, every task updates immediately, and past history stays linked to the original tag ids
-- Local model training, versioning, promotion, rollback and a plain-words model health view
-- Trained champions are served for completion, target and duration when healthy; with no model yet, the starting estimates are shown instead
-- Continuous learning: recording activity updates statistics immediately and retraining is gated and rate-limited
+- Local completion model training, versioning, promotion, rollback and a plain-words completion health view (Brier, ECE)
+- A completion candidate is shadowed on live days before promotion, so a validation win cannot silently replace the served champion
+- The completion champion is served when healthy, with baseline completion fallback when it is not or no model exists yet. Target probability and expected duration stay baseline/statistical estimates for display and scheduling
+- Continuous learning: recording activity updates statistics immediately and completion retraining is gated and rate-limited
 - Drift notes and dated configuration changes, shown as associations, never as causes
 
 The prediction numbers and the model behaviour are described in the
@@ -81,7 +82,7 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 ## How it works
 
 - `server/` — Express 5 API. `db.ts` defines a SQLite schema (users, auth tokens, teams, members, invites, tasks, subtasks, comments); `auth.ts` handles hashed session tokens in the session-only `auth_tokens` table; route files expose `/api/auth`, `/api/teams`, `/api/invites`, `/api/tasks` and `/api/checkins`.
-- `server/ml/` — the learning system: data collection, validation, feature engineering, training, evaluation, prediction, continuous learning, model versioning and drift. See [docs/architecture.md](docs/architecture.md).
+- `server/ml/` — the learning system: data collection, validation, feature engineering, completion training, evaluation, baseline prediction, continuous learning, model versioning and drift. See [docs/architecture.md](docs/architecture.md).
 - `src/` — React 19 + Tailwind CSS 4 frontend. `App.tsx` loads a single `/api/bootstrap` payload and handles mutations; components live in `src/components/`.
 - Data is stored in `server/data/todo.db` (created automatically, git-ignored). The current schema has 36 tables, including the reminder tables; on 2026-11-18 an unused planning/target/weekly scaffold was removed and two pairs of identical tables were merged into `auth_tokens` and `user_settings` (see [docs/data-model.md](docs/data-model.md)).
 
@@ -110,6 +111,8 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 | `npm run preview` | Preview the Vite build |
 | `npm test` | Run the whole test suite (server + frontend) |
 | `npm run test:e2e` | Build, start an isolated server and run the Chrome browser flows |
+| `npm run seed:ml` | Seed repeatable demo history in an isolated database and print the completion-only backtest report |
+| `npm run seed:ml:app` | Seed demo history into the app database and print the completion-only backtest report |
 
 ## Development notes
 

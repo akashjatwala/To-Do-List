@@ -45,8 +45,9 @@ import {
  * - **Vocabulary fixed here.** Tags with too few observations collapse into
  *   `tag_other`; the vocabulary (compact set, seasonal switch, and grid) is
  *   stored with the model so serving builds the identical vector.
- * - **Missing stays missing.** A day with no label contributes no completion
- *   row; a missing target or duration contributes no row of that kind.
+ * - **Missing stays missing.** A day with no completion label contributes no
+ *   row. Target and duration history still feed the feature vector, but they
+ *   are not separate training labels.
  */
 
 export const RECENT_WEIGHT_HALF_LIFE_DAYS = 60
@@ -61,10 +62,6 @@ export interface TrainingRow {
   features: number[]
   /** 1/0 completion label, or null when the day is not labelled. */
   completionLabel: number | null
-  /** 1/0 target-achieved label, or null when there is no target/evidence. */
-  targetLabel: number | null
-  /** Completed minutes that day, or null when nothing was completed. */
-  duration: number | null
   weight: number
 }
 
@@ -79,8 +76,6 @@ export interface TrainingSet {
   to: string
   monthsOfData: number
   labelledCount: number
-  targetCount: number
-  durationCount: number
 }
 
 export interface BuildTrainingOptions {
@@ -254,8 +249,6 @@ export function buildTrainingSet(
           predictionMinute: minute,
           features: computeFeatures(snapshot, vocabulary),
           completionLabel: day.performed ? 1 : 0,
-          targetLabel: day.targetAchieved === null ? null : day.targetAchieved ? 1 : 0,
-          duration: day.performed && day.totalMinutes > 0 ? day.totalMinutes : null,
           weight,
         })
       }
@@ -272,8 +265,6 @@ export function buildTrainingSet(
     to,
     monthsOfData,
     labelledCount: rows.filter((row) => row.completionLabel !== null).length,
-    targetCount: rows.filter((row) => row.targetLabel !== null).length,
-    durationCount: rows.filter((row) => row.duration !== null).length,
   }
 }
 

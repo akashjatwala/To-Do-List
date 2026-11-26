@@ -20,7 +20,7 @@ import type { ModelKind } from './training'
  * loses in shadow be caught and left unpromoted.
  */
 
-export type ShadowKind = Exclude<ModelKind, 'timing'>
+export type ShadowKind = ModelKind
 
 export interface ShadowInput {
   kind: ShadowKind

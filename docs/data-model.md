@@ -27,7 +27,9 @@ for the in-app reminder rows in the Overdue card. Two cleanups were made on 2026
 
 The two pre-change snapshots were moved out of `server/data/` during the 2026-11-21
 stale-file cleanup, so only the live `server/data/todo.db` remains in the project. No
-check-in, task, prediction or ML table was removed, and the model code was left untouched.
+check-in, task, prediction or ML table was removed, and the model code was left untouched by that
+cleanup. Only completion is trained now; target probability and expected duration are baseline
+estimates.
 
 ## Table groups
 
@@ -37,7 +39,7 @@ check-in, task, prediction or ML table was removed, and the model code was left 
 | --- | --- |
 | `users` | Account email and password hash |
 | `auth_tokens` | Login sessions only. Only token **hashes** are stored; the former reset-code rows were removed by migration 12 |
-| `schema_migrations` | Applied migration versions; migration 13 records the reminder tables, migration 14 the assignment metadata, migration 15 the completion metadata, migration 16 the duplicate-tag consolidation, migration 17 lower-case/deletable tags, migration 18 the old skip-date table and migration 19 skip events |
+| `schema_migrations` | Applied migration versions; migration 13 records the reminder tables, migration 14 the assignment metadata, migration 15 the completion metadata, migration 16 the duplicate-tag consolidation, migration 17 lower-case/deletable tags, migration 18 the old skip-date table, migration 19 skip events, migration 20 the off-day move columns on skip events and migration 21 the completion-only ML cleanup |
 | `teams`, `team_members`, `team_invites` | Teams, membership roles, pending invites |
 | `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration, preferred time. `completed_at` and `completed_by` timestamp a real change to done for the activity feed and stay blank for old completed rows. `team_id NULL` means a personal task |
 | `subtasks` | Subtasks with position, done and an optional assignee (a member of the task's team; `NULL` on personal tasks) |
@@ -84,7 +86,7 @@ The display preferences used by this layer live in `user_settings` (foundation g
 | Table | Holds |
 | --- | --- |
 | `off_days` | One row per off period: kind (optional), start, end, note. Also drives teammate off-day notices in the in-app notification centre; completed tasks and recorded activity are never rewritten |
-| `predictions` | The prediction **log**: source (baseline / model), model version, check-in state, probabilities, durations, recommended window, confidence, stage, explanation. Written by the server only |
+| `predictions` | The prediction **log**: source (baseline / completion model), model version, check-in state, completion probability, baseline target probability and expected duration, recommended window, confidence, stage, explanation. Written by the server only |
 | `prediction_feedback` | Whether a suggestion was shown, exploratory, and followed — stored apart from both predictions and outcomes |
 
 The configurable thresholds (reduced-confidence days, exploration share, stage-2 minimum) live
@@ -94,12 +96,12 @@ in `user_settings` (foundation group).
 
 | Table | Holds |
 | --- | --- |
-| `ml_models` | One append-only row per trained version: kind, version, status (`candidate` / `champion` / `retired` / `rejected`), data range, counts, feature names, hyperparameters, seed, metrics, git commit, serialised payload |
-| `ml_shadow` | A candidate's silent predictions beside the champion's on live days; `label` stays `NULL` until the day is labelled |
-| `ml_retrain_state` | Labelled-observation count at the last training, per kind |
-| `activity_outcome_links` | One row per (user, task, day): the check-in state that preceded the day, the observed outcome (`performed`, `target_achieved`, `total_minutes`), the tags and priority that applied, and the config version. Recomputed when activity is recorded |
-| `ml_health_predictions` | A served model's output beside the baseline's for the same (kind, day, task). `label` is `NULL` until the day's outcome is known |
-| `ml_health` | The rolling verdict per (user, kind): Brier/calibration/error for model and baseline, the `fallback` flag and a plain-words reason |
+| `ml_models` | One append-only row per trained **completion** version: kind, version, status (`candidate` / `champion` / `retired` / `rejected`), data range, counts, feature names, hyperparameters, seed, metrics, git commit, serialised payload. Only completion is trained; target probability and expected duration are baseline estimates |
+| `ml_shadow` | A completion candidate's silent predictions beside the champion's on live days; `label` stays `NULL` until the day is labelled |
+| `ml_retrain_state` | Labelled-observation count at the last completion training |
+| `activity_outcome_links` | One row per (user, task, day): the check-in state that preceded the day, the observed outcomes (`performed`, `target_achieved`, `total_minutes` — the latter two feed baseline statistics, not models), the tags and priority that applied, and the config version. Recomputed when activity is recorded |
+| `ml_health_predictions` | A served completion model's output beside the baseline's for the same (day, task). `label` is `NULL` until the day's outcome is known |
+| `ml_health` | The rolling completion verdict: Brier/ECE for champion and baseline, the `fallback` flag and a plain-words reason |
 | `ml_retrain_log` | Append-only trail of retrain attempts, used for the rate limit and the health view |
 
 ## Relationships (simplified)

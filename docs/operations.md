@@ -1,6 +1,6 @@
 # Operations
 
-**Purpose.** How to run the app, train and retrain models, read the model health view, roll back a model, control logging, and understand the small performance caches.
+**Purpose.** How to run the app, train and retrain the completion model, read the completion health view, roll back the completion champion, seed demo data, control logging, and understand the small performance caches.
 
 **Where in the code**
 
@@ -30,7 +30,7 @@
 | --- | --- | --- |
 | `PORT` | `3001` | The API port |
 | `NODE_ENV` | set to `production` by `npm start` | Marks the production build; session cookies become `Secure` |
-| `ML_DISABLE_MODEL_SERVING` | unset | `1` serves only the baseline predictor, ignoring trained models (read at startup; needs a restart) |
+| `ML_DISABLE_MODEL_SERVING` | unset | `1` serves only baseline estimates, ignoring the trained completion champion (read at startup; needs a restart) |
 | `ML_DISABLE_SCHEDULER` | unset | `1` turns off the periodic retraining scheduler |
 | `ML_RETRAIN_EVERY_MS` | `21600000` (6 h) | How often the scheduler asks the retrain gate |
 | `ML_LOG_FILE` | unset | When set, learning log lines are also appended to this file (local only) |
@@ -47,6 +47,8 @@
 | `npm run build` | Type-check (`tsc -b`) and build the frontend |
 | `npm start` | Serve the built app and API on port 3001 with `NODE_ENV=production` |
 | `npm test` | Run the whole test suite (server + frontend) |
+| `npm run seed:ml` | Seed repeatable demo history in an isolated database and print the completion-only backtest report |
+| `npm run seed:ml:app` | Seed demo history into `server/data/todo.db` and print the completion-only backtest report |
 
 Server-only type-check (useful when a full build is not wanted):
 
@@ -74,7 +76,7 @@ These are internal optimizations. They do not change UI copy, colours, layout, p
 
 - **Startup path** — `/api/health` and static/SPA assets are served before session lookup. Every other `/api/*` route remains behind the session middleware.
 - **Prepared statements** — auth, task and ML query statements are prepared once and reused. ML helpers cache by exact SQL in a `WeakMap` keyed by the `DatabaseSync` connection, so isolated test databases never share statements.
-- **Champion artifacts** — parsed model payloads are cached per connection and reused while the champion row's id and `updated_at` are unchanged. Promotion, rollback and malformed payloads still fall through to a fresh parse or baseline fallback as before.
+- **Champion artifacts** — parsed completion model payloads are cached per connection and reused while the champion row's id and `updated_at` are unchanged. Promotion, rollback and malformed payloads still fall through to a fresh parse or baseline fallback as before.
 - **Bootstrap refreshes** — rapid task mutations share one in-flight bootstrap and schedule one follow-up if more changes arrive. Sign-out and account deletion invalidate any in-flight refresh so stale data cannot repopulate the signed-out screen.
 - **Nudge plan loads** — the panel ignores a plan response whose request is no longer current, so an older request cannot overwrite a newer one.
 - **Header clock** — the 10-second tick lives in `AppHeader`, not the whole board.
@@ -104,6 +106,10 @@ data-only: it folds legacy duplicate active tags with the same name into the old
 existing merge path, so task links, JSON labels and history stay consistent. Migration 17 adds
 `tags.deleted_at` for soft deletion and lower-cases legacy tag names and task labels while
 preserving every id; identically named tags belonging to different users still stay separate.
+Migration 18 keeps the old hide-a-date table for databases that already ran it, migration 19 adds
+`task_skip_events`, and migration 20 adds the reason, destination and undo columns those events use
+for off-day moves. Migration 21 removes stale `target` and `duration` rows from the ML registry,
+shadow, retrain and health tables on older databases; completion rows are untouched.
 
 ## In-app reminders
 
@@ -126,63 +132,99 @@ does not backfill old rows. The read marker is browser-local, so clearing site d
 
 ## Training instructions
 
-Training runs on your own recorded data, through the retrain gate:
+Completion training runs on your own recorded data, through the retrain gate:
 
 - Automatically, when the scheduler is on (`npm run dev` / `npm start`).
 - On demand: `POST /api/ml/retrain` (rate-limited), or `POST /api/ml/retrain` with `{"force": true}` to bypass the rate limit.
-- The gate trains only when at least 20 new labelled observations have accumulated (configurable) or a model is stale (30 days), and never more than once every 6 hours.
+- The gate trains only when at least 20 new labelled observations have accumulated (configurable) or the completion model is stale (30 days), and never more than once every 6 hours.
 
-The normal retrain path uses recorded activity only: with too little data each trainer
-returns the baseline and says so.
+The normal retrain path uses recorded activity only: with too little data the completion trainer
+returns the baseline and says so. Target probability and expected duration are baseline/statistical
+estimates and are not trained or retrained.
 
 ## Model serving
 
-Both prediction routes (`GET /api/predictions/plan` and `GET /api/predictions/task`) now go
-through one entry point, `server/ml/live-predictor.ts`. For each task it serves the champion
-completion, target and duration numbers when a model is registered, loadable and healthy;
-otherwise it falls back to the baseline predictor. The Nudge card shows the completion
-percentage beside each task name, with a bar below. The recommended window and the
-plain-language explanation still come from the baseline; the window is logged with the prediction
-but is no longer shown in Nudge. With no trained model in the database, behaviour is identical
-to the baseline-only app.
+Both prediction routes (`GET /api/predictions/plan` and `GET /api/predictions/task`) go
+through one entry point, `server/ml/live-predictor.ts`. For each task it serves the **completion
+champion** when it is registered, loadable and healthy; otherwise it falls back to the baseline
+completion estimate. Target probability and expected duration remain baseline/statistical
+estimates, as does the recommended window from the timing profile. The Nudge card shows the
+completion percentage beside each task name, with a bar below. The plain-language explanation
+still comes from the baseline; the window is logged with the prediction but is not shown in Nudge.
+With no trained completion model in the database, behaviour is identical to the baseline-only app.
 
 To compare the two or disable model serving in an emergency, start the server with
 `ML_DISABLE_MODEL_SERVING=1`. This keeps all baseline-only behaviour without changing or
 deleting any model data. It is read once at startup, so a restart is needed to toggle it.
 
-## Reading the model health view
+## Reading the completion health view
 
 ```bash
 GET /api/ml/health
 ```
 
-Returns the active model per kind, when each last trained, the labelled-day counts, and
-whether the baseline is being used (with a plain-words reason). It re-evaluates the rolling
-health before answering. It is informational and never nags.
+Returns whether the completion champion is active, when it last trained, the labelled-day counts,
+and whether the baseline completion estimate is being used (with a plain-words reason). Health is
+scored with Brier and ECE; target probability and expected duration are baseline
+estimates with no health verdict. It re-evaluates the rolling health before answering. It is
+informational and never nags.
 
 Related endpoints:
 
 | Endpoint | Returns |
 | --- | --- |
-| `GET /api/ml/health` | Active models, last retrain, counts, fallback state |
+| `GET /api/ml/health` | Completion champion, last retrain, counts, fallback state |
 | `GET /api/ml/drift` | Recent-vs-long-term drift and dated configuration changes |
 | `POST /api/ml/retrain` | Retrain now (rate-limited unless `{"force": true}`) |
 
 ## Rollback procedure
 
 Rollback is a **code-level** operation, not an HTTP endpoint. The function is
-`rollbackChampion(db, userId, kind, { toVersion? })` in `server/ml/registry.ts`. It restores
-the previous version as champion and keeps the newer one as `retired`.
+`rollbackChampion(db, userId, kind, { toVersion? })` in `server/ml/registry.ts`. For the
+completion kind it restores the previous version as champion and keeps the newer one as `retired`.
 
 Two automatic safety nets already cover the common case, so a manual rollback is rarely needed:
 
-- **Serving fallback** — if a champion cannot be loaded or returns an invalid score, the baseline predictor is served immediately.
-- **Health fallback** — if the served model is worse than the baseline over the recent window, the baseline is used for that kind until a retrain clears the flag.
-- **Model-serving kill switch** — `ML_DISABLE_MODEL_SERVING=1` restores baseline-only predictions everywhere at once, without touching any model data.
+- **Serving fallback** — if the completion champion cannot be loaded or returns an invalid score, the baseline completion estimate is served immediately.
+- **Health fallback** — if the served completion model is worse than the baseline over the recent window, the baseline completion estimate is used until a completion retrain clears the flag.
+- **Model-serving kill switch** — `ML_DISABLE_MODEL_SERVING=1` restores baseline-only estimates everywhere at once, without touching any model data.
 
 To roll back manually, call the function against the app database (the same `db` singleton in
 `server/db.ts`), then reload the health view. The behaviour is covered by
 `server/ml/models.test.ts`.
+
+## Demo data and the backtest report
+
+`npm run seed:ml` writes repeatable synthetic history to an isolated database
+(`server/data/ml-backtest.db`, recreated on each run); `npm run seed:ml:app` writes it to the app
+database (`server/data/todo.db`) for the demo account. By default both generate 365 days of
+history with the final 60 days held out; pass `--days 180 --holdout 30` for a smaller run. The
+report is **completion-only**: it compares the completion champion against the baseline with
+Brier, ECE, ROC-AUC and accuracy, and the champion may be logistic regression or the best
+histogram-based boosted-tree challenger. Target probability and expected duration are baseline
+estimates and are not part of the model backtest. These numbers describe generated data only;
+they are not a claim about your own habits.
+
+For a forward check, add `--through YYYY-MM-DD`. The generator still keeps `days` rows ending on
+that date; choose `holdout` so the holdout starts on or after the current day. For example,
+`npm run seed:ml -- --through 2026-12-31 --holdout 36` trains on synthetic history up to the day
+before today and scores the generated 2026-11-26 → 2026-12-31 window. Those future outcomes are
+generated for the simulation; they are not observed facts.
+
+For an exact calendar range and split, pass `--from`, `--through` and all four window flags:
+`--train-from`, `--train-to`, `--test-from` and `--test-to`. `--from` overrides `--days` for the
+start, and the four window flags replace the trailing holdout. All window dates must fall inside
+the generated history, training must end before testing starts, and neither range may be inverted.
+For example:
+
+```bat
+npm run seed:ml:app -- --from 2025-01-01 --through 2026-12-31 --train-from 2025-01-01 --train-to 2026-07-31 --test-from 2026-08-01 --test-to 2026-10-30
+```
+
+This generates two full years, trains only through 2026-07-31 and scores 2026-08-01 → 2026-10-30.
+Generated days outside both windows (here November and December 2026) are written to the demo
+account for browsing but are never used by training or evaluation. The promoted champion is also
+trained on the training window only, so the app model never sees the test days.
 
 ## Logging
 
@@ -192,5 +234,5 @@ file. Nothing is sent anywhere else. A logging failure never becomes a work fail
 
 ## Related docs
 
-- [ml.md](ml.md) — what the models do
+- [ml.md](ml.md) — how the completion model works
 - [privacy-and-limits.md](privacy-and-limits.md) — local data and honest limits

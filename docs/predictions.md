@@ -5,11 +5,11 @@
 **Where in the code**
 
 - `server/ml/predictors.ts` — the baseline prediction, the time window, the plan and its ranking
-- `server/ml/serving.ts` — the champion model on top of the baseline
-- `server/ml/live-predictor.ts` — the entry point the routes call (champion, or baseline fallback)
+- `server/ml/serving.ts` — the completion champion on top of the baseline
+- `server/ml/live-predictor.ts` — the entry point the routes call (completion champion, or baseline fallback)
 - `server/ml/cold-start.ts` — the two stages and confidence
 - `server/ml/off-days.ts` — off days and the reduced-confidence window
-- `server/ml/estimates.ts` — the display estimates and their validation
+- `server/ml/estimates.ts` — baseline target probability, expected duration and display estimates
 - `server/ml/predictions.ts` — the prediction log and feedback
 - `server/ml/day-planner.ts` — the proposed flow and workload warning (still computed by the API, no longer shown in the UI)
 - `server/ml/reschedule.ts` — display-only ideas for tasks that could move to another day (still computed by the API, no longer shown in the UI)
@@ -20,15 +20,16 @@
 
 | Number | Shown as | Meaning | Absent when |
 | --- | --- | --- | --- |
-| Completion probability | Nudge: "Chance you'll work on it today" subtitle, then task name + percentage with a bar below | How likely you are to do some work on the task that day; any logged activity counts, even a short session | Never (always a number) |
-| Target probability | Not shown in the current UI | How likely you are to reach the task's full time target | The task has no target duration |
-| Expected duration | Not shown in the current UI | Roughly how long it usually takes | Not enough duration history |
-| Confidence | Not shown in the current UI | How much personal history backs the number | Never |
+| Completion probability | Nudge: "Chance you'll work on it today" subtitle, then task name + percentage with a bar below | How likely you are to do some work on the task that day; any logged activity counts, even a short session. Served by the completion champion when healthy, otherwise by the baseline | Never (always a number) |
+| Target probability | Not shown in the current UI; baseline estimate only | How likely you are to reach the task's full time target, from statistical history | The task has no target duration |
+| Expected duration | Not shown in the current UI; baseline estimate only | Roughly how long it usually takes, from recorded duration history | Not enough duration history |
+| Confidence | Not shown in the current UI | How much personal history backs the completion number | Never |
 | Stage | not shown | 1 (starting estimate) or 2 (personalised) | Never |
 
 The recommended window, proposed flow, workload warning, "better days" ideas, target probability
 and expected duration are still computed, logged and returned by the API, but Nudge does not
-display them.
+display them. Only completion has a trained model; the other numbers are baseline/statistical
+estimates used for display, scheduling and plan ranking.
 
 ## What Nudge displays
 
@@ -80,15 +81,15 @@ Confidence drops when the check-in was skipped (the uncertainty stays wider)
 and in the reduced-confidence window after an off day. The Nudge card no longer prints a
 sentence about the skip; the uncertainty is still part of the prediction.
 
-## Baseline vs model
+## Baseline estimates vs the completion champion
 
-- The **baseline** (`predictors.ts`) always works and always has an answer. Its version string is `baseline-1.0.0`.
-- A **champion model** (`serving.ts`) replaces the completion, target and duration numbers when one is registered, loadable and healthy. The recommended window and the explanation still come from the baseline; the window is logged but is not shown in Nudge.
-- If there is no champion, the payload cannot be read, the feature vector does not match, the score is invalid, or the live health check has fallen back, the baseline is served and the reason is stated.
-- One entry point, `server/ml/live-predictor.ts`, is used by **both** `/api/predictions/plan` and `/api/predictions/task`, so the plan and the single-task view cannot disagree. With no champion in the database both show the baseline, exactly as before.
+- The **baseline** (`predictors.ts`, `estimates.ts`) always works and always has an answer. Its version string is `baseline-1.0.0`. It supplies target probability, expected duration and the recommended window (from the timing profile), as well as the completion fallback.
+- The **completion champion** (`serving.ts`) replaces only the completion probability when it is registered, loadable and healthy. Target probability and expected duration stay baseline/statistical estimates; the explanation also comes from the baseline. The window is logged but is not shown in Nudge.
+- If there is no completion champion, the payload cannot be read, the feature vector does not match, the score is invalid, or completion health has fallen back, the baseline completion estimate is served and the reason is stated.
+- One entry point, `server/ml/live-predictor.ts`, is used by **both** `/api/predictions/plan` and `/api/predictions/task`, so the plan and the single-task view cannot disagree. With no completion champion in the database both show baseline estimates, exactly as before.
 - `ML_DISABLE_MODEL_SERVING=1` keeps baseline-only behaviour on both routes without changing any model data (read at startup).
 
-See [ml.md](ml.md) for how a champion is trained, promoted and watched.
+See [ml.md](ml.md) for how the completion champion is trained, promoted and watched.
 
 ## Plan and off days
 

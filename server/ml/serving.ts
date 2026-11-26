@@ -9,7 +9,7 @@ import {
   type FeatureVocabulary,
 } from './features'
 import { loadChampionArtifact } from './registry'
-import { predictClassifier, predictDuration, type ClassifierArtifact, type DurationArtifact } from './training'
+import { predictClassifier, type ClassifierArtifact } from './training'
 import { epochAtMinute, predictTask, type PredictContext, type TaskPrediction, type PredictOptions } from './predictors'
 import { isFallbackActive, logHealthPredictionSafe } from './health'
 
@@ -28,9 +28,9 @@ import { isFallbackActive, logHealthPredictionSafe } from './health'
  * (`health.ts`). When a served model has been scoring worse than the baseline on
  * the user's own recent days, the baseline is used for that kind until the next
  * retrain, and the model's output is still logged (never served) so it can be
- * re-judged. The champion supplies the probabilities and the duration; the
- * recommended time window and the explanation still come from the baseline
- * predictor, so timing is unchanged here.
+ * re-judged. The champion supplies only the completion probability; target
+ * probability, expected duration, the recommended time window and the
+ * explanation still come from the baseline predictor.
  */
 
 export interface ServeResult {
@@ -89,9 +89,7 @@ export function serveTask(
   if (!baseline) return null
 
   const completion = loadChampionArtifact(db, userId, 'completion')
-  const target = loadChampionArtifact(db, userId, 'target')
-  const duration = loadChampionArtifact(db, userId, 'duration')
-  if (!completion && !target && !duration) {
+  if (!completion) {
     return { prediction: baseline, usedModel: false, reason: 'No champion model is registered; the baseline predictor is served.' }
   }
 
@@ -117,18 +115,12 @@ export function serveTask(
     let version = baseline.modelVersion
     let usedModel = false
 
-    // A kind whose live model is on the baseline (health fallback) is not served.
-    const onFallback = {
-      completion: isFallbackActive(db, userId, 'completion'),
-      target: isFallbackActive(db, userId, 'target'),
-      duration: isFallbackActive(db, userId, 'duration'),
-    }
+    // A champion whose live health is on the baseline is not served.
+    const onFallback = isFallbackActive(db, userId, 'completion')
 
     let modelCompletion: number | null = null
-    let modelTarget: number | null = null
-    let modelDuration: number | null = null
 
-    if (completion && completion.artifact.kind === 'completion') {
+    if (completion.artifact.kind === 'completion') {
       const artifact = completion.artifact as ClassifierArtifact
       if (!artifactMatches(artifact, predictionMinute)) {
         return { prediction: baseline, usedModel: false, reason: 'The champion did not match its recorded feature list or prediction time; the baseline is served.' }
@@ -139,57 +131,13 @@ export function serveTask(
         return { prediction: baseline, usedModel: false, reason: 'The champion returned an invalid probability; the baseline is served.' }
       }
       modelCompletion = probability
-      if (onFallback.completion) {
+      if (onFallback) {
         notes.push(`completion from ${completion.row.version} is being re-checked, so the baseline is used for now`)
       } else {
         overrides.completionProbability = probability
         version = completion.row.version
         usedModel = true
         notes.push(`completion from ${version} (${artifact.type})`)
-      }
-    }
-
-    if (target && target.artifact.kind === 'target' && snapshot.targetMinutes !== null) {
-      const artifact = target.artifact as ClassifierArtifact
-      if (!artifactMatches(artifact, predictionMinute)) {
-        notes.push(`target from ${target.row.version} does not match its recorded feature list or prediction time; the baseline is used for it`)
-      } else {
-        const features = computeFeatures(snapshot, artifact.vocabulary)
-        const probability = predictClassifier(artifact, features)
-        if (validProbability(probability)) {
-          modelTarget = probability
-          if (onFallback.target) {
-            notes.push(`target from ${target.row.version} is being re-checked, so the baseline is used for now`)
-          } else {
-            overrides.targetProbability = probability
-            if (version === baseline.modelVersion) version = target.row.version
-            usedModel = true
-            notes.push(`target from ${target.row.version} (${artifact.type})`)
-          }
-        }
-      }
-    }
-
-    if (duration && duration.artifact.kind === 'duration') {
-      const artifact = duration.artifact as DurationArtifact
-      if (!artifactMatches(artifact, predictionMinute)) {
-        notes.push(`duration from ${duration.row.version} does not match its recorded feature list or prediction time; the baseline is used for it`)
-      } else {
-        const features = computeFeatures(snapshot, artifact.vocabulary)
-        const estimate = predictDuration(artifact, features)
-        if (Number.isFinite(estimate.point) && estimate.point >= 0) {
-          modelDuration = Math.round(estimate.point)
-          if (onFallback.duration) {
-            notes.push(`duration from ${duration.row.version} is being re-checked, so the baseline is used for now`)
-          } else {
-            overrides.expectedDuration = modelDuration
-            overrides.durationLow = estimate.low === null ? null : Math.round(estimate.low)
-            overrides.durationHigh = estimate.high === null ? null : Math.round(estimate.high)
-            if (version === baseline.modelVersion) version = duration.row.version
-            usedModel = true
-            notes.push(`duration from ${duration.row.version} (${artifact.type})`)
-          }
-        }
       }
     }
 
@@ -204,26 +152,6 @@ export function serveTask(
         modelVersion: completion.row.version,
         modelProbability: modelCompletion,
         baselineProbability: baseline.completionProbability,
-      })
-    }
-    if (target) {
-      logHealthPredictionSafe(db, userId, {
-        kind: 'target',
-        date: context.date,
-        taskId,
-        modelVersion: target.row.version,
-        modelProbability: modelTarget,
-        baselineProbability: baseline.targetProbability,
-      })
-    }
-    if (duration) {
-      logHealthPredictionSafe(db, userId, {
-        kind: 'duration',
-        date: context.date,
-        taskId,
-        modelVersion: duration.row.version,
-        modelDuration,
-        baselineDuration: baseline.expectedDuration,
       })
     }
 

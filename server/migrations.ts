@@ -21,6 +21,11 @@ const hasColumn = (db: DatabaseSync, table: string, column: string): boolean =>
     db.prepare(`PRAGMA table_info(${table})`).all() as unknown as Array<{ name: string }>
   ).some((row) => row.name === column)
 
+const hasTable = (db: DatabaseSync, table: string): boolean =>
+  (
+    db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) as unknown as { name: string } | undefined
+  )?.name === table
+
 const addColumn = (db: DatabaseSync, table: string, definition: string) =>
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`)
 
@@ -356,6 +361,26 @@ const migrations: Migration[] = [
       db.exec(
         'CREATE INDEX IF NOT EXISTS idx_task_skip_events_actor ON task_skip_events(actor_id, undone, created_at DESC)',
       )
+    },
+  },
+  {
+    version: 21,
+    name: 'ml.completion-only',
+    // Target and duration are baseline estimates now, not trained models.
+    // Remove their registry, shadow, retrain and health rows from older DBs;
+    // fresh DBs already have a completion-only kind constraint.
+    up: (db) => {
+      const staleKinds = "('target', 'duration')"
+      for (const table of [
+        'ml_shadow',
+        'ml_models',
+        'ml_retrain_state',
+        'ml_retrain_log',
+        'ml_health',
+        'ml_health_predictions',
+      ]) {
+        if (hasTable(db, table)) db.exec(`DELETE FROM ${table} WHERE kind IN ${staleKinds}`)
+      }
     },
   },
 ]

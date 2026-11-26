@@ -1,17 +1,12 @@
 import { type Example } from './model/math'
 import { trainLogistic, predictLogistic, type LogisticModel } from './model/logistic'
-import { trainGbm, predictGbm, type GbmModel } from './model/gbm'
-import { trainLinearQuantile, predictQuantile, type LinearQuantileModel } from './model/quantile'
+import { trainGbm, predictGbm, type GbmModel, type GbmOptions } from './model/gbm'
 import { applyCalibrator, fitCalibrator, type Calibrator } from './calibration'
 import {
   brier,
   calibrationError,
   confusion,
-  intervalCoverage,
-  intervalWidth,
   logLoss,
-  mae,
-  rmse,
   rocAuc,
   type Labelled,
 } from './metrics'
@@ -23,13 +18,11 @@ export { MIN_ROWS_PER_FEATURE }
 /**
  * Candidate training, chronological validation and calibration.
  *
- * The order of preference is fixed and simple:
- * - **Completion / target achievement**: smoothed baseline → regularised
- *   logistic → gradient boosting *only if it beats logistic* on the chronological
- *   validation windows. XGBoost/CatBoost are never used; the data does not
- *   justify them.
- * - **Duration**: median baseline → linear quantile regression. Boosted quantiles
- *   are left out on purpose.
+ * The order of preference is fixed and simple: smoothed baseline → regularised
+ * logistic → gradient boosting *only if it beats logistic* on the chronological
+ * validation windows. Boosting searches a small, deterministic grid of tree
+ * depths, leaf sizes and learning rates; XGBoost/CatBoost are never used because
+ * they would add a toolchain and service the same sparse personal data no better.
  *
  * Splits are **chronological only** — expanding-window folds, never a random
  * split. Recent rows are weighted more, but older rows are kept. Calibration is
@@ -38,17 +31,24 @@ export { MIN_ROWS_PER_FEATURE }
  * model is trained at all and the baseline is used, with the limitation stated.
  */
 
-export type ModelKind = 'completion' | 'target' | 'duration' | 'timing'
+export type ModelKind = 'completion'
 export type ClassifierType = 'baseline' | 'logistic' | 'gbm'
-export type DurationType = 'median' | 'quantile'
 
 export const MIN_COMPLETION_ROWS = 40
-export const MIN_TARGET_ROWS = 40
-export const MIN_DURATION_ROWS = 20
 export const DEFAULT_FOLDS = 3
 export const DEFAULT_VALID_FRACTION = 0.35
 /** Gradient boosting must beat logistic by at least this much to be chosen. */
 export const GBM_MARGIN = 0.005
+/**
+ * A deliberately small, reproducible hyperparameter grid. Each configuration
+ * is scored on the same chronological folds; only the best boosted-tree
+ * challenger is eligible to become the artifact.
+ */
+export const GBM_CONFIGS: readonly Required<GbmOptions>[] = [
+  { nTrees: 48, learningRate: 0.07, maxDepth: 2, minSamplesLeaf: 24, l2: 4, maxBins: 24, featureRatio: 0.8, seed: 20261126 },
+  { nTrees: 72, learningRate: 0.06, maxDepth: 3, minSamplesLeaf: 16, l2: 3, maxBins: 32, featureRatio: 0.85, seed: 20261126 },
+  { nTrees: 96, learningRate: 0.04, maxDepth: 3, minSamplesLeaf: 12, l2: 2, maxBins: 40, featureRatio: 0.75, seed: 20261126 },
+]
 /** The largest expected calibration error a model may show and still be trusted. */
 export const MAX_ECE = 0.12
 export const DECISION_THRESHOLD = 0.5
@@ -67,17 +67,8 @@ export interface ClassifierMetrics {
   baseRate: number
 }
 
-export interface DurationMetrics {
-  n: number
-  mae: number | null
-  rmse: number | null
-  coverage: number | null
-  intervalWidth: number | null
-  baselineMae: number | null
-}
-
 export interface ClassifierArtifact {
-  kind: 'completion' | 'target'
+  kind: 'completion'
   type: ClassifierType
   featureNames: string[]
   vocabulary: FeatureVocabulary
@@ -97,23 +88,7 @@ export interface ClassifierArtifact {
   reason: string
 }
 
-export interface DurationArtifact {
-  kind: 'duration'
-  type: DurationType
-  featureNames: string[]
-  vocabulary: FeatureVocabulary
-  /** Local minutes-of-day the model was trained at; serving must snap to these. */
-  predictionMinutes: number[]
-  median: number
-  q10: LinearQuantileModel | null
-  q50: LinearQuantileModel | null
-  q90: LinearQuantileModel | null
-  metrics: DurationMetrics
-  smallData: boolean
-  reason: string
-}
-
-export type ModelArtifact = ClassifierArtifact | DurationArtifact
+export type ModelArtifact = ClassifierArtifact
 
 export interface TrainOptions {
   folds?: number
@@ -211,22 +186,35 @@ function rawClassifierPredict(type: ClassifierType, logistic: LogisticModel | nu
   return predictGbm(gbm!, features)
 }
 
+interface CandidateEvaluation {
+  /** Stable internal name; the artifact type stays the simpler ClassifierType. */
+  name: string
+  type: ClassifierType
+  gbmOptions: GbmOptions | null
+  oof: Labelled[]
+  calibrated: Labelled[]
+  brier: number
+}
+
+function describeGbmOptions(options: GbmOptions): string {
+  return `${options.nTrees} trees, depth ${options.maxDepth}, leaf ≥${options.minSamplesLeaf}, L2 ${options.l2}, ${options.featureRatio ?? 1} of features`
+}
+
 /**
- * Train a completion or target-achievement classifier, choosing among the
- * baseline, logistic regression and gradient boosting by chronological
- * validation. Returns a baseline artifact (never a fitted model) when there is
- * not enough data.
+ * Train a completion classifier, choosing among the baseline, logistic
+ * regression and gradient boosting by chronological validation. Returns a
+ * baseline artifact (never a fitted model) when there is not enough data.
  */
-export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target', options: TrainOptions = {}): ClassifierArtifact {
+export function trainClassifier(set: TrainingSet, options: TrainOptions = {}): ClassifierArtifact {
   const nFeatures = set.featureNames.length
-  const minRows = Math.max(kind === 'completion' ? MIN_COMPLETION_ROWS : MIN_TARGET_ROWS, nFeatures * MIN_ROWS_PER_FEATURE)
-  const label = kind === 'completion' ? (row: TrainingRow) => row.completionLabel : (row: TrainingRow) => row.targetLabel
+  const minRows = Math.max(MIN_COMPLETION_ROWS, nFeatures * MIN_ROWS_PER_FEATURE)
+  const label = (row: TrainingRow) => row.completionLabel
   const rows = set.rows.filter((row) => label(row) !== null)
   const folds = options.folds ?? DEFAULT_FOLDS
   const validFraction = options.validFraction ?? DEFAULT_VALID_FRACTION
 
   const baseArtifact = (reason: string): ClassifierArtifact => ({
-    kind,
+    kind: 'completion',
     type: 'baseline',
     featureNames: set.featureNames,
     vocabulary: set.vocabulary,
@@ -247,7 +235,7 @@ export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target',
 
   if (rows.length < minRows) {
     return baseArtifact(
-      `Only ${rows.length} labelled ${kind} row(s); at least ${minRows} are needed before a model is trained. The smoothed baseline is used and no accuracy is claimed.`,
+      `Only ${rows.length} labelled completion row(s); at least ${minRows} are needed before a model is trained. The smoothed baseline is used and no accuracy is claimed.`,
     )
   }
   const foldList = chronologicalFolds(rows, folds, validFraction)
@@ -255,20 +243,34 @@ export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target',
     return baseArtifact('Not enough chronological data to hold out a validation window; the baseline is used.')
   }
 
-  // Out-of-fold predictions for each candidate.
-  const oof: Record<ClassifierType, Labelled[]> = { baseline: [], logistic: [], gbm: [] }
+  // Out-of-fold predictions for every candidate. Logistic is trained once per
+  // fold; each boosted-tree setting is trained on the same rows so the search is
+  // a fair chronological comparison rather than a random hyperparameter draw.
+  const candidates: CandidateEvaluation[] = [
+    { name: 'baseline', type: 'baseline', gbmOptions: null, oof: [], calibrated: [], brier: Number.POSITIVE_INFINITY },
+    { name: 'logistic', type: 'logistic', gbmOptions: null, oof: [], calibrated: [], brier: Number.POSITIVE_INFINITY },
+    ...GBM_CONFIGS.map((options, index) => ({
+      name: `gbm-${index + 1}`,
+      type: 'gbm' as const,
+      gbmOptions: options,
+      oof: [] as Labelled[],
+      calibrated: [] as Labelled[],
+      brier: Number.POSITIVE_INFINITY,
+    })),
+  ]
   for (const fold of foldList) {
     const trainRows = fold.train.map((i) => rows[i])
     const validRows = fold.valid.map((i) => rows[i])
     const examples = toExamples(trainRows, label)
     const baselineRate = weightedBaseRate(trainRows, label)
     const logistic = trainLogistic(examples, nFeatures, { lambda: 1, iterations: 400, learningRate: 0.5 })
-    const gbm = trainGbm(examples, nFeatures, {})
+    const boosted = GBM_CONFIGS.map((options) => trainGbm(examples, nFeatures, options))
     for (const row of validRows) {
       const y = label(row)!
-      oof.baseline.push({ p: baselineRate, y, w: row.weight })
-      oof.logistic.push({ p: predictLogistic(logistic, row.features), y, w: row.weight })
-      oof.gbm.push({ p: predictGbm(gbm, row.features), y, w: row.weight })
+      const entry = { y, w: row.weight }
+      candidates[0].oof.push({ ...entry, p: baselineRate })
+      candidates[1].oof.push({ ...entry, p: predictLogistic(logistic, row.features) })
+      boosted.forEach((model, index) => candidates[index + 2].oof.push({ ...entry, p: predictGbm(model, row.features) }))
     }
   }
 
@@ -276,51 +278,51 @@ export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target',
   // fold rows from *earlier* folds, then apply it to this fold. A calibration
   // curve is therefore never scored on the rows that were used to fit it, and
   // the final fold is a genuine untouched window for calibration.
-  const calibratedOof: Record<ClassifierType, Labelled[]> = { baseline: [], logistic: [], gbm: [] }
-  const candidateTypes: ClassifierType[] = ['baseline', 'logistic', 'gbm']
-  for (const type of candidateTypes) {
+  for (const candidate of candidates) {
     let offset = 0
     const earlier: Labelled[] = []
     for (const fold of foldList) {
       const calibrator = fitCalibrator(earlier)
-      const current = oof[type].slice(offset, offset + fold.valid.length)
-      for (const row of current) calibratedOof[type].push({ ...row, p: applyCalibrator(calibrator, row.p) })
+      const current = candidate.oof.slice(offset, offset + fold.valid.length)
+      for (const row of current) candidate.calibrated.push({ ...row, p: applyCalibrator(calibrator, row.p) })
       earlier.push(...current)
       offset += current.length
     }
+    candidate.brier = brier(candidate.calibrated) ?? Number.POSITIVE_INFINITY
   }
 
   // Choose on the calibrated scores users would actually see, not on raw ones.
-  const brierOf = (candidate: ClassifierType): number => brier(calibratedOof[candidate]) ?? Number.POSITIVE_INFINITY
-  const baselineBrier = brierOf('baseline')
-  const logisticBrier = brierOf('logistic')
-  const gbmBrier = brierOf('gbm')
+  const [baseline, logisticCandidate] = candidates
+  const boostedCandidates = candidates.slice(2)
+  const bestBoosted = boostedCandidates.reduce((best, candidate) => (candidate.brier < best.brier ? candidate : best), boostedCandidates[0])
+  const baselineBrier = baseline.brier
+  const logisticBrier = logisticCandidate.brier
 
-  let chosen: ClassifierType = 'baseline'
+  let chosen = baseline
   let reason = `The smoothed baseline held its ground on chronological validation (Brier ${baselineBrier.toFixed(3)}); no model was better, so the baseline is kept.`
   if (logisticBrier < baselineBrier) {
-    chosen = 'logistic'
+    chosen = logisticCandidate
     reason = `Regularised logistic regression beat the baseline on chronological validation (Brier ${logisticBrier.toFixed(3)} vs ${baselineBrier.toFixed(3)}).`
   }
-  if (gbmBrier < Math.min(baselineBrier, logisticBrier) - GBM_MARGIN) {
-    chosen = 'gbm'
-    reason = `Gradient boosting beat both the baseline and logistic regression on chronological validation (Brier ${gbmBrier.toFixed(3)} vs logistic ${logisticBrier.toFixed(3)}, baseline ${baselineBrier.toFixed(3)}).`
+  if (bestBoosted.brier < Math.min(baselineBrier, logisticBrier) - GBM_MARGIN) {
+    chosen = bestBoosted
+    reason = `Gradient boosting (${describeGbmOptions(bestBoosted.gbmOptions!)}) beat both the baseline and logistic regression on chronological validation (Brier ${bestBoosted.brier.toFixed(3)} vs logistic ${logisticBrier.toFixed(3)}, baseline ${baselineBrier.toFixed(3)}).`
   }
 
   // The served calibrator is fitted only after the model type is fixed. It uses
   // all out-of-fold scores, which are honest model outputs, but validation
   // metrics above never reuse those fit rows.
-  const calibrator = fitCalibrator(oof[chosen])
+  const calibrator = fitCalibrator(chosen.oof)
 
-  // Final model, trained on every row.
+  // Final model, trained on every row, using the winning boosted-tree settings.
   const allExamples = toExamples(rows, label)
-  const logisticFinal = chosen === 'logistic' ? trainLogistic(allExamples, nFeatures, { lambda: 1, iterations: 400, learningRate: 0.5 }) : null
-  const gbmFinal = chosen === 'gbm' ? trainGbm(allExamples, nFeatures, {}) : null
+  const logisticFinal = chosen.type === 'logistic' ? trainLogistic(allExamples, nFeatures, { lambda: 1, iterations: 400, learningRate: 0.5 }) : null
+  const gbmFinal = chosen.type === 'gbm' ? trainGbm(allExamples, nFeatures, chosen.gbmOptions ?? {}) : null
   const baselineRate = weightedBaseRate(rows, label)
 
   // Validation metrics use the chronologically calibrated out-of-fold scores.
-  const validationLabelled: Labelled[] = calibratedOof[chosen]
-  const baselineLabelled: Labelled[] = calibratedOof.baseline
+  const validationLabelled: Labelled[] = chosen.calibrated
+  const baselineLabelled: Labelled[] = baseline.calibrated
 
   // Per-task metrics from the pooled out-of-fold rows, tracked alongside. The
   // out-of-fold predictions were pushed fold by fold, so a cursor over the same
@@ -332,7 +334,7 @@ export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target',
     for (const fold of foldList) {
       for (const i of fold.valid) {
         const row = rows[i]
-        const source = calibratedOof[chosen][cursor]
+        const source = chosen.calibrated[cursor]
         ;(taskByFold[row.taskId] ??= []).push({ p: source.p, y: source.y, w: source.w })
         cursor += 1
       }
@@ -343,8 +345,8 @@ export function trainClassifier(set: TrainingSet, kind: 'completion' | 'target',
   }
 
   return {
-    kind,
-    type: chosen,
+    kind: 'completion',
+    type: chosen.type,
     featureNames: set.featureNames,
     vocabulary: set.vocabulary,
     predictionMinutes: set.predictionMinutes,
@@ -368,124 +370,6 @@ export function predictClassifier(artifact: ClassifierArtifact, features: number
   const raw = rawClassifierPredict(artifact.type, artifact.logistic, artifact.gbm, artifact.baselineRate, features)
   const calibrated = applyCalibrator(artifact.calibrator, raw)
   return Math.max(0, Math.min(1, calibrated))
-}
-
-/** Weighted median of a numeric series. */
-export function weightedMedian(points: Array<{ value: number; weight: number }>): number {
-  const sorted = [...points].sort((a, b) => a.value - b.value)
-  let total = 0
-  for (const point of sorted) total += point.weight
-  let running = 0
-  for (const point of sorted) {
-    running += point.weight
-    if (running >= total / 2) return point.value
-  }
-  return sorted.length > 0 ? sorted[sorted.length - 1].value : 0
-}
-
-/**
- * Train the duration model: a weighted median baseline, then a linear quantile
- * fit used only if it beats the baseline on chronological validation.
- */
-export function trainDuration(set: TrainingSet, options: TrainOptions = {}): DurationArtifact {
-  const rows = set.rows.filter((row) => row.duration !== null)
-  const nFeatures = set.featureNames.length
-  const minRows = Math.max(MIN_DURATION_ROWS, nFeatures * MIN_ROWS_PER_FEATURE)
-  const folds = options.folds ?? DEFAULT_FOLDS
-  const validFraction = options.validFraction ?? DEFAULT_VALID_FRACTION
-
-  const baseArtifact = (reason: string): DurationArtifact => ({
-    kind: 'duration',
-    type: 'median',
-    featureNames: set.featureNames,
-    vocabulary: set.vocabulary,
-    predictionMinutes: set.predictionMinutes,
-    median: weightedMedian(rows.map((row) => ({ value: row.duration!, weight: row.weight }))),
-    q10: null,
-    q50: null,
-    q90: null,
-    metrics: { n: 0, mae: null, rmse: null, coverage: null, intervalWidth: null, baselineMae: null },
-    smallData: true,
-    reason,
-  })
-
-  if (rows.length < minRows) {
-    return baseArtifact(
-      `Only ${rows.length} completed-day duration(s); at least ${minRows} are needed. The median baseline is used and no interval is claimed.`,
-    )
-  }
-  const foldList = chronologicalFolds(rows, folds, validFraction)
-  if (foldList.length === 0) {
-    return baseArtifact('Not enough chronological data to validate a duration model; the median baseline is used.')
-  }
-
-  const baselinePoints: Array<{ predicted: number; actual: number; w: number }> = []
-  const quantilePoints: Array<{ predicted: number; actual: number; low: number; high: number; w: number }> = []
-  for (const fold of foldList) {
-    const trainRows = fold.train.map((i) => rows[i])
-    const validRows = fold.valid.map((i) => rows[i])
-    const examples: Example[] = trainRows.map((row) => ({ x: row.features, y: row.duration!, w: row.weight }))
-    const median = weightedMedian(trainRows.map((row) => ({ value: row.duration!, weight: row.weight })))
-    const q10 = trainLinearQuantile(examples, nFeatures, 0.1)
-    const q50 = trainLinearQuantile(examples, nFeatures, 0.5)
-    const q90 = trainLinearQuantile(examples, nFeatures, 0.9)
-    for (const row of validRows) {
-      const actual = row.duration!
-      baselinePoints.push({ predicted: median, actual, w: row.weight })
-      const point = Math.max(0, predictQuantile(q50, row.features))
-      const low = Math.max(0, Math.min(point, predictQuantile(q10, row.features)))
-      const high = Math.max(point, predictQuantile(q90, row.features))
-      quantilePoints.push({ predicted: point, actual, low, high, w: row.weight })
-    }
-  }
-
-  const baselineMae = mae(baselinePoints) ?? Number.POSITIVE_INFINITY
-  const quantileMae = mae(quantilePoints) ?? Number.POSITIVE_INFINITY
-  const useQuantile = quantileMae < baselineMae
-
-  const median = weightedMedian(rows.map((row) => ({ value: row.duration!, weight: row.weight })))
-  const allExamples: Example[] = rows.map((row) => ({ x: row.features, y: row.duration!, w: row.weight }))
-  const q10 = useQuantile ? trainLinearQuantile(allExamples, nFeatures, 0.1) : null
-  const q50 = useQuantile ? trainLinearQuantile(allExamples, nFeatures, 0.5) : null
-  const q90 = useQuantile ? trainLinearQuantile(allExamples, nFeatures, 0.9) : null
-
-  const points = useQuantile ? quantilePoints : baselinePoints
-  const metrics: DurationMetrics = {
-    n: points.length,
-    mae: mae(points),
-    rmse: rmse(points),
-    coverage: useQuantile ? intervalCoverage(quantilePoints) : null,
-    intervalWidth: useQuantile ? intervalWidth(quantilePoints) : null,
-    baselineMae: mae(baselinePoints),
-  }
-
-  return {
-    kind: 'duration',
-    type: useQuantile ? 'quantile' : 'median',
-    featureNames: set.featureNames,
-    vocabulary: set.vocabulary,
-    predictionMinutes: set.predictionMinutes,
-    median,
-    q10,
-    q50,
-    q90,
-    metrics,
-    smallData: false,
-    reason: useQuantile
-      ? `Linear quantile regression beat the median baseline on chronological validation (MAE ${quantileMae.toFixed(1)} vs ${baselineMae.toFixed(1)}).`
-      : `The median baseline held up on chronological validation (MAE ${baselineMae.toFixed(1)}); the quantile fit was not better, so the baseline is kept.`,
-  }
-}
-
-/** Point estimate and interval from a duration artifact. */
-export function predictDuration(artifact: DurationArtifact, features: number[]): { point: number; low: number | null; high: number | null } {
-  if (artifact.type === 'quantile' && artifact.q50) {
-    const point = Math.max(0, predictQuantile(artifact.q50, features))
-    const low = artifact.q10 ? Math.max(0, Math.min(point, predictQuantile(artifact.q10, features))) : null
-    const high = artifact.q90 ? Math.max(point, predictQuantile(artifact.q90, features)) : null
-    return { point, low, high }
-  }
-  return { point: artifact.median, low: null, high: null }
 }
 
 /**

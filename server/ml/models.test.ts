@@ -20,7 +20,7 @@ import {
   type FeatureStats,
   type FeatureVocabulary,
 } from './features'
-import { MIN_ROWS_PER_FEATURE, chronologicalFolds, trainClassifier, trainDuration } from './training'
+import { MIN_ROWS_PER_FEATURE, chronologicalFolds, trainClassifier } from './training'
 import { fitCalibrator } from './calibration'
 import {
   championFor,
@@ -176,9 +176,9 @@ function featureIndex(names: string[], name: string): number {
   return index
 }
 
-function reg(db: DatabaseSync, kind: 'completion' | 'target' | 'duration', version: string, metrics: RegistryMetrics, payload: unknown = { test: true }) {
+function reg(db: DatabaseSync, version: string, metrics: RegistryMetrics, payload: unknown = { test: true }) {
   return registerModel(db, USER, {
-    kind,
+    kind: 'completion',
     version,
     trainFrom: '2026-01-01',
     trainTo: '2026-06-01',
@@ -531,17 +531,11 @@ test('model training: below the minimum rows the trainers return a baseline and 
   for (const date of dates) setStatus(db, task, date, 'completed')
 
   const set = buildTrainingSet(db, USER, [task], from, dates[4], addDays(dates[4], 1))
-  const completion = trainClassifier(set, 'completion')
+  const completion = trainClassifier(set)
   assert.equal(completion.type, 'baseline')
   assert.equal(completion.smallData, true)
   const needed = Math.max(40, set.featureNames.length * MIN_ROWS_PER_FEATURE)
   assert.match(completion.reason, new RegExp(`at least ${needed}`))
-
-  const duration = trainDuration(set)
-  assert.equal(duration.type, 'median')
-  assert.equal(duration.smallData, true)
-  const durationNeeded = Math.max(20, set.featureNames.length * MIN_ROWS_PER_FEATURE)
-  assert.match(duration.reason, new RegExp(`at least ${durationNeeded}`))
   db.close()
 })
 
@@ -556,8 +550,6 @@ test('model training: a date is never split between train and validation', () =>
         predictionMinute: 480 + task * 60,
         features: [day, task],
         completionLabel: task % 2,
-        targetLabel: null,
-        duration: null,
         weight: 1,
       })
     }
@@ -594,34 +586,31 @@ test('model calibration: skipped below the data threshold, never fabricated', ()
 
 test('model registry: promotion needs to beat the baseline and the champion, and pass calibration', () => {
   const db = freshDb()
-  const c1 = reg(db, 'completion', 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
+  const c1 = reg(db, 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
   assert.equal(promoteCandidate(db, USER, c1.id).ok, true)
   assert.equal(championFor(db, USER, 'completion')?.id, c1.id)
 
-  const c2 = reg(db, 'completion', 'v2', { type: 'logistic', brier: 0.15, ece: 0.05, baselineBrier: 0.2 })
+  const c2 = reg(db, 'v2', { type: 'logistic', brier: 0.15, ece: 0.05, baselineBrier: 0.2 })
   assert.equal(promoteCandidate(db, USER, c2.id).ok, false)
 
-  const c3 = reg(db, 'completion', 'v3', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
+  const c3 = reg(db, 'v3', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
   assert.equal(promoteCandidate(db, USER, c3.id).ok, true)
   assert.equal(championFor(db, USER, 'completion')?.id, c3.id)
   assert.equal(getStoredModel(db, c1.id)?.status, 'retired')
 
-  const c4 = reg(db, 'completion', 'v4', { type: 'logistic', brier: 0.01, ece: 0.5, baselineBrier: 0.2 })
+  const c4 = reg(db, 'v4', { type: 'logistic', brier: 0.01, ece: 0.5, baselineBrier: 0.2 })
   assert.equal(promoteCandidate(db, USER, c4.id).ok, false)
 
-  const c5 = reg(db, 'completion', 'v5', { type: 'baseline', brier: 0.01, ece: 0, baselineBrier: 0.2 })
+  const c5 = reg(db, 'v5', { type: 'baseline', brier: 0.01, ece: 0, baselineBrier: 0.2 })
   assert.equal(promoteCandidate(db, USER, c5.id).ok, false)
-
-  const c6 = reg(db, 'duration', 'd1', { type: 'median', mae: 5, baselineMae: 6 })
-  assert.equal(promoteCandidate(db, USER, c6.id).ok, false)
   db.close()
 })
 
 test('model registry: rollback restores the previous version and keeps the newer one', () => {
   const db = freshDb()
-  const c1 = reg(db, 'completion', 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
+  const c1 = reg(db, 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
   promoteCandidate(db, USER, c1.id)
-  const c2 = reg(db, 'completion', 'v2', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
+  const c2 = reg(db, 'v2', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
   promoteCandidate(db, USER, c2.id)
   assert.equal(championFor(db, USER, 'completion')?.id, c2.id)
 
@@ -636,7 +625,7 @@ test('model registry: rollback restores the previous version and keeps the newer
   assert.equal(championFor(db, USER, 'completion')?.version, 'v1')
 
   const lonely = freshDb()
-  const only = reg(lonely, 'completion', 'only', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
+  const only = reg(lonely, 'only', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 })
   promoteCandidate(lonely, USER, only.id)
   assert.equal(rollbackChampion(lonely, USER, 'completion').ok, false)
 
@@ -646,7 +635,7 @@ test('model registry: rollback restores the previous version and keeps the newer
 
 test('model registry: champion artifacts are reused until the champion changes', () => {
   const db = freshDb()
-  const v1 = reg(db, 'completion', 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 }, { marker: 1 })
+  const v1 = reg(db, 'v1', { type: 'logistic', brier: 0.1, ece: 0.05, baselineBrier: 0.2 }, { marker: 1 })
   promoteCandidate(db, USER, v1.id)
 
   const first = loadChampionArtifact(db, USER, 'completion')
@@ -654,7 +643,7 @@ test('model registry: champion artifacts are reused until the champion changes',
   assert.ok(first && second)
   assert.strictEqual(first.artifact, second.artifact)
 
-  const v2 = reg(db, 'completion', 'v2', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 }, { marker: 2 })
+  const v2 = reg(db, 'v2', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 }, { marker: 2 })
   promoteCandidate(db, USER, v2.id)
 
   const promoted = loadChampionArtifact(db, USER, 'completion')
@@ -670,7 +659,7 @@ test('model registry: champion artifacts are reused until the champion changes',
 
 test('model shadow: a candidate that loses in shadow is not promoted, and labels are never overwritten', () => {
   const db = freshDb()
-  const candidate = reg(db, 'completion', 'shadow-loser', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
+  const candidate = reg(db, 'shadow-loser', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
   for (let i = 0; i < 5; i += 1) {
     const date = addDays('2026-02-01', i)
     const y = (i % 2) as 0 | 1
@@ -698,7 +687,7 @@ test('model shadow: a candidate that loses in shadow is not promoted, and labels
 
 test('model shadow: a candidate that beats the champion and baseline in shadow is eligible', () => {
   const db = freshDb()
-  const candidate = reg(db, 'completion', 'shadow-winner', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
+  const candidate = reg(db, 'shadow-winner', { type: 'logistic', brier: 0.05, ece: 0.05, baselineBrier: 0.2 })
   for (let i = 0; i < 4; i += 1) {
     const date = addDays('2026-03-01', i)
     const y = (i % 2) as 0 | 1
@@ -749,7 +738,7 @@ test('model serving: the champion is served, and the baseline is used when it is
   assert.match(noChampion.reason, /baseline/i)
 
   const set = buildTrainingSet(db, USER, [task], from, to, today)
-  const artifact = trainClassifier(set, 'completion')
+  const artifact = trainClassifier(set)
   const good = registerModel(db, USER, {
     kind: 'completion',
     version: 'good',
@@ -794,7 +783,7 @@ test('model serving: a champion is used only at its trained grid with its exact 
   const to = dates[11]
   const today = addDays(to, 1)
   const set = buildTrainingSet(db, USER, [task], from, to, today, { predictionMinutes: [480, 720] })
-  const artifact = trainClassifier(set, 'completion')
+  const artifact = trainClassifier(set)
 
   const register = (version: string, payload: unknown, featureNames: string[], brier: number) =>
     registerModel(db, USER, {

@@ -3,9 +3,7 @@ import { buildTrainingSet } from './dataset'
 import {
   evaluateTimingProfile,
   trainClassifier,
-  trainDuration,
   type ClassifierArtifact,
-  type DurationArtifact,
   type ModelKind,
   type TimingEvaluation,
 } from './training'
@@ -24,13 +22,13 @@ import type { FeatureVocabulary } from './features'
  * Training orchestration.
  *
  * One function ties the separate modules together for a single user: it builds
- * the chronological training set, trains each candidate, evaluates the timing
- * profile, and (optionally) registers the candidates in the registry and updates
- * the retrain bookkeeping. It holds no model logic of its own — everything is
- * delegated — so the pieces stay independent.
+ * the chronological training set, trains the completion candidate, evaluates
+ * the timing profile, and (optionally) registers the candidate in the registry
+ * and updates the retrain bookkeeping. It holds no model logic of its own —
+ * everything is delegated — so the pieces stay independent.
  *
  * Nothing here trains on real data unless it is given real data, and nothing
- * here fabricates rows: with too little data each trainer returns a baseline
+ * here fabricates rows: with too little data the trainer returns a baseline
  * artifact and says so.
  */
 
@@ -65,13 +63,9 @@ export interface TrainModelsResult {
   monthsOfData: number
   rows: number
   labelledCount: number
-  targetCount: number
-  durationCount: number
   vocabulary: FeatureVocabulary
   featureNames: string[]
   completion: ClassifierArtifact
-  target: ClassifierArtifact
-  duration: DurationArtifact
   timing: TimingEvaluation[]
   candidates: TrainedCandidate[]
   notes: string[]
@@ -91,6 +85,27 @@ function preferredBin(preferredTime: string | null): number | null {
   return best
 }
 
+/** Record the hyperparameters of the artifact actually chosen, not a guess. */
+function hyperparamsFromArtifact(artifact: ClassifierArtifact): Record<string, unknown> {
+  const out: Record<string, unknown> = { type: artifact.type }
+  if (artifact.logistic) {
+    out.lambda = artifact.logistic.lambda
+    out.iterations = artifact.logistic.iterations
+    out.learningRate = artifact.logistic.learningRate
+  }
+  if (artifact.gbm) {
+    out.nTrees = artifact.gbm.nTrees
+    out.learningRate = artifact.gbm.learningRate
+    out.maxDepth = artifact.gbm.maxDepth
+    out.minSamplesLeaf = artifact.gbm.minSamplesLeaf
+    out.l2 = artifact.gbm.l2
+    out.maxBins = artifact.gbm.maxBins
+    out.featureRatio = artifact.gbm.featureRatio
+    out.seed = artifact.gbm.seed
+  }
+  return out
+}
+
 /** Train every candidate model for one user. */
 export function trainUserModels(db: DatabaseSync, userId: number, options: TrainModelsOptions = {}): TrainModelsResult {
   const taskIds = options.taskIds ?? userTaskIds(db, userId)
@@ -107,9 +122,7 @@ export function trainUserModels(db: DatabaseSync, userId: number, options: Train
     recentHalfLifeDays: undefined,
   })
 
-  const completion = trainClassifier(set, 'completion', { folds: options.folds, validFraction: options.validFraction })
-  const target = trainClassifier(set, 'target', { folds: options.folds, validFraction: options.validFraction })
-  const duration = trainDuration(set, { folds: options.folds, validFraction: options.validFraction })
+  const completion = trainClassifier(set, { folds: options.folds, validFraction: options.validFraction })
 
   // Timing profile: evaluate the learned peak against simple baselines per task.
   const timing: TimingEvaluation[] = []
@@ -122,7 +135,7 @@ export function trainUserModels(db: DatabaseSync, userId: number, options: Train
   }
 
   const candidates: TrainedCandidate[] = []
-  const registerOne = (kind: ModelKind, artifact: ClassifierArtifact | DurationArtifact, labelledCount: number): void => {
+  const registerOne = (kind: ModelKind, artifact: ClassifierArtifact, labelledCount: number): void => {
     const metrics = metricsFromArtifact(artifact)
     let id: number | null = null
     if (register) {
@@ -134,10 +147,7 @@ export function trainUserModels(db: DatabaseSync, userId: number, options: Train
         dataCount: set.rows.length,
         labelledCount,
         featureNames: set.featureNames,
-        hyperparams:
-          artifact.kind === 'duration'
-            ? { type: artifact.type }
-            : { type: artifact.type, lambda: 1, iterations: 400, learningRate: 0.5, gbmTrees: 60 },
+        hyperparams: hyperparamsFromArtifact(artifact),
         seed: options.seed ?? 0,
         metrics,
         gitCommit: options.gitCommit ?? null,
@@ -158,18 +168,12 @@ export function trainUserModels(db: DatabaseSync, userId: number, options: Train
   }
 
   registerOne('completion', completion, set.labelledCount)
-  registerOne('target', target, set.targetCount)
-  registerOne('duration', duration, set.durationCount)
 
   if (register) {
     markTrained(db, userId, 'completion', set.labelledCount)
-    markTrained(db, userId, 'target', set.targetCount)
-    markTrained(db, userId, 'duration', set.durationCount)
   }
 
   if (completion.smallData) notes.push(`Completion: ${completion.reason}`)
-  if (target.smallData) notes.push(`Target: ${target.reason}`)
-  if (duration.smallData) notes.push(`Duration: ${duration.reason}`)
 
   return {
     userId,
@@ -179,13 +183,9 @@ export function trainUserModels(db: DatabaseSync, userId: number, options: Train
     monthsOfData: set.monthsOfData,
     rows: set.rows.length,
     labelledCount: set.labelledCount,
-    targetCount: set.targetCount,
-    durationCount: set.durationCount,
     vocabulary: set.vocabulary,
     featureNames: set.featureNames,
     completion,
-    target,
-    duration,
     timing,
     candidates,
     notes,

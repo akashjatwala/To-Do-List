@@ -144,3 +144,58 @@ test('legacy skip events gain move columns after the base schema is applied', ()
   assert.deepEqual({ ...migrated }, { task_id: 't1', due: 0, reason: 'skip', undone: 0 })
   db.close()
 })
+
+test('legacy target and duration ML rows are removed; completion rows are kept', () => {
+  const db = new DatabaseSync(':memory:')
+  db.exec(`
+    CREATE TABLE task_skip_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id TEXT NOT NULL,
+      actor_id INTEGER NOT NULL,
+      from_date TEXT NOT NULL,
+      to_date TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE TABLE ml_models (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, kind TEXT NOT NULL);
+    CREATE TABLE ml_shadow (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, kind TEXT NOT NULL, candidate_id INTEGER NOT NULL);
+    CREATE TABLE ml_retrain_state (user_id INTEGER NOT NULL, kind TEXT NOT NULL, last_trained_at INTEGER NOT NULL, last_labelled_count INTEGER NOT NULL);
+    CREATE TABLE ml_retrain_log (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, kind TEXT NOT NULL, trigger TEXT NOT NULL, created_at INTEGER NOT NULL);
+    CREATE TABLE ml_health (user_id INTEGER NOT NULL, kind TEXT NOT NULL, fallback INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE ml_health_predictions (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, kind TEXT NOT NULL);
+    CREATE TABLE schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at INTEGER NOT NULL
+    );
+  `)
+  for (const kind of ['completion', 'target', 'duration']) {
+    db.prepare('INSERT INTO ml_models (user_id, kind) VALUES (1, ?)').run(kind)
+    db.prepare('INSERT INTO ml_shadow (user_id, kind, candidate_id) VALUES (1, ?, 1)').run(kind)
+    db.prepare('INSERT INTO ml_retrain_state (user_id, kind, last_trained_at, last_labelled_count) VALUES (1, ?, 10, 10)').run(kind)
+    db.prepare("INSERT INTO ml_retrain_log (user_id, kind, trigger, created_at) VALUES (1, ?, 'threshold', 10)").run(kind)
+    db.prepare('INSERT INTO ml_health (user_id, kind) VALUES (1, ?)').run(kind)
+    db.prepare('INSERT INTO ml_health_predictions (user_id, kind) VALUES (1, ?)').run(kind)
+  }
+  const baseline = db.prepare(
+    'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
+  )
+  for (let version = 1; version <= 20; version += 1) baseline.run(version, 'baseline', 10)
+
+  runMigrations(db)
+
+  for (const table of [
+    'ml_models',
+    'ml_shadow',
+    'ml_retrain_state',
+    'ml_retrain_log',
+    'ml_health',
+    'ml_health_predictions',
+  ]) {
+    assert.deepEqual(
+      (db.prepare(`SELECT DISTINCT kind FROM ${table} ORDER BY kind`).all() as Array<{ kind: string }>).map((row) => row.kind),
+      ['completion'],
+      `${table} should only contain completion rows`,
+    )
+  }
+  db.close()
+})

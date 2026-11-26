@@ -7,7 +7,7 @@
 - `server/index.ts` — Express app, middleware and route mounting
 - `server/db.ts` — the SQLite database and the app's core schema
 - `server/ml/schema.ts` — the learning system's own tables
-- `server/ml/*.ts` — the learning modules (collection, validation, features, training, evaluation, prediction, learning, health, drift, logging)
+- `server/ml/*.ts` — the learning modules (collection, validation, completion features/training/evaluation, baseline prediction, learning, health, drift, logging)
 - `server/ml/routes.ts`, `prediction-routes.ts`, `state-routes.ts`, `off-day-routes.ts`, `health-routes.ts` — HTTP endpoints
 - `src/App.tsx`, `src/api.ts`, `src/components/`, `src/hooks/`, `src/lib/` — the React frontend (UI, state/orchestration hooks, and shared helpers)
 
@@ -56,13 +56,13 @@ Each job lives in its own file, so it can be tested and reasoned about alone.
 | --- | --- | --- |
 | Data collection | `checkins-store.ts`, `ml/sessions.ts`, `ml/daily-activity.ts`, `ml/off-days.ts` | Stores the check-in, timed sessions, per-day statuses and off days |
 | Validation | `ml/sessions.ts` (`validateSession`), `checkins-store.ts` (`parseAnswer`, `parseContext`, `parseLocalDate`), `ml/task-config.ts`, `ml/tags.ts` | Rejects invalid or overlapping input; keeps valid values as given |
-| Feature engineering | `ml/features.ts`, `ml/dataset.ts` | Builds the one feature vector used by both training and serving |
-| Training | `ml/training.ts`, `ml/model/` (`logistic.ts`, `gbm.ts`, `quantile.ts`, `math.ts`), `ml/calibration.ts`, `ml/pipeline.ts` | Trains the candidate models and chooses one |
-| Evaluation | `ml/metrics.ts` | Brier score, calibration, duration error |
-| Prediction (serving) | `ml/predictors.ts` (baseline), `ml/serving.ts` (champion), `ml/estimates.ts`, `ml/cold-start.ts` | Produces the completion, target and duration estimates; Nudge shows the completion probability (percentage beside the task, bar below); recommended time, target, duration and confidence stay computed and logged but are not displayed |
-| Continuous learning | `ml/learning.ts`, `ml/shadow.ts` | Links recorded activity to outcomes, gates and rate-limits retraining |
-| Model versioning | `ml/registry.ts` | Append-only model rows, promotion, rollback, loading |
-| Live health & drift | `ml/health.ts`, `ml/drift.ts` | Watches the served model and reports change |
+| Feature engineering | `ml/features.ts`, `ml/dataset.ts` | Builds the completion feature vector used by both training and serving |
+| Training | `ml/training.ts`, `ml/model/` (`logistic.ts`, `gbm.ts`, `math.ts`), `ml/calibration.ts`, `ml/pipeline.ts` | Trains the completion candidates and chooses one |
+| Evaluation | `ml/metrics.ts` | Brier score, ECE and ROC-AUC for completion |
+| Prediction (serving) | `ml/predictors.ts` (baseline), `ml/serving.ts` (completion champion), `ml/estimates.ts`, `ml/cold-start.ts` | Produces the completion probability from a champion or baseline; target probability, expected duration and duration ranges stay baseline/statistical estimates. Nudge shows the completion probability (percentage beside the task, bar below); recommended time, target, duration and confidence stay computed and logged but are not displayed |
+| Continuous learning | `ml/learning.ts`, `ml/shadow.ts` | Links recorded activity to outcomes, gates and rate-limits completion retraining, shadows candidates |
+| Model versioning | `ml/registry.ts` | Append-only completion model rows, promotion, rollback, loading |
+| Live health & drift | `ml/health.ts`, `ml/drift.ts` | Watches the served completion model and reports change |
 | Logging | `ml/logging.ts` | Local logs and graceful degradation |
 
 ## Cold start
@@ -117,8 +117,8 @@ sequenceDiagram
     A-->>U: offDay: true, no predictions
   else normal day
     A->>S: serveTask per open personal task scheduled on that date (including repeats)
-    S->>R: load champion (if any)
-    S->>D: log model vs baseline (health), never as an outcome
+    S->>R: load completion champion (if any)
+    S->>D: log champion vs baseline completion (health), never as an outcome
     A-->>U: plan + predictions + drift notes
   end
 ```
@@ -129,8 +129,8 @@ Every learning step can fail for an ordinary reason (a missing check-in, an unre
 model payload). None of those may stop you recording what you did:
 
 - `ml/logging.ts` (`safeRun`) runs a step and returns a documented fallback if it throws, logging the error instead of propagating it.
-- `ml/serving.ts` falls back to the baseline predictor when there is no champion, a payload cannot be read, a feature vector does not match, or the score is not a valid probability.
-- `ml/health.ts` falls back to the baseline when the served model is worse than the baseline over the recent window.
+- `ml/serving.ts` falls back to the baseline completion estimate when there is no completion champion, a payload cannot be read, a feature vector does not match, or the score is not a valid probability. Target probability and expected duration are baseline estimates and need no fallback.
+- `ml/health.ts` falls back to the baseline completion estimate when the served completion model is worse than the baseline over the recent window.
 
 ## Related docs
 

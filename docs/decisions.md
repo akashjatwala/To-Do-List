@@ -26,12 +26,13 @@
 | Decision | Why |
 | --- | --- |
 | Chronological validation only; never shuffle | Personal data is a time series. A random split would leak the future and overstate accuracy |
-| Smoothed baseline is the floor | It always works, and every model must beat it on held-out days to be served |
-| Simplest model first | Logistic before gradient boosting; boosting must win by a margin. On small personal data, a simple model is the honest choice |
-| Small, reproducible GBM instead of XGBoost/CatBoost | The data volume does not justify a heavy library; shallow trees with no randomness keep training reproducible |
-| Linear quantile regression for duration | Duration needs a range, not just a point; a quantile model gives a low–high interval |
+| Smoothed baseline is the floor | It always works, and the completion model must beat it on held-out days to be served |
+| Simplest model first | Logistic before gradient boosting for completion; boosting must win by a margin. On small personal data, a simple model is the honest choice |
+| Histogram-based GBM with a tiny fixed grid instead of XGBoost/CatBoost | The data volume does not justify a heavy library; deterministic feature subsampling, L2-shrunk leaves and three searched configurations add real non-linearity without randomness or a new toolchain |
+| Only completion is trained | Target probability and expected duration stay baseline/statistical estimates for display, scheduling and ranking; one champion keeps gates, health and artifacts honest |
+| Migration 21 drops stale target/duration model rows | Upgraded databases may still have old champions and health rows for kinds that are no longer trained; deleting only those rows keeps the registry and health view completion-only without rebuilding tables |
 | Two-stage cold start with a configurable threshold | The system must not claim personalisation before it has the data |
-| Calibration is gated (ECE ≤ 0.12) | A confident-but-miscalibrated model is worse than the baseline for a person |
+| Calibration is gated (ECE ≤ 0.12) | A confident-but-miscalibrated completion model is worse than the baseline for a person |
 | Recency weighting with a half-life | Recent behaviour matters more than last season, without discarding history |
 | Seasonal features only after a year of data | A seasonal pattern cannot be learned from a few months |
 
@@ -39,14 +40,14 @@
 
 | Decision | Why |
 | --- | --- |
-| Baseline fallback whenever a champion cannot be trusted | The user is never shown a broken or out-of-range number |
-| One live prediction entry point for both routes | The plan and the single-task view use the same champion/baseline decision, so they cannot disagree; `buildPlan` takes an injectable predictor and stays free of a dependency on serving |
-| Reversible model serving via `ML_DISABLE_MODEL_SERVING=1` | Wiring trained models in is a behaviour change; a startup flag restores baseline-only predictions for comparison or an emergency without touching model data |
-| Sticky health fallback | A model is not flipped back on one good window; it is retried only after a rate-limited retrain |
-| Retraining is gated and rate-limited | Retraining on every write would churn; the gate waits for enough new labels or staleness |
+| Baseline fallback whenever the completion champion cannot be trusted | The user is never shown a broken or out-of-range completion number; target probability and expected duration are baseline estimates either way |
+| One live prediction entry point for both routes | The plan and the single-task view use the same completion champion/baseline decision, so they cannot disagree; `buildPlan` takes an injectable predictor and stays free of a dependency on serving |
+| Reversible model serving via `ML_DISABLE_MODEL_SERVING=1` | Wiring the trained completion model in is a behaviour change; a startup flag restores baseline-only estimates for comparison or an emergency without touching model data |
+| Sticky completion health fallback | The champion is not flipped back on one good window; it is retried only after a rate-limited completion retrain |
+| Completion retraining is gated and rate-limited | Retraining on every write would churn; the gate waits for enough new labels or staleness |
 | Lightweight, unref'd scheduler that can be disabled | Periodic learning should never keep the process alive or run without consent |
-| Shadow mode before promotion | A candidate that wins on validation can still lose on live days; shadow mode catches that |
-| Append-only model versions with rollback | Any version can be restored; nothing is overwritten |
+| Shadow protection before promotion | A completion candidate that wins on validation can still lose on live days; shadow mode catches that |
+| Append-only completion model versions with rollback | Any version can be restored; nothing is overwritten |
 
 ## Product and privacy
 
@@ -58,7 +59,8 @@
 | Mood is a predictive input, never a diagnosis | Associations are explained; causes are never claimed |
 | Sensitive questions are optional | Personal context helps predictions but must never be required |
 | Everything stays local | No external ML service, no telemetry, no upload path |
-| Keep Nudge compact | The completion probability answers the card's question, with a percentage and bar. Recommended time, target, duration and confidence stay computed and logged but are not displayed |
+| User-set target durations stay first-class | `targetMinutes` / `duration` are user-facing fields; baseline target probability and expected duration use them for display and scheduling, with no trained duration model |
+| Keep Nudge compact | The completion probability answers the card's question, with a percentage and bar. Baseline target probability, expected duration, recommended time and confidence stay computed and logged but are not displayed |
 | Drift is measured and reported, not predicted | A routine change is an association over your own days, returned by the API but not shown in the current Nudge card |
 | Separate module per stage | Each stage (collection, validation, features, training, evaluation, prediction, learning, versioning) can be tested and replaced alone |
 

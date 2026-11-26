@@ -3,8 +3,8 @@
  *
  * These are plain, well-defined numbers with no interpretation attached. Every
  * metric returns `null` when it cannot be computed honestly — for example ROC-AUC
- * needs both classes to be present, and an interval coverage needs at least one
- * scored point. Nothing here fabricates a value to fill a gap.
+ * needs both classes to be present. Nothing here fabricates a value to fill a
+ * gap.
  *
  * A metric is only ever reported next to the baseline it is compared against.
  * The metric itself makes no accuracy claim.
@@ -16,14 +16,6 @@ export interface Labelled {
   /** Observed outcome: 0 or 1. */
   y: number
   /** Optional sample weight. */
-  w?: number
-}
-
-export interface RegressionPoint {
-  predicted: number
-  actual: number
-  low?: number | null
-  high?: number | null
   w?: number
 }
 
@@ -159,47 +151,6 @@ export function calibrationError(rows: Labelled[], bins = 5): number | null {
   const total = curve.reduce((sum, bin) => sum + bin.weight, 0)
   if (total <= 0) return null
   return curve.reduce((sum, bin) => sum + (bin.weight / total) * Math.abs(bin.meanPredicted - bin.observed), 0)
-}
-
-/** Mean absolute error. */
-export function mae(points: RegressionPoint[]): number | null {
-  if (points.length === 0) return null
-  let weightSum = 0
-  let sum = 0
-  for (const point of points) {
-    const w = point.w ?? 1
-    sum += w * Math.abs(point.predicted - point.actual)
-    weightSum += w
-  }
-  return weightSum > 0 ? sum / weightSum : null
-}
-
-/** Root mean squared error. */
-export function rmse(points: RegressionPoint[]): number | null {
-  if (points.length === 0) return null
-  let weightSum = 0
-  let sum = 0
-  for (const point of points) {
-    const w = point.w ?? 1
-    sum += w * (point.predicted - point.actual) ** 2
-    weightSum += w
-  }
-  return weightSum > 0 ? Math.sqrt(sum / weightSum) : null
-}
-
-/** Share of points whose actual value fell inside the predicted interval. */
-export function intervalCoverage(points: RegressionPoint[]): number | null {
-  const usable = points.filter((point) => point.low !== null && point.low !== undefined && point.high !== null && point.high !== undefined)
-  if (usable.length === 0) return null
-  const covered = usable.filter((point) => point.actual >= point.low! && point.actual <= point.high!).length
-  return covered / usable.length
-}
-
-/** Mean interval width — narrow intervals that still cover are the goal. */
-export function intervalWidth(points: RegressionPoint[]): number | null {
-  const usable = points.filter((point) => point.low !== null && point.low !== undefined && point.high !== null && point.high !== undefined)
-  if (usable.length === 0) return null
-  return usable.reduce((sum, point) => sum + (point.high! - point.low!), 0) / usable.length
 }
 
 /** Pearson correlation between two equal-length series, or null. */

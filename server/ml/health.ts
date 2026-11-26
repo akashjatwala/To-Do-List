@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { championFor, type StoredModelRow } from './registry'
 import { MAX_ECE, type ModelKind } from './training'
-import { brier, calibrationError, mae, type Labelled, type RegressionPoint } from './metrics'
+import { brier, calibrationError, type Labelled } from './metrics'
 import { addDays } from './off-days'
 import { safeRun } from './logging'
 
@@ -33,16 +33,10 @@ export const HEALTH_WINDOW_DAYS = 28
 export const HEALTH_MIN_LABELLED = 12
 /** How much worse than the baseline the live model may be before falling back. */
 export const HEALTH_BRIER_MARGIN = 0.02
-/** The duration equivalent of the Brier margin, in minutes. */
-export const HEALTH_MAE_MARGIN = 1
 /** The calibration gate, shared with the promotion gate. */
 export const HEALTH_ECE_MAX = MAX_ECE
 /** The kinds that are actually served from a model and therefore watched. */
-export const HEALTH_KINDS: ModelKind[] = ['completion', 'target', 'duration']
-
-export function isClassifierKind(kind: ModelKind): boolean {
-  return kind === 'completion' || kind === 'target'
-}
+export const HEALTH_KINDS: ModelKind[] = ['completion']
 
 export interface ModelHealthRow {
   user_id: number
@@ -53,8 +47,6 @@ export interface ModelHealthRow {
   baseline_brier: number | null
   model_ece: number | null
   baseline_ece: number | null
-  model_mae: number | null
-  baseline_mae: number | null
   fallback: number
   reason: string | null
   evaluated_at: number
@@ -79,8 +71,6 @@ export interface HealthPredictionInput {
   modelVersion: string
   modelProbability?: number | null
   baselineProbability?: number | null
-  modelDuration?: number | null
-  baselineDuration?: number | null
 }
 
 /**
@@ -95,13 +85,11 @@ export function logHealthPrediction(
   input: HealthPredictionInput,
   now = Date.now(),
 ): void {
-  if (input.kind === 'timing') return
   db.prepare(
     `INSERT INTO ml_health_predictions
        (user_id, kind, local_date, task_id, model_version, model_probability,
-        baseline_probability, model_duration, baseline_duration, label, label_duration,
-        created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
+        baseline_probability, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, kind, local_date, task_id) DO NOTHING`,
   ).run(
     userId,
@@ -111,8 +99,6 @@ export function logHealthPrediction(
     input.modelVersion,
     input.modelProbability ?? null,
     input.baselineProbability ?? null,
-    input.modelDuration ?? null,
-    input.baselineDuration ?? null,
     now,
     now,
   )
@@ -133,8 +119,6 @@ export function logHealthPredictionSafe(
 
 export interface ObservedDay {
   performed: boolean | null
-  targetAchieved: boolean | null
-  totalMinutes: number
 }
 
 /**
@@ -160,24 +144,6 @@ export function labelHealthForDay(
       .run(observed.performed ? 1 : 0, now, userId, date, taskId)
     changes += Number(result.changes)
   }
-  if (observed.targetAchieved !== null) {
-    const result = db
-      .prepare(
-        `UPDATE ml_health_predictions SET label = ?, updated_at = ?
-         WHERE user_id = ? AND kind = 'target' AND local_date = ? AND task_id = ? AND label IS NULL`,
-      )
-      .run(observed.targetAchieved ? 1 : 0, now, userId, date, taskId)
-    changes += Number(result.changes)
-  }
-  if (observed.performed === true) {
-    const result = db
-      .prepare(
-        `UPDATE ml_health_predictions SET label_duration = ?, updated_at = ?
-         WHERE user_id = ? AND kind = 'duration' AND local_date = ? AND task_id = ? AND label_duration IS NULL`,
-      )
-      .run(observed.totalMinutes, now, userId, date, taskId)
-    changes += Number(result.changes)
-  }
   return changes
 }
 
@@ -191,12 +157,10 @@ export function labelHealthPredictions(
   outcome: 0 | 1,
   now = Date.now(),
 ): boolean {
-  if (kind === 'timing') return false
-  const column = kind === 'duration' ? 'label_duration' : 'label'
   const result = db
     .prepare(
-      `UPDATE ml_health_predictions SET ${column} = ?, updated_at = ?
-       WHERE user_id = ? AND kind = ? AND local_date = ? AND task_id = ? AND ${column} IS NULL`,
+      `UPDATE ml_health_predictions SET label = ?, updated_at = ?
+       WHERE user_id = ? AND kind = ? AND local_date = ? AND task_id = ? AND label IS NULL`,
     )
     .run(outcome, now, userId, kind, date, taskId)
   return Number(result.changes) > 0
@@ -218,10 +182,7 @@ interface HealthPredictionRow {
   model_version: string
   model_probability: number | null
   baseline_probability: number | null
-  model_duration: number | null
-  baseline_duration: number | null
   label: number | null
-  label_duration: number | null
 }
 
 function latestHealthDate(db: DatabaseSync, userId: number, kind: ModelKind): string | null {
@@ -241,8 +202,8 @@ function upsertHealth(db: DatabaseSync, row: ModelHealthRow, now: number): void 
   db.prepare(
     `INSERT INTO ml_health
        (user_id, kind, window_days, labelled_count, model_brier, baseline_brier,
-        model_ece, baseline_ece, model_mae, baseline_mae, fallback, reason, evaluated_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        model_ece, baseline_ece, fallback, reason, evaluated_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id, kind) DO UPDATE SET
        window_days = excluded.window_days,
        labelled_count = excluded.labelled_count,
@@ -250,8 +211,6 @@ function upsertHealth(db: DatabaseSync, row: ModelHealthRow, now: number): void 
        baseline_brier = excluded.baseline_brier,
        model_ece = excluded.model_ece,
        baseline_ece = excluded.baseline_ece,
-       model_mae = excluded.model_mae,
-       baseline_mae = excluded.baseline_mae,
        fallback = excluded.fallback,
        reason = excluded.reason,
        evaluated_at = excluded.evaluated_at,
@@ -265,8 +224,6 @@ function upsertHealth(db: DatabaseSync, row: ModelHealthRow, now: number): void 
     row.baseline_brier,
     row.model_ece,
     row.baseline_ece,
-    row.model_mae,
-    row.baseline_mae,
     row.fallback,
     row.reason,
     row.evaluated_at,
@@ -284,8 +241,6 @@ function emptyHealth(userId: number, kind: ModelKind, windowDays: number, now: n
     baseline_brier: null,
     model_ece: null,
     baseline_ece: null,
-    model_mae: null,
-    baseline_mae: null,
     fallback: 0,
     reason: null,
     evaluated_at: now,
@@ -311,7 +266,7 @@ export function evaluateModelHealth(
   const minLabelled = options.minLabelled ?? HEALTH_MIN_LABELLED
   const previous = readHealth(db, userId, kind)
 
-  const champion = kind === 'timing' ? undefined : championFor(db, userId, kind)
+  const champion = championFor(db, userId, kind)
   if (!champion) {
     const row: ModelHealthRow = {
       ...emptyHealth(userId, kind, windowDays, now),
@@ -325,8 +280,7 @@ export function evaluateModelHealth(
   const windowStart = addDays(today, -(windowDays - 1))
   const rows = db
     .prepare(
-      `SELECT model_version, model_probability, baseline_probability,
-              model_duration, baseline_duration, label, label_duration
+      `SELECT model_version, model_probability, baseline_probability, label
        FROM ml_health_predictions
        WHERE user_id = ? AND kind = ? AND model_version = ? AND local_date >= ? AND local_date <= ?`,
     )
@@ -334,33 +288,19 @@ export function evaluateModelHealth(
 
   const row = emptyHealth(userId, kind, windowDays, now)
 
-  if (isClassifierKind(kind)) {
-    const model: Labelled[] = []
-    const baseline: Labelled[] = []
-    for (const item of rows) {
-      if (item.label === null || item.model_probability === null || item.baseline_probability === null) continue
-      if (!Number.isFinite(item.model_probability) || !Number.isFinite(item.baseline_probability)) continue
-      model.push({ p: item.model_probability, y: item.label })
-      baseline.push({ p: item.baseline_probability, y: item.label })
-    }
-    row.labelled_count = model.length
-    row.model_brier = brier(model)
-    row.baseline_brier = brier(baseline)
-    row.model_ece = calibrationError(model)
-    row.baseline_ece = calibrationError(baseline)
-  } else {
-    const model: RegressionPoint[] = []
-    const baseline: RegressionPoint[] = []
-    for (const item of rows) {
-      if (item.label_duration === null || item.model_duration === null || item.baseline_duration === null) continue
-      if (!Number.isFinite(item.model_duration) || !Number.isFinite(item.baseline_duration)) continue
-      model.push({ predicted: item.model_duration, actual: item.label_duration })
-      baseline.push({ predicted: item.baseline_duration, actual: item.label_duration })
-    }
-    row.labelled_count = model.length
-    row.model_mae = mae(model)
-    row.baseline_mae = mae(baseline)
+  const model: Labelled[] = []
+  const baseline: Labelled[] = []
+  for (const item of rows) {
+    if (item.label === null || item.model_probability === null || item.baseline_probability === null) continue
+    if (!Number.isFinite(item.model_probability) || !Number.isFinite(item.baseline_probability)) continue
+    model.push({ p: item.model_probability, y: item.label })
+    baseline.push({ p: item.baseline_probability, y: item.label })
   }
+  row.labelled_count = model.length
+  row.model_brier = brier(model)
+  row.baseline_brier = brier(baseline)
+  row.model_ece = calibrationError(model)
+  row.baseline_ece = calibrationError(baseline)
 
   const { fallback, reason } = decideFallback(row, previous, windowDays, minLabelled)
   row.fallback = fallback ? 1 : 0
@@ -382,23 +322,6 @@ function decideFallback(
       reason: held
         ? `The model is still on the baseline: only ${row.labelled_count} labelled day(s) in the last ${windowDays}, which is too few to re-judge it.`
         : `Only ${row.labelled_count} labelled day(s) in the last ${windowDays}; that is too few to judge the model, so nothing changes.`,
-    }
-  }
-
-  if (row.kind === 'duration') {
-    const worse = row.model_mae !== null && row.baseline_mae !== null && row.model_mae > row.baseline_mae + HEALTH_MAE_MARGIN
-    if (worse) {
-      return {
-        fallback: true,
-        reason: `The served model's average duration error (${row.model_mae!.toFixed(1)} min) is worse than the baseline's (${row.baseline_mae!.toFixed(1)} min) over the last ${windowDays} days, so the baseline is used for now.`,
-      }
-    }
-    if (held) {
-      return { fallback: true, reason: heldReason(windowDays) }
-    }
-    return {
-      fallback: false,
-      reason: `The served model's duration error is within the baseline's over the last ${windowDays} days.`,
     }
   }
 
@@ -462,8 +385,6 @@ export interface ModelHealthEntry {
   baselineBrier: number | null
   modelEce: number | null
   baselineEce: number | null
-  modelMae: number | null
-  baselineMae: number | null
   lastTrainedAt: number | null
   lastTrainedLabelled: number | null
   lastRetrainAt: number | null
@@ -527,8 +448,6 @@ export function modelHealthView(db: DatabaseSync, userId: number, now = Date.now
       baselineBrier: health?.baseline_brier ?? null,
       modelEce: health?.model_ece ?? null,
       baselineEce: health?.baseline_ece ?? null,
-      modelMae: health?.model_mae ?? null,
-      baselineMae: health?.baseline_mae ?? null,
       lastTrainedAt: state?.at ?? null,
       lastTrainedLabelled: state?.labelled ?? null,
       lastRetrainAt: log?.at ?? null,

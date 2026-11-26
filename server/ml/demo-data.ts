@@ -15,7 +15,7 @@ import {
 } from '../checkins-store'
 import { applyOffDayTaskMoves } from '../off-day-task-moves'
 import { skipTaskDate, type SkippableTaskRow } from '../task-skip-events'
-import { addDays, createOffDay, getPredictionSettings, type OffDayKind } from './off-days'
+import { addDays, diffDays, createOffDay, getPredictionSettings, type OffDayKind } from './off-days'
 import { configForDate, configTagIds, recordTaskConfig, type TaskLike } from './task-config'
 import { syncTaskTags } from './tags'
 import { createSession } from './sessions'
@@ -24,9 +24,9 @@ import { recordActivityOutcome } from './learning'
 import { epochAtMinute, predictTask, type PredictContext } from './predictors'
 import { groupStatistics, userCompletionPrior, userTaskIds } from './statistics'
 import { buildTrainingSet } from './dataset'
-import { predictClassifier, predictDuration, type ClassifierArtifact } from './training'
+import { predictClassifier, type ClassifierArtifact } from './training'
 import { trainUserModels } from './pipeline'
-import { brier, calibrationError, confusion, mae, rocAuc, type Labelled } from './metrics'
+import { brier, calibrationError, confusion, rocAuc, type Labelled } from './metrics'
 import { promoteCandidate } from './registry'
 
 /**
@@ -44,14 +44,35 @@ export const DEMO_EMAIL = 'ml-demo@example.com'
 export const DEMO_PASSWORD = 'demo12345'
 export const DEMO_NAME = 'ML Demo'
 
+export interface EvaluationWindow {
+  /** First day used to train the completion model. */
+  trainFrom: string
+  /** Last day used to train the completion model. */
+  trainTo: string
+  /** First day scored in the test window. */
+  testFrom: string
+  /** Last day scored in the test window. */
+  testTo: string
+}
+
 export interface DemoDataOptions {
-  /** Number of complete days to generate, ending yesterday. */
+  /** Number of complete days to generate, ending at `through` or yesterday. */
   days?: number
-  /** Final days kept completely out of training for the backtest. */
+  /** Explicit first generated date; overrides `days` for the start. */
+  from?: string
+  /** Final days kept completely out of training for the default backtest. */
   holdoutDays?: number
+  /** Explicit train/test window; overrides `holdoutDays` for evaluation. */
+  windows?: EvaluationWindow
   seed?: number
-  /** Local date string; defaults to today. Generated data ends the day before. */
+  /** Local date string; defaults to today. Used for the live board and check-in. */
   today?: string
+  /**
+   * Inclusive final generated date. Defaults to the day before `today`. Setting
+   * it to a future date generates synthetic future outcomes for a forward test;
+   * they are not observed facts.
+   */
+  through?: string
   email?: string
   name?: string
 }
@@ -63,6 +84,8 @@ export interface DemoDataResult {
   to: string
   today: string
   holdoutFrom: string
+  /** Explicit evaluation window, when the caller supplied one. */
+  windows?: EvaluationWindow
   taskIds: string[]
   counts: {
     tasks: number
@@ -273,19 +296,40 @@ function seedScheduleExamples(db: DatabaseSync, userId: number, today: string): 
   }
 }
 
+function defaultWindows(result: Pick<DemoDataResult, 'from' | 'holdoutFrom' | 'to'>): EvaluationWindow {
+  return {
+    trainFrom: result.from,
+    trainTo: addDays(result.holdoutFrom, -1),
+    testFrom: result.holdoutFrom,
+    testTo: result.to,
+  }
+}
+
+export function evaluationWindows(result: Pick<DemoDataResult, 'from' | 'holdoutFrom' | 'to' | 'windows'>): EvaluationWindow {
+  const windows = result.windows ?? defaultWindows(result)
+  for (const date of [windows.trainFrom, windows.trainTo, windows.testFrom, windows.testTo]) {
+    if (date < result.from || date > result.to) throw new Error(`Evaluation window date ${date} is outside the generated history.`)
+  }
+  if (windows.trainFrom > windows.trainTo) throw new Error('The training window is inverted.')
+  if (windows.trainTo >= windows.testFrom) throw new Error('The test window must start after training ends.')
+  if (windows.testFrom > windows.testTo) throw new Error('The test window is inverted.')
+  return windows
+}
+
 /** Fill an existing demo user's history. Existing rows for that user are removed first. */
 export function generateDemoHistory(db: DatabaseSync, userId: number, options: DemoDataOptions = {}): DemoDataResult {
-  const days = options.days ?? 150
-  const holdoutDays = options.holdoutDays ?? 30
-  if (days < 20) throw new Error('At least 20 days are needed to generate demo data.')
-  if (holdoutDays < 1 || holdoutDays >= days - 10) {
-    throw new Error('The holdout must leave at least 10 training days.')
-  }
+  const holdoutDays = options.holdoutDays ?? 60
   const rng = randomFrom(options.seed ?? 20261124)
   const today = options.today ?? localDateString()
-  const from = addDays(today, -days)
-  const to = addDays(today, -1)
-  const holdoutFrom = addDays(to, -(holdoutDays - 1))
+  const to = options.through ?? addDays(today, -1)
+  const from = options.from ?? (options.through ? addDays(to, -((options.days ?? 365) - 1)) : addDays(today, -(options.days ?? 365)))
+  const days = diffDays(from, to) + 1
+  if (days < 20) throw new Error('At least 20 days are needed to generate demo data.')
+  if (!options.windows && (holdoutDays < 1 || holdoutDays >= days - 10)) {
+    throw new Error('The holdout must leave at least 10 training days.')
+  }
+  const holdoutFrom = options.windows ? options.windows.testFrom : addDays(to, -(holdoutDays - 1))
+  if (options.windows) evaluationWindows({ from, holdoutFrom, to, windows: options.windows })
 
   // The demo user is recreated, so clearing its own generated tables is safe.
   for (const table of [
@@ -444,11 +488,11 @@ export function generateDemoHistory(db: DatabaseSync, userId: number, options: D
     configVersions: (db.prepare('SELECT COUNT(*) AS n FROM task_configs WHERE user_id = ?').get(userId) as unknown as { n: number }).n,
     outcomeLinks: (db.prepare('SELECT COUNT(*) AS n FROM activity_outcome_links WHERE user_id = ?').get(userId) as unknown as { n: number }).n,
   }
-  return { userId, email: options.email ?? DEMO_EMAIL, from, to, today, holdoutFrom, taskIds, counts }
+  return { userId, email: options.email ?? DEMO_EMAIL, from, to, today, holdoutFrom, windows: options.windows, taskIds, counts }
 }
 
 export interface ClassifierBacktest {
-  kind: 'completion' | 'target'
+  kind: 'completion'
   modelType: string
   n: number
   modelBrier: number | null
@@ -457,13 +501,6 @@ export interface ClassifierBacktest {
   modelAuc: number | null
   modelAccuracy: number | null
   baselineAccuracy: number | null
-}
-
-export interface DurationBacktest {
-  modelType: string
-  n: number
-  modelMae: number | null
-  baselineMae: number | null
 }
 
 export interface BacktestReport {
@@ -475,8 +512,6 @@ export interface BacktestReport {
   compact: boolean
   predictionMinutes: number[]
   completion: ClassifierBacktest
-  target: ClassifierBacktest
-  duration: DurationBacktest
 }
 
 function contextFor(
@@ -511,7 +546,6 @@ function classifierBacktest(
   rows: ReturnType<typeof buildTrainingSet>['rows'],
   label: (row: (typeof rows)[number]) => number | null,
   baselineProbability: (row: (typeof rows)[number]) => number | null,
-  kind: 'completion' | 'target',
 ): ClassifierBacktest {
   const model: Labelled[] = []
   const baseline: Labelled[] = []
@@ -524,7 +558,7 @@ function classifierBacktest(
     baseline.push({ ...entry, p })
   }
   return {
-    kind,
+    kind: 'completion',
     modelType: artifact.type,
     n: model.length,
     modelBrier: brier(model),
@@ -536,23 +570,23 @@ function classifierBacktest(
   }
 }
 
-/** Train before the holdout and score the later days without ever training on them. */
+/** Train on the training window and score the later test window without training on it. */
 export function backtestDemoData(db: DatabaseSync, userId: number, result: DemoDataResult): BacktestReport {
   const taskIds = userTaskIds(db, userId)
-  const trainTo = addDays(result.holdoutFrom, -1)
+  const windows = evaluationWindows(result)
   const today = result.today
   const training = trainUserModels(db, userId, {
     taskIds,
-    from: result.from,
-    to: trainTo,
-    today: addDays(trainTo, 1),
+    from: windows.trainFrom,
+    to: windows.trainTo,
+    today: addDays(windows.trainTo, 1),
     register: false,
     version: 'demo-backtest',
     seed: 20261124,
   })
 
   const predictionMinutes = training.completion.predictionMinutes
-  const holdout = buildTrainingSet(db, userId, taskIds, result.holdoutFrom, result.to, today, {
+  const holdout = buildTrainingSet(db, userId, taskIds, windows.testFrom, windows.testTo, today, {
     vocabulary: training.vocabulary,
     predictionMinutes,
   })
@@ -570,56 +604,30 @@ export function backtestDemoData(db: DatabaseSync, userId: number, result: DemoD
     holdout.rows,
     (row) => row.completionLabel,
     (row) => contextForRow(row) ? predictTask(db, userId, row.taskId, contextForRow(row)!)?.completionProbability ?? null : null,
-    'completion',
   )
-  const target = classifierBacktest(
-    training.target,
-    holdout.rows,
-    (row) => row.targetLabel,
-    (row) => contextForRow(row) ? predictTask(db, userId, row.taskId, contextForRow(row)!)?.targetProbability ?? null : null,
-    'target',
-  )
-
-  const modelPoints: Array<{ predicted: number; actual: number; w: number }> = []
-  const baselinePoints: Array<{ predicted: number; actual: number; w: number }> = []
-  for (const row of holdout.rows) {
-    if (row.duration === null) continue
-    const context = contextForRow(row)
-    const prediction = context ? predictTask(db, userId, row.taskId, context) : null
-    if (!prediction?.expectedDuration) continue
-    const estimate = predictDuration(training.duration, row.features)
-    modelPoints.push({ predicted: estimate.point, actual: row.duration, w: row.weight })
-    baselinePoints.push({ predicted: prediction.expectedDuration, actual: row.duration, w: row.weight })
-  }
 
   return {
-    trainFrom: result.from,
-    trainTo,
-    holdoutFrom: result.holdoutFrom,
-    holdoutTo: result.to,
+    trainFrom: windows.trainFrom,
+    trainTo: windows.trainTo,
+    holdoutFrom: windows.testFrom,
+    holdoutTo: windows.testTo,
     featureCount: training.featureNames.length,
     compact: training.vocabulary.compact === true,
     predictionMinutes,
     completion,
-    target,
-    duration: {
-      modelType: training.duration.type,
-      n: modelPoints.length,
-      modelMae: mae(modelPoints),
-      baselineMae: mae(baselinePoints),
-    },
   }
 }
 
-/** Train on every generated day and promote what clears the normal gates. */
+/** Train on the training window and promote what clears the normal gates. */
 export function trainDemoChampions(db: DatabaseSync, userId: number, result: DemoDataResult): string[] {
+  const windows = evaluationWindows(result)
   const trained = trainUserModels(db, userId, {
     taskIds: result.taskIds,
-    from: result.from,
-    to: result.to,
-    today: result.today,
+    from: windows.trainFrom,
+    to: windows.trainTo,
+    today: addDays(windows.trainTo, 1),
     register: true,
-    version: `demo-full-${result.to}`,
+    version: `demo-full-${windows.trainTo}`,
     seed: 20261124,
   })
   const notes: string[] = []
@@ -635,8 +643,11 @@ interface ParsedArgs {
   target: 'isolated' | 'app'
   dbPath?: string
   days: number
+  from?: string
   holdout: number
   seed: number
+  through?: string
+  windows?: EvaluationWindow
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -646,12 +657,32 @@ function parseArgs(argv: string[]): ParsedArgs {
   }
   const target = value('target', 'isolated')
   if (target !== 'isolated' && target !== 'app') throw new Error('--target must be isolated or app.')
+  const date = (name: string): string | undefined => {
+    const raw = value(name)
+    if (raw && !/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new Error(`--${name} must be a YYYY-MM-DD date.`)
+    return raw
+  }
+  const from = date('from')
+  const through = date('through')
+  const windowParts = {
+    trainFrom: date('train-from'),
+    trainTo: date('train-to'),
+    testFrom: date('test-from'),
+    testTo: date('test-to'),
+  }
+  const supplied = Object.values(windowParts).filter(Boolean).length
+  if (supplied > 0 && supplied < 4) {
+    throw new Error('Explicit windows require all four of --train-from, --train-to, --test-from and --test-to.')
+  }
   return {
     target,
     dbPath: value('db'),
-    days: Number(value('days', '150')),
-    holdout: Number(value('holdout', '30')),
+    days: Number(value('days', '365')),
+    from,
+    holdout: Number(value('holdout', '60')),
     seed: Number(value('seed', '20261124')),
+    through,
+    windows: supplied === 4 ? (windowParts as EvaluationWindow) : undefined,
   }
 }
 
@@ -679,22 +710,26 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   const userId = createDemoUser(db)
   const result = generateDemoHistory(db, userId, {
     days: args.days,
+    from: args.from,
     holdoutDays: args.holdout,
     seed: args.seed,
+    through: args.through,
+    windows: args.windows,
   })
   const report = backtestDemoData(db, userId, result)
   const promotions = trainDemoChampions(db, userId, result)
 
   console.log(`Target: ${args.target}`)
   console.log(`Demo user: ${result.email} / ${DEMO_PASSWORD}`)
-  console.log(`History: ${result.from} → ${result.to} (${args.days} days), holdout ${result.holdoutFrom} → ${result.to}`)
+  console.log(`History: ${result.from} → ${result.to} (${diffDays(result.from, result.to) + 1} days)`)
+  console.log(`Train: ${report.trainFrom} → ${report.trainTo}; Test: ${report.holdoutFrom} → ${report.holdoutTo}`)
+  if (args.windows) console.log('Explicit train/test window in use; generated days outside both windows are unused by evaluation.')
+  else if (args.through) console.log(`Forward check: trained through ${report.trainTo}, scored on synthetic outcomes through ${result.to}`)
   console.log(`Written: ${result.counts.tasks} tasks, ${result.counts.sessions} sessions (${result.counts.lateSessions} late), ${result.counts.statuses} statuses, ${result.counts.checkins} check-ins, ${result.counts.offDays} off periods, ${result.counts.skipEvents} skips`)
   console.log(`Features: ${report.featureCount} columns, compact=${report.compact}, grid=${report.predictionMinutes.join('/')}`)
   console.log('')
-  console.log('Synthetic chronological holdout (lower Brier/MAE is better):')
-  console.log(`  completion: n=${report.completion.n}, model Brier ${format(report.completion.modelBrier)} vs baseline ${format(report.completion.baselineBrier)}, ECE ${format(report.completion.modelEce)}, AUC ${format(report.completion.modelAuc)}, accuracy ${format(report.completion.modelAccuracy)} vs ${format(report.completion.baselineAccuracy)}`)
-  console.log(`  target:     n=${report.target.n}, model Brier ${format(report.target.modelBrier)} vs baseline ${format(report.target.baselineBrier)}, ECE ${format(report.target.modelEce)}, AUC ${format(report.target.modelAuc)}, accuracy ${format(report.target.modelAccuracy)} vs ${format(report.target.baselineAccuracy)}`)
-  console.log(`  duration:   n=${report.duration.n}, model MAE ${format(report.duration.modelMae, 1)} vs baseline ${format(report.duration.baselineMae, 1)} minutes`)
+  console.log('Synthetic chronological holdout (lower Brier is better):')
+  console.log(`  completion (${report.completion.modelType}): n=${report.completion.n}, model Brier ${format(report.completion.modelBrier)} vs baseline ${format(report.completion.baselineBrier)}, ECE ${format(report.completion.modelEce)}, AUC ${format(report.completion.modelAuc)}, accuracy ${format(report.completion.modelAccuracy)} vs ${format(report.completion.baselineAccuracy)}`)
   console.log('')
   console.log('Demo champions:')
   for (const note of promotions) console.log(`  ${note}`)

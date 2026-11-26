@@ -37,10 +37,10 @@ export const RETRAIN_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000
 /** A model older than this also triggers a retrain, even without new labels. */
 export const RETRAIN_MAX_STALENESS_DAYS = 30
 /**
- * The kinds that have a served model and therefore a retrain gate. `timing` has
- * no registered model (it is a profile, not a model), so it is never gated here.
+ * The kinds that have a served model and therefore a retrain gate. Only the
+ * completion classifier is trained; `timing` is a profile, not a model.
  */
-export const RETRAIN_KINDS: ModelKind[] = ['completion', 'target', 'duration']
+export const RETRAIN_KINDS: ModelKind[] = ['completion']
 
 export interface OutcomeLinkRow {
   user_id: number
@@ -112,8 +112,6 @@ export function recordActivityOutcome(
   // NULL label; a prediction is never written back as an outcome.
   labelHealthForDay(db, userId, date, taskId, {
     performed: day.performed,
-    targetAchieved: day.targetAchieved,
-    totalMinutes: day.totalMinutes,
   }, now)
 }
 
@@ -262,23 +260,18 @@ export function retrainStatus(db: DatabaseSync, userId: number, options: Retrain
     }))
   }
   const set = buildTrainingSet(db, userId, userTaskIds(db, userId), '1970-01-01', today, today)
-  const counts: Record<'completion' | 'target' | 'duration', number> = {
-    completion: set.labelledCount,
-    target: set.targetCount,
-    duration: set.durationCount,
-  }
   return RETRAIN_KINDS.map((kind) => {
-    const decision = shouldRetrain(db, userId, kind, counts[kind as 'completion' | 'target' | 'duration'], {
+    const decision = shouldRetrain(db, userId, kind, set.labelledCount, {
       minNewLabelled: options.minNewLabelled,
       maxDays: options.maxDays ?? RETRAIN_MAX_STALENESS_DAYS,
     })
-    return { kind, should: decision.should, reason: decision.reason, newLabelled: decision.newLabelled, currentLabelled: counts[kind as 'completion' | 'target' | 'duration'] }
+    return { kind, should: decision.should, reason: decision.reason, newLabelled: decision.newLabelled, currentLabelled: set.labelledCount }
   })
 }
 
 /**
- * Retrain the user's models when the gate says so and the rate limit allows it,
- * then run the ordinary promotion gate. Returns what happened either way.
+ * Retrain the user's completion model when the gate says so and the rate limit
+ * allows it, then run the ordinary promotion gate. Returns what happened.
  */
 export function maybeRetrain(db: DatabaseSync, userId: number, options: RetrainOptions = {}): RetrainOutcome {
   const now = options.now ?? Date.now()
@@ -286,7 +279,7 @@ export function maybeRetrain(db: DatabaseSync, userId: number, options: RetrainO
   const due = decisions.filter((row) => row.should)
 
   if (due.length === 0) {
-    return { ran: false, reason: 'No retrain is due: the labelled data has not grown enough and the models are not stale.', decisions, promoted: [], version: null }
+    return { ran: false, reason: 'No retrain is due: the labelled data has not grown enough and the model is not stale.', decisions, promoted: [], version: null }
   }
 
   const interval = options.minIntervalMs ?? RETRAIN_MIN_INTERVAL_MS
@@ -306,7 +299,7 @@ export function maybeRetrain(db: DatabaseSync, userId: number, options: RetrainO
 
   if (!result) {
     for (const row of due) {
-      logRetrain(db, userId, row.kind, 'threshold', row.newLabelled, false, false, 'The training run failed; the previous models are kept.', now)
+      logRetrain(db, userId, row.kind, 'threshold', row.newLabelled, false, false, 'The training run failed; the previous model is kept.', now)
     }
     return { ran: false, reason: 'The retrain failed and was logged; the previous models are still served.', decisions, promoted: [], version: null }
   }
@@ -316,7 +309,7 @@ export function maybeRetrain(db: DatabaseSync, userId: number, options: RetrainO
     if (candidate.id === null) continue
     const decision = promoteCandidate(db, userId, candidate.id)
     promoted.push({ kind: candidate.kind, ok: decision.ok, reason: decision.reason })
-    logRetrain(db, userId, candidate.kind, 'threshold', candidate.kind === 'duration' ? result.durationCount : result.labelledCount, true, decision.ok, decision.reason, now)
+    logRetrain(db, userId, candidate.kind, 'threshold', result.labelledCount, true, decision.ok, decision.reason, now)
   }
 
   // A successful retrain clears any health fallback so the fresh model gets a
@@ -346,7 +339,7 @@ function logRetrain(
 }
 
 /**
- * Re-evaluate the rolling health for a user's live models. Called after a
+ * Re-evaluate the rolling health for a user's live model. Called after a
  * retrain and on demand from the health view.
  */
 export function refreshHealth(db: DatabaseSync, userId: number, now = Date.now()): void {

@@ -50,15 +50,13 @@ export interface StoredModelRow {
 
 /** The metadata recorded with every model. */
 export interface RegistryMetrics {
-  /** The candidate type actually chosen ('baseline' | 'logistic' | 'gbm' | 'median' | 'quantile' | ...). */
+  /** The candidate type actually chosen ('baseline' | 'logistic' | 'gbm'). */
   type: string
   n?: number
   brier?: number | null
   ece?: number | null
   rocAuc?: number | null
   baselineBrier?: number | null
-  mae?: number | null
-  baselineMae?: number | null
 }
 
 export interface RegisterModelInput {
@@ -79,14 +77,6 @@ export interface RegisterModelInput {
 
 /** Extract the small, comparable metric set the promotion gate reads. */
 export function metricsFromArtifact(artifact: ModelArtifact): RegistryMetrics {
-  if (artifact.kind === 'duration') {
-    return {
-      type: artifact.type,
-      n: artifact.metrics.n,
-      mae: artifact.metrics.mae,
-      baselineMae: artifact.metrics.baselineMae,
-    }
-  }
   return {
     type: artifact.type,
     n: artifact.metrics.validation.n,
@@ -171,17 +161,8 @@ export interface PromotionDecision {
 }
 
 function beatsBaseline(metrics: RegistryMetrics): { ok: boolean; detail: string } {
-  if (metrics.type === 'baseline' || metrics.type === 'median') {
+  if (metrics.type === 'baseline') {
     return { ok: false, detail: 'the candidate is itself the baseline, so there is nothing to promote' }
-  }
-  if (metrics.type === 'quantile') {
-    if (metrics.mae === null || metrics.mae === undefined) return { ok: false, detail: 'the duration model has no validation MAE' }
-    if (metrics.baselineMae === null || metrics.baselineMae === undefined) {
-      return { ok: false, detail: 'there is no baseline MAE to compare against' }
-    }
-    return metrics.mae < metrics.baselineMae
-      ? { ok: true, detail: `MAE ${metrics.mae.toFixed(1)} beats the median baseline ${metrics.baselineMae.toFixed(1)}` }
-      : { ok: false, detail: `MAE ${metrics.mae.toFixed(1)} does not beat the median baseline ${metrics.baselineMae.toFixed(1)}` }
   }
   if (metrics.brier === null || metrics.brier === undefined) return { ok: false, detail: 'the candidate has no validation Brier score' }
   if (metrics.baselineBrier === null || metrics.baselineBrier === undefined) {
@@ -193,14 +174,6 @@ function beatsBaseline(metrics: RegistryMetrics): { ok: boolean; detail: string 
 }
 
 function beatsChampion(candidate: RegistryMetrics, champion: RegistryMetrics): { ok: boolean; detail: string } {
-  if (candidate.type === 'quantile') {
-    if (champion.type === 'quantile' && champion.mae !== null && champion.mae !== undefined && candidate.mae !== null && candidate.mae !== undefined) {
-      return candidate.mae < champion.mae
-        ? { ok: true, detail: `MAE ${candidate.mae.toFixed(1)} beats the current model ${champion.mae.toFixed(1)}` }
-        : { ok: false, detail: `MAE ${candidate.mae.toFixed(1)} does not beat the current model ${champion.mae.toFixed(1)}` }
-    }
-    return { ok: true, detail: 'the current model has no comparable duration metric' }
-  }
   if (champion.brier !== null && champion.brier !== undefined && candidate.brier !== null && candidate.brier !== undefined) {
     return candidate.brier < champion.brier
       ? { ok: true, detail: `Brier ${candidate.brier.toFixed(3)} beats the current model ${champion.brier.toFixed(3)}` }

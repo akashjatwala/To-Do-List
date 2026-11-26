@@ -123,7 +123,7 @@ function champion(db: DatabaseSync, taskId: string, from: string, to: string, to
   dates.forEach((date, i) => setStatus(db, taskId, date, i % 3 === 0 ? 'skipped' : 'completed'))
   addSession(db, taskId, dates[1], 45, 9)
   const set = buildTrainingSet(db, USER, [taskId], from, to, today)
-  const artifact = trainClassifier(set, 'completion')
+  const artifact = trainClassifier(set)
   const model = registerModel(db, USER, {
     kind: 'completion',
     version: 'v1',

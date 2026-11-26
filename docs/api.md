@@ -112,7 +112,7 @@ Sensitive check-in answers are optional; `null` is kept as missing.
 | `GET` / `POST` | `/api/tags` | List or create user-scoped tags. |
 | `PATCH` / `DELETE` | `/api/tags/:id` | Rename or retire a tag. |
 | `GET` | `/api/tags/:id` | Read one tag. |
-| `GET` | `/api/task-configs/:taskId` | Versioned per-task ML configuration. |
+| `GET` | `/api/task-configs/:taskId` | Versioned per-task configuration (target duration, preferred time). |
 | `GET` / `POST` | `/api/context-questions` | Context questions added by the user. |
 | `DELETE` | `/api/context-questions/:id` | Remove a context question. |
 | `GET` / `PUT` | `/api/state` | Read-only daily state layer. |
@@ -124,7 +124,7 @@ Sensitive check-in answers are optional; `null` is kept as missing.
 | `PATCH` / `DELETE` | `/api/off-days/:id` | Edit or remove an off day. Task moves are recalculated from the dates still marked off. |
 | `GET` / `PUT` | `/api/off-days/settings` | Off-day defaults. |
 
-## Predictions and model health
+## Predictions and completion model health
 
 | Method | Route | Notes |
 | --- | --- | --- |
@@ -133,12 +133,14 @@ Sensitive check-in answers are optional; `null` is kept as missing.
 | `GET` | `/api/predictions/history?date=…` | Logged predictions for a date. |
 | `POST` | `/api/predictions/feedback` | Feedback trail; never an outcome label. |
 | `GET` | `/api/predictions/statistics` | Grouped statistics for the current user. |
-| `GET` | `/api/ml/health` | Active models, fallback state and labelled-day counts. |
+| `GET` | `/api/ml/health` | Completion champion state, fallback state and labelled-day counts. |
 | `GET` | `/api/ml/drift` | Recent-vs-long-term drift and dated configuration changes. |
-| `POST` | `/api/ml/retrain` | Retrain when the gate allows it; `{"force": true}` bypasses the rate limit. |
+| `POST` | `/api/ml/retrain` | Retrain the completion model when the gate allows it; `{"force": true}` bypasses the rate limit. |
 
 Prediction routes are personal-only: team tasks are excluded. The UI text for a completion
-prediction is `Chance you'll work on it today`.
+prediction is `Chance you'll work on it today`. The completion probability comes from the
+completion champion when healthy, otherwise from the baseline; target probability and expected
+duration are baseline/statistical estimates, not trained models.
 
 See [ml.md](ml.md) for model behaviour and [operations.md](operations.md) for rollback and
 maintenance procedures.
