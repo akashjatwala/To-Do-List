@@ -51,21 +51,21 @@ function main() {
 
     const personal = randomUUID()
     db.prepare(
-      `INSERT INTO tasks (id, user_id, team_id, text, created_at, due, priority, tags, duration, preferred_time)
-       VALUES (?, ?, NULL, ?, ?, ?, 'high', ?, 30, '09:00')`,
+      `INSERT INTO tasks (id, user_id, team_id, text, created_at, due, priority, tags, duration)
+       VALUES (?, ?, NULL, ?, ?, ?, 'high', ?, 30)`,
     ).run(personal, leadId, 'Write the QA checklist', now, todayAt(9), JSON.stringify(['qa']))
 
     const sharedTasks = [
-      ['Review the release notes', 'high', 15, 0, 60, '15:00', ['release'], true],
-      ['Draft launch checklist', 'medium', 11, 30, 45, '11:30', ['launch'], false],
-      ['Update API docs', 'low', 16, 30, 30, '16:30', ['docs'], false],
+      ['Review the release notes', 'high', 15, 0, 60, ['release'], true],
+      ['Draft launch checklist', 'medium', 11, 30, 45, ['launch'], false],
+      ['Update API docs', 'low', 16, 30, 30, ['docs'], false],
     ] as const
     let shared = ''
-    for (const [text, priority, hour, minute, duration, preferred, tags, assignMate] of sharedTasks) {
+    for (const [text, priority, hour, minute, duration, tags, assignMate] of sharedTasks) {
       const id = randomUUID()
       db.prepare(
-        `INSERT INTO tasks (id, user_id, team_id, text, created_at, due, priority, tags, duration, preferred_time)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tasks (id, user_id, team_id, text, created_at, due, priority, tags, duration)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         leadId,
@@ -76,7 +76,6 @@ function main() {
         priority,
         JSON.stringify(tags),
         duration,
-        preferred,
       )
       if (assignMate) {
         db.prepare(

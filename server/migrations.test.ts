@@ -26,8 +26,7 @@ function legacyTagDb(): DatabaseSync {
       tags TEXT NOT NULL DEFAULT '[]',
       recurrence TEXT NOT NULL DEFAULT 'none',
       duration INTEGER,
-      recurrence_config TEXT,
-      preferred_time TEXT
+      recurrence_config TEXT
     )
   `)
   db.exec("INSERT INTO tasks (id, user_id, text, created_at, tags) VALUES ('t1', 1, 'Draft', 10, '[\"design\",\"design\"]')")
@@ -197,5 +196,59 @@ test('legacy target and duration ML rows are removed; completion rows are kept',
       `${table} should only contain completion rows`,
     )
   }
+  db.close()
+})
+
+test('migration 22 drops legacy preferred-time columns but keeps task and config rows', () => {
+  const db = new DatabaseSync(':memory:')
+  db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT)')
+  db.exec("INSERT INTO users (id, email) VALUES (1, 'me@example.com')")
+  db.exec(`
+    CREATE TABLE tasks (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      text TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      duration INTEGER,
+      preferred_time TEXT
+    );
+  `)
+  createFoundationSchema(db)
+  db.exec('ALTER TABLE task_configs ADD COLUMN preferred_time TEXT')
+  db.prepare('INSERT INTO tasks (id, user_id, text, created_at, duration, preferred_time) VALUES (?, ?, ?, ?, ?, ?)')
+    .run('t1', 1, 'Read', 10, 30, '09:00')
+  db.prepare(
+    `INSERT INTO task_configs
+       (task_id, user_id, version, effective_from, name, active, created_at, preferred_time)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run('t1', 1, 1, 10, 'Read', 1, 10, '09:00')
+  db.exec(`
+    CREATE TABLE schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at INTEGER NOT NULL
+    );
+  `)
+  const baseline = db.prepare(
+    'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
+  )
+  for (let version = 1; version <= 21; version += 1) baseline.run(version, 'baseline', 10)
+
+  runMigrations(db)
+
+  for (const table of ['tasks', 'task_configs']) {
+    const columns = (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((row) => row.name)
+    assert.ok(!columns.includes('preferred_time'), `${table} should no longer have preferred_time`)
+  }
+  const keptTask = db.prepare('SELECT id, text, duration FROM tasks WHERE id = ?').get('t1') as unknown as {
+    id: string
+    text: string
+    duration: number
+  }
+  assert.deepEqual({ ...keptTask }, { id: 't1', text: 'Read', duration: 30 })
+  assert.equal(
+    (db.prepare('SELECT COUNT(*) AS n FROM task_configs WHERE task_id = ?').get('t1') as { n: number }).n,
+    1,
+  )
   db.close()
 })

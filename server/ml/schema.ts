@@ -74,7 +74,6 @@ export function createFoundationSchema(db: DatabaseSync): void {
       frequency TEXT,
       frequency_config TEXT,
       target_duration INTEGER,
-      preferred_time TEXT,
       active INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL,
       UNIQUE (task_id, version),

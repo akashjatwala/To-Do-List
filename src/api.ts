@@ -115,7 +115,6 @@ export const api = {
       recurrence?: Recurrence
       recurrenceConfig?: RecurrenceConfig | null
       duration?: number | null
-      preferredTime?: string | null
     },
   ) => patch<{ ok: true; spawnedId: string | null }>(`/api/tasks/${id}`, patchBody),
   deleteTask: (id: string) => del<{ ok: true }>(`/api/tasks/${id}`),

@@ -60,8 +60,7 @@ function freshDb(): DatabaseSync {
       tags TEXT NOT NULL DEFAULT '[]',
       recurrence TEXT NOT NULL DEFAULT 'none',
       duration INTEGER,
-      recurrence_config TEXT,
-      preferred_time TEXT
+      recurrence_config TEXT
     )
   `)
   createCheckinSchema(db)
@@ -157,14 +156,6 @@ test('demo data: current examples show off-day moves and skip events', () => {
     0,
   )
   assert.equal(result.counts.skipEvents, 4)
-  assert.equal(
-    count(db, 'SELECT COUNT(*) AS n FROM tasks WHERE user_id = ? AND preferred_time IS NOT NULL', userId),
-    0,
-  )
-  assert.equal(
-    count(db, 'SELECT COUNT(*) AS n FROM task_configs WHERE user_id = ? AND preferred_time IS NOT NULL', userId),
-    0,
-  )
   const dueOf = (id: string) =>
     localDateValue((db.prepare('SELECT due FROM tasks WHERE id = ?').get(id) as { due: number }).due)
   for (const id of ['demo-off-day-note', 'demo-off-day-repeat', 'demo-skipped-note', 'demo-skipped-repeat']) {

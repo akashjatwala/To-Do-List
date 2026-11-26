@@ -106,7 +106,7 @@ interface TaskSpec {
   tags: string[]
   priority: string
   targetMinutes: number
-  preferredMinute: number
+  habitMinute: number
   baseRate: number
   weekend: number
   drift: number
@@ -114,12 +114,12 @@ interface TaskSpec {
 }
 
 const TASK_SPECS: TaskSpec[] = [
-  { text: 'Morning reading', tags: ['mind', 'habit'], priority: 'medium', targetMinutes: 25, preferredMinute: 8 * 60, baseRate: 0.74, weekend: 0.03, drift: 0.02, achieved: 0.58 },
-  { text: 'Deep work block', tags: ['work', 'focus'], priority: 'high', targetMinutes: 90, preferredMinute: 10 * 60, baseRate: 0.6, weekend: -0.16, drift: 0.08, achieved: 0.5 },
-  { text: 'Workout', tags: ['health', 'body'], priority: 'high', targetMinutes: 45, preferredMinute: 7 * 60, baseRate: 0.52, weekend: 0.1, drift: 0, achieved: 0.46 },
-  { text: 'Inbox zero', tags: ['work', 'admin'], priority: 'low', targetMinutes: 30, preferredMinute: 16 * 60, baseRate: 0.47, weekend: -0.2, drift: -0.03, achieved: 0.62 },
-  { text: 'Language practice', tags: ['learning', 'habit'], priority: 'medium', targetMinutes: 20, preferredMinute: 21 * 60, baseRate: 0.59, weekend: 0.02, drift: 0.04, achieved: 0.54 },
-  { text: 'Evening journal', tags: ['mind', 'habit'], priority: 'low', targetMinutes: 15, preferredMinute: 20 * 60, baseRate: 0.69, weekend: 0.04, drift: 0, achieved: 0.66 },
+  { text: 'Morning reading', tags: ['mind', 'habit'], priority: 'medium', targetMinutes: 25, habitMinute: 8 * 60, baseRate: 0.74, weekend: 0.03, drift: 0.02, achieved: 0.58 },
+  { text: 'Deep work block', tags: ['work', 'focus'], priority: 'high', targetMinutes: 90, habitMinute: 10 * 60, baseRate: 0.6, weekend: -0.16, drift: 0.08, achieved: 0.5 },
+  { text: 'Workout', tags: ['health', 'body'], priority: 'high', targetMinutes: 45, habitMinute: 7 * 60, baseRate: 0.52, weekend: 0.1, drift: 0, achieved: 0.46 },
+  { text: 'Inbox zero', tags: ['work', 'admin'], priority: 'low', targetMinutes: 30, habitMinute: 16 * 60, baseRate: 0.47, weekend: -0.2, drift: -0.03, achieved: 0.62 },
+  { text: 'Language practice', tags: ['learning', 'habit'], priority: 'medium', targetMinutes: 20, habitMinute: 21 * 60, baseRate: 0.59, weekend: 0.02, drift: 0.04, achieved: 0.54 },
+  { text: 'Evening journal', tags: ['mind', 'habit'], priority: 'low', targetMinutes: 15, habitMinute: 20 * 60, baseRate: 0.69, weekend: 0.04, drift: 0, achieved: 0.66 },
 ]
 
 function localDateString(date = new Date()): string {
@@ -191,8 +191,8 @@ function addTask(db: DatabaseSync, userId: number, spec: TaskSpec, from: string)
   db.prepare(
     `INSERT INTO tasks
        (id, user_id, text, done, created_at, due, position, priority, tags,
-        recurrence, duration, preferred_time)
-     VALUES (?, ?, ?, 0, ?, ?, 0, ?, '[]', 'daily', ?, ?)`,
+        recurrence, duration)
+     VALUES (?, ?, ?, 0, ?, ?, 0, ?, '[]', 'daily', ?)`,
   ).run(
     id,
     userId,
@@ -201,7 +201,6 @@ function addTask(db: DatabaseSync, userId: number, spec: TaskSpec, from: string)
     epochAtMinute(from, 0),
     spec.priority,
     spec.targetMinutes,
-    null,
   )
   const tagIds = syncTaskTags(db, userId, id, spec.tags)
   const task: TaskLike = {
@@ -213,7 +212,6 @@ function addTask(db: DatabaseSync, userId: number, spec: TaskSpec, from: string)
     recurrence: 'daily',
     recurrence_config: null,
     duration: spec.targetMinutes,
-    preferred_time: null,
   }
   recordTaskConfig(db, task, tagIds, epochAtMinute(from, 0))
   return id
@@ -234,7 +232,6 @@ function reconfigure(db: DatabaseSync, userId: number, taskId: string, date: str
     recurrence: 'daily',
     recurrence_config: null,
     duration: 75,
-    preferred_time: null,
   }
   db.prepare('UPDATE tasks SET priority = ?, duration = ? WHERE id = ? AND user_id = ?')
     .run('high', 75, taskId, userId)
@@ -261,8 +258,8 @@ function seedScheduleExamples(db: DatabaseSync, userId: number, today: string): 
     db.prepare(
       `INSERT INTO tasks
          (id, user_id, text, done, created_at, due, position, priority, tags,
-          recurrence, duration, preferred_time)
-       VALUES (?, ?, ?, 0, ?, ?, 0, 'medium', '[]', ?, 30, NULL)`,
+          recurrence, duration)
+       VALUES (?, ?, ?, 0, ?, ?, 0, 'medium', '[]', ?, 30)`,
     ).run(
       example.id,
       userId,
@@ -429,7 +426,7 @@ export function generateDemoHistory(db: DatabaseSync, userId: number, options: D
         const duration = achieved
           ? Math.round(target * (1 + rng() * 0.12))
           : Math.max(5, Math.round(target * (0.25 + rng() * 0.6)))
-        const startMinute = clamp(spec.preferredMinute + Math.round((rng() - 0.5) * 90), 6 * 60, 22 * 60)
+        const startMinute = clamp(spec.habitMinute + Math.round((rng() - 0.5) * 90), 6 * 60, 22 * 60)
         const startedAt = epochAtMinute(date, startMinute)
         const late = rng() < 0.16
         const createdAt = late

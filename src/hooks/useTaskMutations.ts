@@ -145,7 +145,6 @@ export function useTaskMutations({
         recurrence?: Recurrence
         recurrenceConfig?: RecurrenceConfig | null
         duration?: number | null
-        preferredTime?: string | null
       },
     ) => {
       try {

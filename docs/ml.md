@@ -164,7 +164,7 @@ health verdict or fallback state.
 plain words:
 
 - **Recent vs long-term** — the recent window (14 days, minimum 5 labelled days on each side) compared with the longer-term average, with a direction and a plain sentence.
-- **Configuration changes** — a target, priority, tag set or preferred time that changed is read from the versioned config history and dated, so a changed target is not mistaken for a change in you.
+- **Configuration changes** — a target, priority, tag set or name that changed is read from the versioned config history and dated, so a changed target is not mistaken for a change in you.
 - **Explanations, not causes.** Everything is an association over your own days. Nothing claims why a rate moved.
 
 Drift notes are additive: they are returned with the plan as informational text, never in
@@ -179,8 +179,8 @@ See [operations.md](operations.md) for the commands.
 
 ## Evaluation on real data — not yet available
 
-There is **no** accuracy figure for your own data. The dataset is fresh, so there is not enough
-history to train or validate a personal completion model yet, so no accuracy number is claimed.
+There is **no** accuracy figure for your own data. A fresh account has no history to train or
+validate a personal completion model yet, so no accuracy number is claimed.
 As you record activity, the completion health view will report real Brier/ECE numbers for the
 served champion and the baseline. Expected duration and target probability are baseline
 statistics, not measured model accuracy.

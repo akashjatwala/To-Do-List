@@ -381,7 +381,6 @@ export interface TimingEvaluation {
   taskId: string
   sessions: number
   adherence: number | null
-  preferredTimeBaseline: number | null
   historicalFrequencyBaseline: number | null
   note: string
 }
@@ -391,14 +390,12 @@ export function evaluateTimingProfile(
   sessionStarts: number[],
   peakBin: number | null,
   bins: number,
-  preferredTimeBin: number | null,
 ): TimingEvaluation {
   if (sessionStarts.length === 0 || peakBin === null) {
     return {
       taskId,
       sessions: sessionStarts.length,
       adherence: null,
-      preferredTimeBaseline: null,
       historicalFrequencyBaseline: null,
       note: 'No completed sessions yet, so the timing profile cannot be evaluated.',
     }
@@ -414,14 +411,12 @@ export function evaluateTimingProfile(
   const busiest = counts.indexOf(Math.max(...counts))
   const historicalFrequencyBaseline = counts[busiest] / sessionStarts.length
 
-  const preferredTimeBaseline = preferredTimeBin === null ? null : inBin(preferredTimeBin) / sessionStarts.length
   return {
     taskId,
     sessions: sessionStarts.length,
     adherence,
-    preferredTimeBaseline,
     historicalFrequencyBaseline,
     note:
-      'Following a recommended time is influenced by being shown it, so adherence is reported beside the preferred-time and busiest-bin baselines rather than as an accuracy claim.',
+      'Following a recommended time is influenced by being shown it, so adherence is reported beside the busiest-bin baseline rather than as an accuracy claim.',
   }
 }

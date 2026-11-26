@@ -54,8 +54,7 @@ function freshDb(): DatabaseSync {
       tags TEXT NOT NULL DEFAULT '[]',
       recurrence TEXT NOT NULL DEFAULT 'none',
       duration INTEGER,
-      recurrence_config TEXT,
-      preferred_time TEXT
+      recurrence_config TEXT
     )
   `)
   createCheckinSchema(db)
@@ -95,8 +94,8 @@ function save(db: DatabaseSync, date: string, overrides: Partial<Record<CheckinA
 function addTask(db: DatabaseSync, overrides: { id?: string; text?: string; tags?: string[]; duration?: number | null } = {}) {
   const id = overrides.id ?? randomUUID()
   db.prepare(
-    `INSERT INTO tasks (id, user_id, text, created_at, priority, tags, recurrence, duration, preferred_time)
-     VALUES (?, ?, ?, ?, 'none', ?, 'daily', ?, NULL)`,
+    `INSERT INTO tasks (id, user_id, text, created_at, priority, tags, recurrence, duration)
+     VALUES (?, ?, ?, ?, 'none', ?, 'daily', ?)`,
   ).run(id, USER, overrides.text ?? 'Read a book', Date.now(), JSON.stringify(overrides.tags ?? []), overrides.duration ?? 30)
   const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as unknown as Parameters<typeof syncTaskFoundation>[1]
   // The config must take effect before the historical days we log sessions on.

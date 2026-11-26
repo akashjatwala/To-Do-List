@@ -47,17 +47,12 @@ Check-ins, their edit trail and everything the learning system derives from them
 - On a personal task only you can see your entries.
 - On a team task every member can see everyone's entries and who logged them, but only the author can delete an entry. Overlap checks are per author, so teammates can work the same stretch independently.
 
-## Preferred time is a hint only
-
-A preferred time is optional and is only an initial hint. There are no rigid fixed/preferred/
-flexible time categories, and a preferred time is never treated as a deadline.
-
 ## Known limits
 
-- **No real accuracy figure yet.** The dataset is fresh. There is not enough history to train or validate a personal completion model, so no accuracy number is claimed for your own habits.
+- **No real accuracy figure yet.** A fresh account has no history to train or validate a personal completion model, so no accuracy number is claimed for your own habits. The demo backtest uses generated data only.
 - **Fresh dataset only.** No historical data was imported into your account. Completion training uses only the activity you record here.
 - **Only completion is a trained model.** Target probability and expected duration are baseline/statistical estimates from your recorded durations and history; they are not trained, versioned or gated like the completion champion.
-- **Timing has no registered model.** The recommended window comes from a timing profile, not a trained model, so it is not versioned or gated like the completion champion. It is logged with the prediction but is not shown in Nudge.
+- **The recommended window has no registered model.** It comes from a timing profile, not a trained model, so it is not versioned or gated like the completion champion. It is logged with the prediction but is not shown in Nudge.
 - **Nudge is deliberately compact.** It shows the completion probability as a percentage beside the task name with a bar below; confidence, baseline target probability, expected duration and recommended time are still computed and logged, but are not displayed there.
 - **The learning system needs data to personalise.** Stage 1 predictions are starting estimates; personalisation begins only once the stage-2 threshold is met.
 - **Sensitive questions are optional**, so a prediction may run on less context than it could — which widens uncertainty.

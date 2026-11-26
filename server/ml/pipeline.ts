@@ -14,8 +14,7 @@ import {
   type RegistryMetrics,
   type StoredModelRow,
 } from './registry'
-import { TIMING_BINS, gatherTaskDays, preferredTimePrior, timingProfile, userTaskIds } from './statistics'
-import { configForDate } from './task-config'
+import { TIMING_BINS, gatherTaskDays, timingProfile, userTaskIds } from './statistics'
 import type { FeatureVocabulary } from './features'
 
 /**
@@ -77,14 +76,6 @@ function bounds(db: DatabaseSync, userId: number): { lo: string | null; hi: stri
     .get(userId) as unknown as { lo: string | null; hi: string | null }
 }
 
-function preferredBin(preferredTime: string | null): number | null {
-  const weights = preferredTimePrior(preferredTime)
-  if (!weights) return null
-  let best = 0
-  for (let i = 1; i < weights.length; i += 1) if (weights[i] > weights[best]) best = i
-  return best
-}
-
 /** Record the hyperparameters of the artifact actually chosen, not a guess. */
 function hyperparamsFromArtifact(artifact: ClassifierArtifact): Record<string, unknown> {
   const out: Record<string, unknown> = { type: artifact.type }
@@ -130,8 +121,7 @@ export function trainUserModels(db: DatabaseSync, userId: number, options: Train
     const days = gatherTaskDays(db, userId, taskId, from, to, today)
     const starts = days.filter((day) => !day.offDay && day.performed === true).flatMap((day) => day.sessionStarts)
     const profile = timingProfile(starts)
-    const config = configForDate(db, taskId, to)
-    timing.push(evaluateTimingProfile(taskId, starts, profile.peakBin, TIMING_BINS, preferredBin(config?.preferred_time ?? null)))
+    timing.push(evaluateTimingProfile(taskId, starts, profile.peakBin, TIMING_BINS))
   }
 
   const candidates: TrainedCandidate[] = []

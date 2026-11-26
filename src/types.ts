@@ -48,7 +48,6 @@ export interface Task {
   recurrence: Recurrence
   recurrenceConfig: RecurrenceConfig | null
   duration: number | null
-  preferredTime: string | null
   teamId: string | null
   teamName: string | null
   userId: number
@@ -379,7 +378,6 @@ export interface TaskConfig {
   frequency: string | null
   frequencyConfig: string | null
   targetDuration: number | null
-  preferredTime: string | null
   active: boolean
   tagIds: number[]
 }

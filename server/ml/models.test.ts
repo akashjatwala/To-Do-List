@@ -70,8 +70,7 @@ function freshDb(): DatabaseSync {
       tags TEXT NOT NULL DEFAULT '[]',
       recurrence TEXT NOT NULL DEFAULT 'none',
       duration INTEGER,
-      recurrence_config TEXT,
-      preferred_time TEXT
+      recurrence_config TEXT
     )
   `)
   createCheckinSchema(db)
@@ -91,7 +90,6 @@ function taskLike(id: string, text: string, priority: string, duration: number |
     recurrence: 'none',
     recurrence_config: null,
     duration,
-    preferred_time: null,
   }
 }
 

@@ -36,17 +36,15 @@ const DURATION_MAX = 60 * 24 * 7
 const PRIORITIES = ['none', 'low', 'medium', 'high'] as const
 type Priority = (typeof PRIORITIES)[number]
 
-const PREFERRED_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
-
 // Task and subtask routes re-run these lookups on every mutation. Prepare the
 // constant SQL once; each statement is reused with different bound parameters.
 const insertOccurrenceTask = db.prepare(
-  `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, progress, priority, tags, recurrence, duration, recurrence_config, preferred_time)
-      VALUES (?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+  `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, progress, priority, tags, recurrence, duration, recurrence_config)
+      VALUES (?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
 )
 const insertTask = db.prepare(
-  `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, priority, tags, recurrence, duration, recurrence_config, preferred_time)
-      VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, due, position, priority, tags, recurrence, duration, recurrence_config)
+      VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
 )
 const selectTaskById = db.prepare('SELECT * FROM tasks WHERE id = ?')
 const selectSubtasksForTask = db.prepare(
@@ -85,12 +83,6 @@ const insertComment = db.prepare(
 )
 const selectCommentByIdAndTask = db.prepare('SELECT * FROM comments WHERE id = ? AND task_id = ?')
 const deleteCommentById = db.prepare('DELETE FROM comments WHERE id = ?')
-
-/** Optional preferred time of day, stored as local "HH:MM". Missing stays missing. */
-function parsePreferredTime(value: unknown): string | null | undefined {
-  if (value === undefined || value === null || value === '') return null
-  return typeof value === 'string' && PREFERRED_TIME_RE.test(value) ? value : undefined
-}
 
 /** Priority is optional on create; anything unrecognised is rejected. */
 function parsePriority(value: unknown): Priority | null {
@@ -151,7 +143,6 @@ function spawnNextOccurrence(task: TaskRow): string {
     task.recurrence,
     task.duration,
     task.recurrence_config,
-    task.preferred_time,
   )
 
   const subtasks = selectSubtasksForTask.all(task.id) as unknown as SubtaskRow[]
@@ -247,9 +238,6 @@ router.post('/', (req: AuthedRequest, res) => {
   }
   const tags = parseTags(req.body?.tags)
   if (tags === null) return badRequest(res, 'Those tags are not valid.')
-  // New tasks never get a preferred time. Existing rows may still carry one.
-  const preferredTime = null
-
   const id = randomUUID()
   const now = Date.now()
   insertTask.run(
@@ -265,7 +253,6 @@ router.post('/', (req: AuthedRequest, res) => {
     recurrence,
     duration,
     recurrenceConfig ? JSON.stringify(recurrenceConfig) : null,
-    preferredTime,
   )
 
   // Mirror the task's tags and configuration into the learning tables.
@@ -493,13 +480,6 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
     if (tags === null) return badRequest(res, 'Those tags are not valid.')
     updates.push('tags = ?')
     values.push(JSON.stringify(tags))
-  }
-
-  if (req.body?.preferredTime !== undefined) {
-    const preferredTime = parsePreferredTime(req.body.preferredTime)
-    if (preferredTime === undefined) return badRequest(res, 'That preferred time is not valid.')
-    updates.push('preferred_time = ?')
-    values.push(preferredTime)
   }
 
   if (updates.length === 0) return badRequest(res, 'Nothing to update.')

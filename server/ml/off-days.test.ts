@@ -46,8 +46,7 @@ function freshDb(): DatabaseSync {
       tags TEXT NOT NULL DEFAULT '[]',
       recurrence TEXT NOT NULL DEFAULT 'none',
       duration INTEGER,
-      recurrence_config TEXT,
-      preferred_time TEXT
+      recurrence_config TEXT
     )
   `)
   createCheckinSchema(db)
@@ -73,7 +72,6 @@ function insertTask(db: DatabaseSync, duration: number | null = 60): string {
       recurrence: 'none',
       recurrence_config: null,
       duration,
-      preferred_time: null,
     },
     [],
     Date.parse('2026-01-01T00:00:00'),

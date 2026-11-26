@@ -16,16 +16,15 @@ function freshDb(): DatabaseSync {
       id TEXT PRIMARY KEY,
       user_id INTEGER NOT NULL,
       text TEXT NOT NULL,
-      done INTEGER NOT NULL DEFAULT 0,
-      preferred_time TEXT
+      done INTEGER NOT NULL DEFAULT 0
     )
   `)
   return db
 }
 
-function insertTask(db: DatabaseSync, text: string, preferred: string | null = null): string {
+function insertTask(db: DatabaseSync, text: string): string {
   const id = randomUUID()
-  db.prepare('INSERT INTO tasks (id, user_id, text, preferred_time) VALUES (?, ?, ?, ?)').run(id, USER, text, preferred)
+  db.prepare('INSERT INTO tasks (id, user_id, text) VALUES (?, ?, ?)').run(id, USER, text)
   return id
 }
 
@@ -123,7 +122,7 @@ test('an overloaded plan warns against the free-time answer but changes nothing'
   const db = freshDb()
   const first = insertTask(db, 'Write')
   const second = insertTask(db, 'Review')
-  const before = db.prepare('SELECT done, preferred_time FROM tasks ORDER BY id').all()
+  const before = db.prepare('SELECT done FROM tasks ORDER BY id').all()
   const result = schedule(db, plan([
     { taskId: first, text: 'Write', start: 9 * 60, duration: 45 },
     { taskId: second, text: 'Review', start: 10 * 60, duration: 45 },
@@ -133,15 +132,15 @@ test('an overloaded plan warns against the free-time answer but changes nothing'
   assert.equal(result.plannedMinutes, 90)
   assert.equal(result.overloaded, true)
   assert.match(result.warning ?? '', /looks overloaded/)
-  assert.deepEqual(db.prepare('SELECT done, preferred_time FROM tasks ORDER BY id').all(), before)
+  assert.deepEqual(db.prepare('SELECT done FROM tasks ORDER BY id').all(), before)
 })
 
-test('a task without a recommended time uses its preferred time as a weak hint', () => {
+test('a task without a recommended time starts at now', () => {
   const db = freshDb()
-  const task = insertTask(db, 'Walk', '14:30')
+  const task = insertTask(db, 'Walk')
   const result = schedule(db, plan([{ taskId: task, text: 'Walk', start: null, duration: 30 }]))
   assert.equal(result.slots.length, 1)
-  assert.equal(result.slots[0].start, epochAtMinute(DATE, 14 * 60 + 30))
+  assert.equal(result.slots[0].start, epochAtMinute(DATE, NOW))
 })
 
 test('no free-time answer means no overload claim', () => {

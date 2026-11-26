@@ -383,6 +383,20 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 22,
+    name: 'preferred-time.removed',
+    // Preferred time is no longer stored or used. Drop the legacy columns from
+    // upgraded databases; fresh databases never create them.
+    up: (db) => {
+      if (hasTable(db, 'task_configs') && hasColumn(db, 'task_configs', 'preferred_time')) {
+        db.exec('ALTER TABLE task_configs DROP COLUMN preferred_time')
+      }
+      if (hasTable(db, 'tasks') && hasColumn(db, 'tasks', 'preferred_time')) {
+        db.exec('ALTER TABLE tasks DROP COLUMN preferred_time')
+      }
+    },
+  },
 ]
 
 export function runMigrations(db: DatabaseSync): void {

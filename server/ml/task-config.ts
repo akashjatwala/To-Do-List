@@ -5,7 +5,7 @@ import { prepare } from '../statement-cache'
  * Versioned task configuration.
  *
  * A task's interpretation inputs — its name, priority, tags, frequency, target
- * duration and preferred time — change over time. Rather than overwriting them,
+ * duration — change over time. Rather than overwriting them,
  * every change appends a new version with an `effective_from` timestamp, so a
  * past day can always be read with the configuration that applied back then.
  *
@@ -25,7 +25,6 @@ export interface TaskConfigRow {
   frequency: string | null
   frequency_config: string | null
   target_duration: number | null
-  preferred_time: string | null
   active: number
   created_at: number
 }
@@ -40,7 +39,6 @@ export interface TaskLike {
   recurrence: string
   recurrence_config: string | null
   duration: number | null
-  preferred_time: string | null
 }
 
 export interface ConfigSnapshot {
@@ -50,7 +48,6 @@ export interface ConfigSnapshot {
   frequency: string | null
   frequency_config: string | null
   target_duration: number | null
-  preferred_time: string | null
   active: number
   tagIds: number[]
 }
@@ -85,7 +82,6 @@ export function snapshotFromTask(task: TaskLike, tagIds: number[]): ConfigSnapsh
     frequency: frequencyForConfig(task.recurrence),
     frequency_config: task.recurrence_config,
     target_duration: task.duration,
-    preferred_time: task.preferred_time,
     active: 1,
     tagIds: [...tagIds].sort((a, b) => a - b),
   }
@@ -100,7 +96,6 @@ function signature(snapshot: ConfigSnapshot): string {
     snapshot.frequency,
     snapshot.frequency_config,
     snapshot.target_duration,
-    snapshot.preferred_time,
     snapshot.active,
     snapshot.tagIds,
   ])
@@ -127,7 +122,6 @@ function snapshotOfRow(db: DatabaseSync, row: TaskConfigRow): ConfigSnapshot {
     frequency: row.frequency,
     frequency_config: row.frequency_config,
     target_duration: row.target_duration,
-    preferred_time: row.preferred_time,
     active: row.active,
     tagIds: configTagIds(db, row.id),
   }
@@ -151,8 +145,8 @@ export function recordTaskConfig(
   const result = prepare(db,
       `INSERT INTO task_configs
          (task_id, user_id, version, effective_from, name, category, priority, frequency,
-          frequency_config, target_duration, preferred_time, active, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          frequency_config, target_duration, active, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       task.id,
@@ -165,7 +159,6 @@ export function recordTaskConfig(
       snapshot.frequency,
       snapshot.frequency_config,
       snapshot.target_duration,
-      snapshot.preferred_time,
       snapshot.active,
       Date.now(),
     )

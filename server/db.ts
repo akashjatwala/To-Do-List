@@ -85,7 +85,6 @@ db.exec(`
     recurrence TEXT NOT NULL DEFAULT 'none',
     duration INTEGER,
     recurrence_config TEXT,
-    preferred_time TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
   );
@@ -228,7 +227,6 @@ export interface TaskRow {
   recurrence: string
   duration: number | null
   recurrence_config: string | null
-  preferred_time: string | null
 }
 
 export interface SubtaskRow {

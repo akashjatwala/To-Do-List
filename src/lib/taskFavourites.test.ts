@@ -15,7 +15,6 @@ const task: Task = {
   recurrence: 'weekly',
   recurrenceConfig: null,
   duration: 20,
-  preferredTime: '21:00',
   teamId: 'crew',
   teamName: 'Launch crew',
   userId: 1,
@@ -75,7 +74,7 @@ test('demo favourites are stable, demo-only and carry no date or time hint', () 
     ],
   )
   assert.doesNotMatch(JSON.stringify(favourites), /\d{1,2}:\d{2}/)
-  assert.doesNotMatch(JSON.stringify(favourites), /preferredTime|due/)
+  assert.doesNotMatch(JSON.stringify(favourites), /due/)
   assert.deepEqual(demoFavouritesForEmail('akash@example.com'), [])
 })
 

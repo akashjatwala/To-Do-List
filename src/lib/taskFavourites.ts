@@ -3,7 +3,7 @@ import type { Priority, Recurrence, Task } from '@/types'
 /**
  * Reusable task field sets, stored in this browser only.
  *
- * Favourites deliberately do not include a preferred time or an absolute date.
+ * Favourites deliberately exclude absolute dates.
  * They speed up the fields people retype; the date still comes from the board,
  * so a reused note never inherits a stale day or a hidden time label.
  */

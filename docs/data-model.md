@@ -14,8 +14,9 @@ One SQLite file: `server/data/todo.db` (created on first boot, git-ignored). For
 on. Every schema function is idempotent and safe to run on every boot, so starting the app
 twice changes nothing.
 
-The live database contains 36 tables: the core tables listed below plus two reminder tables added
-for the in-app reminder rows in the Overdue card. Two cleanups were made on 2026-11-18:
+The live database contains 38 tables: the core, check-in, foundation, state, prediction and ML
+tables listed below, including the reminder and skip-event tables used by the in-app flows. Two
+cleanups were made on 2026-11-18:
 
 1. An unused scaffold of nine planning/target/weekly tables was removed after a code search
    confirmed no module in `server/` or `src/` referenced them: `plan_blocks`,
@@ -39,9 +40,9 @@ estimates.
 | --- | --- |
 | `users` | Account email and password hash |
 | `auth_tokens` | Login sessions only. Only token **hashes** are stored; the former reset-code rows were removed by migration 12 |
-| `schema_migrations` | Applied migration versions; migration 13 records the reminder tables, migration 14 the assignment metadata, migration 15 the completion metadata, migration 16 the duplicate-tag consolidation, migration 17 lower-case/deletable tags, migration 18 the old skip-date table, migration 19 skip events, migration 20 the off-day move columns on skip events and migration 21 the completion-only ML cleanup |
+| `schema_migrations` | Applied migration versions; migration 13 records the reminder tables, migration 14 the assignment metadata, migration 15 the completion metadata, migration 16 the duplicate-tag consolidation, migration 17 lower-case/deletable tags, migration 18 the old skip-date table, migration 19 skip events, migration 20 the off-day move columns on skip events, migration 21 the completion-only ML cleanup and migration 22 the preferred-time column removal |
 | `teams`, `team_members`, `team_invites` | Teams, membership roles, pending invites |
-| `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration, preferred time. `completed_at` and `completed_by` timestamp a real change to done for the activity feed and stay blank for old completed rows. `team_id NULL` means a personal task |
+| `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration. `completed_at` and `completed_by` timestamp a real change to done for the activity feed and stay blank for old completed rows. `team_id NULL` means a personal task |
 | `subtasks` | Subtasks with position, done and an optional assignee (a member of the task's team; `NULL` on personal tasks) |
 | `comments` | Task comments |
 | `task_assignees` | Team tasks assigned to several teammates. The task's `user_id` stays the creator/owner; any team member can edit this list. `assigned_at` and `assigned_by` record who made each assignment and when, for the notification centre |
@@ -64,10 +65,10 @@ estimates.
 | `tags` | Stable tag ids per user, lower-case names, `merged_into_id` points at the surviving tag, `deleted_at` hides a deleted tag without losing historic ids |
 | `tag_history` | Append-only trail of tag create / rename / merge; deletion keeps the row rather than adding an event |
 | `task_tags` | Current task ↔ tag membership |
-| `task_configs` | **Versioned** task configuration: name, category, priority, frequency, target duration, preferred time, active. A change appends a row; old rows are never overwritten |
+| `task_configs` | **Versioned** task configuration: name, category, priority, frequency, target duration, active. A change appends a row; old rows are never overwritten |
 | `task_config_tags` | The tag set as it stood for one config version |
 | `activity_sessions` | Real timed activity: task, author, local date, start/end, duration, note, source. Several per day and per author allowed. Task Detail shows these as **Task time**: each entry records only a start and completion time and is stored on the task's **due date** (there is no per-entry date field). Teammates see each other's entries on team tasks, but only the author can add or delete their own |
-| `daily_activity_status` | What you explicitly said about a day: `completed` / `partial` / `skipped` / `postponed`, with an optional reason |
+| `daily_activity_status` | API/state record for an explicit day status: `completed` / `partial` / `skipped` / `postponed`, with an optional reason. The current UI has no editor for it |
 | `context_questions` | Optional extra questions, attached to a task or suggested by a tag |
 | `session_context` | Answers to extra questions, recorded against a session |
 | `user_settings` | One user-keyed row for display preferences and prediction thresholds; both writers touch only their own columns |
@@ -76,7 +77,7 @@ estimates.
 
 | Table | Holds |
 | --- | --- |
-| `day_reviews` | The single optional evening review per day (one of five answers) |
+| `day_reviews` | The single optional evening review per day (one of five answers), exposed through the API; the current UI has no review editor |
 | `state_suggestion_choices` | Whether a low-capacity suggestion was accepted or dismissed |
 
 The display preferences used by this layer live in `user_settings` (foundation group).
@@ -108,7 +109,7 @@ in `user_settings` (foundation group).
 
 ```mermaid
 erDiagram
-  users ||--o{ auth_tokens : "sessions and resets"
+  users ||--o{ auth_tokens : "sessions only"
   users ||--o| user_settings : "preferences and thresholds"
   users ||--o{ checkins : "one per day"
   checkins ||--o{ checkin_history : "edit trail"

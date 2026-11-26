@@ -30,7 +30,6 @@ import {
   groupStatistics,
   minuteOfDay,
   moodAssociations,
-  preferredTimePrior,
   priorityAssociation,
   quantile,
   recentMisses,
@@ -106,8 +105,7 @@ function freshDb(): DatabaseSync {
       tags TEXT NOT NULL DEFAULT '[]',
       recurrence TEXT NOT NULL DEFAULT 'none',
       duration INTEGER,
-      recurrence_config TEXT,
-      preferred_time TEXT
+      recurrence_config TEXT
     )
   `)
   createCheckinSchema(db)
@@ -176,7 +174,6 @@ function taskLike(
     recurrence,
     recurrence_config: recurrenceConfig ? JSON.stringify(recurrenceConfig) : null,
     duration,
-    preferred_time: null,
   }
 }
 
@@ -321,10 +318,6 @@ test('timingProfile learns when the activity actually happened', () => {
   assert.equal(binCentreMinute(4), 540)
   assert.equal(minuteOfDay(epochAtMinute(TODAY, 540)), 540)
 
-  const prior = preferredTimePrior('09:00')
-  assert.ok(prior && prior[4] > prior[0])
-  assert.equal(preferredTimePrior('nonsense'), null)
-  assert.equal(preferredTimePrior(null), null)
 })
 
 test('decayedCompletionRate favours recent days and ignores off days', () => {

@@ -33,8 +33,7 @@ import { assessStage, confidenceFor, downgrade, isSkipped, stageNote, type Confi
  *   get met".
  * - The expected duration comes from the user's recorded durations, never from
  *   the target. With no duration history it is left unknown rather than faked.
- * - The recommended time comes from when the activity actually happened. A
- *   preferred time is only a weak hint that fades as real sessions arrive.
+ * - The recommended time comes from when the activity actually happened.
  * - A skipped check-in widens uncertainty; it never invents check-in values.
  * - Off days suppress predictions entirely.
  * - A small, configurable share of recommendations explore a new time, clearly

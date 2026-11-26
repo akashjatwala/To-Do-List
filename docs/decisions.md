@@ -31,6 +31,7 @@
 | Histogram-based GBM with a tiny fixed grid instead of XGBoost/CatBoost | The data volume does not justify a heavy library; deterministic feature subsampling, L2-shrunk leaves and three searched configurations add real non-linearity without randomness or a new toolchain |
 | Only completion is trained | Target probability and expected duration stay baseline/statistical estimates for display, scheduling and ranking; one champion keeps gates, health and artifacts honest |
 | Migration 21 drops stale target/duration model rows | Upgraded databases may still have old champions and health rows for kinds that are no longer trained; deleting only those rows keeps the registry and health view completion-only without rebuilding tables |
+| Migration 22 removes preferred-time columns | The field is no longer stored, accepted or used; dropping both legacy columns avoids carrying dead state |
 | Two-stage cold start with a configurable threshold | The system must not claim personalisation before it has the data |
 | Calibration is gated (ECE ≤ 0.12) | A confident-but-miscalibrated completion model is worse than the baseline for a person |
 | Recency weighting with a half-life | Recent behaviour matters more than last season, without discarding history |
@@ -55,11 +56,11 @@
 | --- | --- |
 | Tags and priority are inputs, with versioned history | They change over time, so the value that applied on a given day is kept |
 | Missing tag and priority values stay missing | Keeping an absent value absent avoids biasing the model |
-| No fixed / preferred / flexible time categories | Preferred time is only an optional hint, never a deadline; timing is learned from when you actually do the thing |
+| No fixed / flexible time categories | Time-of-day suggestions come only from recorded activity, never a deadline or a stored preference |
 | Mood is a predictive input, never a diagnosis | Associations are explained; causes are never claimed |
 | Sensitive questions are optional | Personal context helps predictions but must never be required |
 | Everything stays local | No external ML service, no telemetry, no upload path |
-| User-set target durations stay first-class | `targetMinutes` / `duration` are user-facing fields; baseline target probability and expected duration use them for display and scheduling, with no trained duration model |
+| User-set target durations stay first-class | The task's `duration` / target duration is user-facing; baseline target probability and expected duration use it for display and scheduling, with no trained duration model |
 | Keep Nudge compact | The completion probability answers the card's question, with a percentage and bar. Baseline target probability, expected duration, recommended time and confidence stay computed and logged but are not displayed |
 | Drift is measured and reported, not predicted | A routine change is an association over your own days, returned by the API but not shown in the current Nudge card |
 | Separate module per stage | Each stage (collection, validation, features, training, evaluation, prediction, learning, versioning) can be tested and replaced alone |

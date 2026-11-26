@@ -53,7 +53,6 @@ interface TaskDetailProps {
     recurrence?: Recurrence
     recurrenceConfig?: RecurrenceConfig | null
     duration?: number | null
-    preferredTime?: string | null
   }) => Promise<boolean>
   onSetAssignees: (userIds: number[]) => Promise<boolean>
   onDelete: () => Promise<void>

@@ -16,7 +16,6 @@ const task: Task = {
   recurrence: 'daily',
   recurrenceConfig: null,
   duration: 30,
-  preferredTime: '17:30',
   teamId: null,
   teamName: null,
   userId: 1,

@@ -210,22 +210,16 @@ export function binCentreMinute(bin: number, bins = TIMING_BINS): number {
 
 /**
  * A smoothed distribution over time-of-day bins, learned only from when the
- * activity actually happened. `prior` (optional) is a weak hint — for example a
- * task's preferred time — and fades as real sessions accumulate.
+ * activity actually happened. Unknown times stay uniformly distributed.
  */
-export function timingProfile(
-  sessionStarts: number[],
-  prior: number[] | null = null,
-  priorWeight = 2,
-  bins = TIMING_BINS,
-): TimingProfile {
+export function timingProfile(sessionStarts: number[], bins = TIMING_BINS): TimingProfile {
   const counts = new Array<number>(bins).fill(0)
   for (const minute of sessionStarts) counts[binForMinute(minute, bins)] += 1
   const sessions = sessionStarts.length
-  const priorWeights = normalise(prior && prior.length === bins ? prior : new Array(bins).fill(1))
-  const total = sessions + priorWeight
-  const weights = counts.map((count, index) =>
-    total > 0 ? (count + priorWeight * priorWeights[index]) / total : priorWeights[index],
+  const smoothing = 2
+  const total = sessions + smoothing
+  const weights = counts.map((count) =>
+    total > 0 ? (count + smoothing / bins) / total : 1 / bins,
   )
   let peakBin: number | null = null
   if (sessions > 0) {
@@ -238,24 +232,6 @@ export function timingProfile(
     })
   }
   return { bins, binMinutes: 1440 / bins, weights: normalise(weights), sessions, peakBin }
-}
-
-/** A weak Gaussian prior over bins around a `HH:MM` preferred time. */
-export function preferredTimePrior(preferredTime: string | null, bins = TIMING_BINS): number[] | null {
-  if (!preferredTime) return null
-  const match = /^(\d{1,2}):(\d{2})$/.exec(preferredTime.trim())
-  if (!match) return null
-  const hour = Number(match[1])
-  const minute = Number(match[2])
-  if (hour > 23 || minute > 59) return null
-  const centre = binForMinute(hour * 60 + minute, bins)
-  const sigma = 1
-  const weights = new Array<number>(bins).fill(0)
-  for (let bin = 0; bin < bins; bin += 1) {
-    const distance = Math.abs(bin - centre)
-    weights[bin] = Math.exp(-(distance * distance) / (2 * sigma * sigma))
-  }
-  return normalise(weights)
 }
 
 function normalise(values: number[]): number[] {

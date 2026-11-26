@@ -46,8 +46,7 @@ updated value; no answer simply means that input is missing. Only the off-day me
 appears when relevant. Nudge appears only on the My tasks board — Task Detail has no Nudge
 section.
 
-Everything is a **suggestion**. A preferred time, where one is set, is an initial hint
-only — never a deadline.
+Everything is a **suggestion**.
 
 ## Inputs, per prediction
 
@@ -117,4 +116,4 @@ prediction is **never** written back as an outcome.
 - [checkin-and-energy.md](checkin-and-energy.md) — the check-in and how it feeds predictions
 - [ml.md](ml.md) — training, promotion, health and drift
 - [data-model.md](data-model.md) — the `predictions` and `prediction_feedback` tables
-- [decisions.md](decisions.md) — why the preferred time is only a hint
+- [decisions.md](decisions.md) — training, promotion, health and drift decisions

@@ -87,7 +87,7 @@ Login, signup and password routes are rate-limited.
 ```
 
 `priority` is one of `none`, `low`, `medium`, `high`. `duration` is in minutes.
-`due` may be `null`. New tasks are created without a preferred time; `PATCH /api/tasks/:taskId` still accepts an optional 24-hour `HH:mm` `preferredTime` for older tasks.
+`due` may be `null`.
 
 ## Check-ins
 
@@ -112,7 +112,7 @@ Sensitive check-in answers are optional; `null` is kept as missing.
 | `GET` / `POST` | `/api/tags` | List or create user-scoped tags. |
 | `PATCH` / `DELETE` | `/api/tags/:id` | Rename or retire a tag. |
 | `GET` | `/api/tags/:id` | Read one tag. |
-| `GET` | `/api/task-configs/:taskId` | Versioned per-task configuration (target duration, preferred time). |
+| `GET` | `/api/task-configs/:taskId` | Versioned per-task configuration (target duration). |
 | `GET` / `POST` | `/api/context-questions` | Context questions added by the user. |
 | `DELETE` | `/api/context-questions/:id` | Remove a context question. |
 | `GET` / `PUT` | `/api/state` | Read-only daily state layer. |

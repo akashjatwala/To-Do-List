@@ -56,8 +56,8 @@ Server-only type-check (useful when a full build is not wanted):
 node node_modules/typescript/bin/tsc -b
 ```
 
-On Windows PowerShell, `npm` may be blocked by execution policy. Run the underlying Node
-command directly, for example:
+On Windows PowerShell, `npm.ps1` may be blocked by execution policy. Use `npm.cmd` / `npx.cmd`,
+or run the underlying Node command directly, for example:
 
 ```bash
 node --env-file=.env.test --import tsx --test "server/**/*.test.ts" "src/**/*.test.ts" "src/**/*.test.tsx"
@@ -109,7 +109,8 @@ preserving every id; identically named tags belonging to different users still s
 Migration 18 keeps the old hide-a-date table for databases that already ran it, migration 19 adds
 `task_skip_events`, and migration 20 adds the reason, destination and undo columns those events use
 for off-day moves. Migration 21 removes stale `target` and `duration` rows from the ML registry,
-shadow, retrain and health tables on older databases; completion rows are untouched.
+shadow, retrain and health tables on older databases; completion rows are untouched. Migration 22
+drops the unused `preferred_time` columns from `tasks` and `task_configs`.
 
 ## In-app reminders
 
@@ -206,10 +207,10 @@ estimates and are not part of the model backtest. These numbers describe generat
 they are not a claim about your own habits.
 
 For a forward check, add `--through YYYY-MM-DD`. The generator still keeps `days` rows ending on
-that date; choose `holdout` so the holdout starts on or after the current day. For example,
-`npm run seed:ml -- --through 2026-12-31 --holdout 36` trains on synthetic history up to the day
-before today and scores the generated 2026-11-26 → 2026-12-31 window. Those future outcomes are
-generated for the simulation; they are not observed facts.
+that date; choose `holdout` so the holdout starts on or after the current day. For example, running
+`npm run seed:ml -- --through 2026-12-31 --holdout 36` on 2026-11-26 trains through 2026-11-25 and
+scores the generated 2026-11-26 → 2026-12-31 window. Those future outcomes are generated for the
+simulation; they are not observed facts.
 
 For an exact calendar range and split, pass `--from`, `--through` and all four window flags:
 `--train-from`, `--train-to`, `--test-from` and `--test-to`. `--from` overrides `--days` for the

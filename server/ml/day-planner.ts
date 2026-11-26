@@ -9,7 +9,7 @@ import { DEFAULT_SESSION_MINUTES, epochAtMinute, freeTimeBudget, type PlanResult
  * This is a pure, read-only layer on top of the plan. It never edits a task,
  * a due date or a prediction. Each task keeps its own recommended window as a
  * starting point; when two windows collide the later task is nudged to the next
- * free quarter-hour. A task's preferred time is only a weak hint.
+ * free quarter-hour.
  *
  * The overload warning compares the planned minutes with the check-in's free
  * time answer. With no free-time answer there is no capacity to compare against,
@@ -45,16 +45,6 @@ interface Interval {
   end: number
 }
 
-function preferredMinute(value: string | null): number | null {
-  if (!value) return null
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value)
-  if (!match) return null
-  const hours = Number(match[1])
-  const minutes = Number(match[2])
-  if (hours > 23 || minutes > 59) return null
-  return hours * 60 + minutes
-}
-
 /** First free quarter-hour at or after `desired`, wholly inside the day. */
 function findSlot(desired: number, duration: number, occupied: Interval[]): number | null {
   const earliest = Math.max(0, Math.min(DAY_MINUTES - duration, Math.ceil(desired / STEP_MINUTES) * STEP_MINUTES))
@@ -66,7 +56,7 @@ function findSlot(desired: number, duration: number, occupied: Interval[]): numb
 }
 
 export function buildDaySchedule(
-  db: DatabaseSync,
+  _db: DatabaseSync,
   _userId: number,
   plan: PlanResult,
   options: {
@@ -94,7 +84,6 @@ export function buildDaySchedule(
   const remainingClock = Math.max(0, DAY_MINUTES - options.nowMinutes)
   const budget = freeTimeBudget(options.answers ?? null)
   const capacityMinutes = budget === null ? null : Math.min(budget, remainingClock)
-  const getPreferred = db.prepare('SELECT preferred_time FROM tasks WHERE id = ?')
 
   const occupied: Interval[] = []
   const slots: ScheduleSlot[] = []
@@ -102,11 +91,9 @@ export function buildDaySchedule(
 
   for (const entry of plan.entries) {
     const duration = Math.max(STEP_MINUTES, Math.round(entry.prediction.expectedDuration ?? DEFAULT_SESSION_MINUTES))
-    const row = getPreferred.get(entry.taskId) as unknown as { preferred_time: string | null } | undefined
-    const preferred = preferredMinute(row?.preferred_time ?? null)
     const recommended =
       entry.prediction.recommendedStart === null ? null : minuteOfDay(entry.prediction.recommendedStart)
-    const desired = Math.max(options.nowMinutes, recommended ?? preferred ?? options.nowMinutes)
+    const desired = recommended === null ? options.nowMinutes : Math.max(options.nowMinutes, recommended)
 
     let start = findSlot(desired, duration, occupied)
     let shifted = start !== null && start !== desired

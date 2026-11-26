@@ -243,8 +243,8 @@ export function seedRichTeams({
       db.prepare(
         `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, completed_at, completed_by,
                             due, position, progress, priority, tags, recurrence, recurrence_config,
-                            duration, preferred_time)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            duration)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         idFor(spec.creator),
@@ -262,7 +262,6 @@ export function seedRichTeams({
         spec.recurrence ?? 'none',
         spec.recurrenceConfig ?? null,
         spec.duration ?? null,
-        null,
       )
 
       for (const [index, subtask] of subtasks.entries()) {

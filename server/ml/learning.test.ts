@@ -69,8 +69,7 @@ function freshDb(): DatabaseSync {
       tags TEXT NOT NULL DEFAULT '[]',
       recurrence TEXT NOT NULL DEFAULT 'none',
       duration INTEGER,
-      recurrence_config TEXT,
-      preferred_time TEXT
+      recurrence_config TEXT
     )
   `)
   createCheckinSchema(db)
@@ -90,7 +89,6 @@ function taskLike(id: string, text: string, priority: string, duration: number |
     recurrence: 'none',
     recurrence_config: null,
     duration,
-    preferred_time: null,
   }
 }
 
@@ -141,7 +139,7 @@ function reg(db: DatabaseSync, kind: 'completion', version: string, metrics: Reg
 test('learning scenarios: every required situation behaves as specified', () => {
   const outcomes = runScenarioSuite()
   const failed = outcomes.filter((outcome) => !outcome.ok)
-  assert.equal(outcomes.length, 16, 'the suite should cover all sixteen situations')
+  assert.equal(outcomes.length, 15, 'the suite should cover all fifteen situations')
   assert.deepEqual(
     failed.map((outcome) => `${outcome.name}: ${outcome.detail}`),
     [],

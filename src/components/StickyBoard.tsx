@@ -36,9 +36,8 @@ interface BoardProps {
   onCreateSimilar?: (task: Task) => void
 }
 
-/** The small time/date label on a note, including legacy preferred times. */
+/** The small date label on a note. */
 function noteTime(task: Task): string {
-  if (task.preferredTime) return task.preferredTime
   if (task.due !== null) {
     const label = new Date(task.due).toLocaleDateString(undefined, {
       weekday: 'short',
@@ -617,11 +616,6 @@ export function CompletedColumn({
                 </button>
 
                 <div className="flex shrink-0 items-center gap-1.5">
-                  {task.preferredTime && (
-                    <span className="text-[11px] font-semibold text-[#2F4A37]/80">
-                      {task.preferredTime}
-                    </span>
-                  )}
                   {repeat && (
                     <span className="insight-pill bg-white/70 text-[#2F4A37]">{repeat}</span>
                   )}

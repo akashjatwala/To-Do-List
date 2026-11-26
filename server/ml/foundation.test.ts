@@ -52,8 +52,7 @@ function freshDb(): DatabaseSync {
       tags TEXT NOT NULL DEFAULT '[]',
       recurrence TEXT NOT NULL DEFAULT 'none',
       duration INTEGER,
-      recurrence_config TEXT,
-      preferred_time TEXT
+      recurrence_config TEXT
     )
   `)
   db.exec('CREATE TABLE checkins (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, skipped INTEGER)')
@@ -69,14 +68,13 @@ interface TaskOverrides {
   tags?: string[]
   recurrence?: string
   duration?: number | null
-  preferred_time?: string | null
 }
 
 function insertTask(db: DatabaseSync, overrides: TaskOverrides = {}): string {
   const id = overrides.id ?? randomUUID()
   db.prepare(
-    `INSERT INTO tasks (id, user_id, text, created_at, priority, tags, recurrence, duration, preferred_time)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (id, user_id, text, created_at, priority, tags, recurrence, duration)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     USER,
@@ -86,7 +84,6 @@ function insertTask(db: DatabaseSync, overrides: TaskOverrides = {}): string {
     JSON.stringify(overrides.tags ?? []),
     overrides.recurrence ?? 'none',
     overrides.duration ?? null,
-    overrides.preferred_time ?? null,
   )
   return id
 }

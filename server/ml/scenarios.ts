@@ -79,8 +79,7 @@ export function scenarioDatabase(): DatabaseSync {
       tags TEXT NOT NULL DEFAULT '[]',
       recurrence TEXT NOT NULL DEFAULT 'none',
       duration INTEGER,
-      recurrence_config TEXT,
-      preferred_time TEXT
+      recurrence_config TEXT
     )
   `)
   createCheckinSchema(db)
@@ -94,7 +93,6 @@ interface TaskOptions {
   text?: string
   priority?: string
   duration?: number | null
-  preferredTime?: string | null
   tags?: string[]
   from?: number
 }
@@ -104,15 +102,14 @@ function addTask(db: DatabaseSync, options: TaskOptions = {}): string {
   const text = options.text ?? 'Read'
   const priority = options.priority ?? 'none'
   const duration = options.duration === undefined ? 60 : options.duration
-  const preferredTime = options.preferredTime ?? null
   db.prepare(
-    `INSERT INTO tasks (id, user_id, text, created_at, priority, tags, recurrence, duration, preferred_time)
-     VALUES (?, ?, ?, 1, ?, '[]', 'none', ?, ?)`,
-  ).run(id, USER, text, priority, duration, preferredTime)
+    `INSERT INTO tasks (id, user_id, text, created_at, priority, tags, recurrence, duration)
+     VALUES (?, ?, ?, 1, ?, '[]', 'none', ?)`,
+  ).run(id, USER, text, priority, duration)
   const tagIds = options.tags && options.tags.length > 0 ? syncTaskTags(db, USER, id, options.tags) : []
   recordTaskConfig(
     db,
-    { id, user_id: USER, text, priority, tags: '[]', recurrence: 'none', recurrence_config: null, duration, preferred_time: preferredTime },
+    { id, user_id: USER, text, priority, tags: '[]', recurrence: 'none', recurrence_config: null, duration },
     tagIds,
     options.from ?? CONFIG_FROM,
   )
@@ -123,24 +120,21 @@ function addTask(db: DatabaseSync, options: TaskOptions = {}): string {
 function reconfigureTask(
   db: DatabaseSync,
   taskId: string,
-  changes: { text?: string; priority?: string; duration?: number | null; preferredTime?: string | null },
+  changes: { text?: string; priority?: string; duration?: number | null },
   effectiveFrom: number,
 ): void {
   const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as unknown as {
     text: string
     priority: string
     duration: number | null
-    preferred_time: string | null
   }
   const text = changes.text ?? row.text
   const priority = changes.priority ?? row.priority
   const duration = changes.duration === undefined ? row.duration : changes.duration
-  const preferredTime = changes.preferredTime === undefined ? row.preferred_time : changes.preferredTime
-  db.prepare('UPDATE tasks SET text = ?, priority = ?, duration = ?, preferred_time = ? WHERE id = ?').run(
+  db.prepare('UPDATE tasks SET text = ?, priority = ?, duration = ? WHERE id = ?').run(
     text,
     priority,
     duration,
-    preferredTime,
     taskId,
   )
   const tagIds = (
@@ -148,7 +142,7 @@ function reconfigureTask(
   ).map((r) => r.tag_id)
   recordTaskConfig(
     db,
-    { id: taskId, user_id: USER, text, priority, tags: '[]', recurrence: 'none', recurrence_config: null, duration, preferred_time: preferredTime },
+    { id: taskId, user_id: USER, text, priority, tags: '[]', recurrence: 'none', recurrence_config: null, duration },
     tagIds,
     effectiveFrom,
   )
@@ -303,20 +297,6 @@ export const SCENARIOS: Scenario[] = [
       const day = dailyActivity(db, USER, task, date, '2026-06-02')
       const ok = day.totalMinutes === 75 && day.performed === true && day.targetAchieved === true
       return result(this, ok, `total=${day.totalMinutes}, performed=${day.performed}, targetMet=${day.targetAchieved}`)
-    },
-  },
-  {
-    name: 'preferred-time-absent',
-    description: 'A preferred time is optional and never a deadline; timing is learned from sessions.',
-    run(db) {
-      const withHint = addTask(db, { text: 'Walk', preferredTime: '07:00' })
-      const withoutHint = addTask(db, { text: 'Read', preferredTime: null })
-      addSession(db, withHint, '2026-06-01', 30, 7)
-      addSession(db, withoutHint, '2026-06-01', 30, 21)
-      const statsA = activityStatistics(db, USER, withHint, '2026-06-02', 0.5)
-      const statsB = activityStatistics(db, USER, withoutHint, '2026-06-02', 0.5)
-      const ok = statsA.timing.sessions === 1 && statsB.timing.sessions === 1 && statsB.timing.peakBin !== null
-      return result(this, ok, `withHint peak=${statsA.timing.peakBin}, withoutHint peak=${statsB.timing.peakBin}`)
     },
   },
   {

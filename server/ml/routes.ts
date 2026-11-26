@@ -100,7 +100,6 @@ function configDTO(row: TaskConfigRow) {
     frequency: row.frequency,
     frequencyConfig: row.frequency_config,
     targetDuration: row.target_duration,
-    preferredTime: row.preferred_time,
     active: row.active === 1,
     tagIds: configTagIds(db, row.id),
   }

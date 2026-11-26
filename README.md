@@ -2,7 +2,7 @@
 
 A focused to-do list app for individuals and small teams, with a private learning
 system that runs entirely on your own machine, uses no third-party services, and
-predicts what you are realistically likely to get done and suggests suitable times.
+shows the chance you'll work on a task today.
 
 The learning system is a separate layer on top of the existing app: it records what
 you actually do, learns from it locally, and sends no personal data to third-party
@@ -40,14 +40,14 @@ services.
 
 **Learning system (local, no third-party services)**
 
-- A daily check-in (nine optional questions) and an optional evening review
-- Activity logging: timed sessions and one-tap per-day statuses (completed / partial / skipped / postponed)
+- A daily check-in (nine optional questions)
+- Activity logging: timed sessions recorded from Task Detail
 - Per-activity statistics, a readiness/energy view, and similar-day context
 - Nudge shows each personal task's chance you'll work on it today (any logged activity counts)
 - Off days (just off / sick / travelling / holiday / other), each with its own emoji: open tasks due on those dates move to the next non-off date, repeating occurrences are skipped for the off span, teammates get an in-app notice, and confidence is reduced when you are away
 - The **Nudge** card shows only open personal tasks scheduled on the selected day, including repeating occurrences; team tasks and other days are excluded
 - Display-only **Worth a look** suggestions. The server still computes the proposed flow, workload warning and "better days" ideas, but they are no longer shown in the UI; none of them change a task's date
-- Versioned tags, priority, target duration and preferred time, with full history. New tasks are created without a time; the field is only retained for older/edited tasks and local learning history
+- Versioned tags, priority and target duration, with full history. Favourites, Quick fill and **Similar** keep only reusable choices
 - **My Account → Tags** adds, renames and deletes tags; names are always lower case, every task updates immediately, and past history stays linked to the original tag ids
 - Local completion model training, versioning, promotion, rollback and a plain-words completion health view (Brier, ECE)
 - A completion candidate is shadowed on live days before promotion, so a validation win cannot silently replace the served champion
@@ -84,7 +84,7 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 - `server/` — Express 5 API. `db.ts` defines a SQLite schema (users, auth tokens, teams, members, invites, tasks, subtasks, comments); `auth.ts` handles hashed session tokens in the session-only `auth_tokens` table; route files expose `/api/auth`, `/api/teams`, `/api/invites`, `/api/tasks` and `/api/checkins`.
 - `server/ml/` — the learning system: data collection, validation, feature engineering, completion training, evaluation, baseline prediction, continuous learning, model versioning and drift. See [docs/architecture.md](docs/architecture.md).
 - `src/` — React 19 + Tailwind CSS 4 frontend. `App.tsx` loads a single `/api/bootstrap` payload and handles mutations; components live in `src/components/`.
-- Data is stored in `server/data/todo.db` (created automatically, git-ignored). The current schema has 36 tables, including the reminder tables; on 2026-11-18 an unused planning/target/weekly scaffold was removed and two pairs of identical tables were merged into `auth_tokens` and `user_settings` (see [docs/data-model.md](docs/data-model.md)).
+- Data is stored in `server/data/todo.db` (created automatically, git-ignored). The current schema has 38 tables, including the reminder and skip-event tables; on 2026-11-18 an unused planning/target/weekly scaffold was removed and two pairs of identical tables were merged into `auth_tokens` and `user_settings` (see [docs/data-model.md](docs/data-model.md)).
 
 ## Documentation
 

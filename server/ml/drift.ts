@@ -14,7 +14,7 @@ import { configTagIds, listTaskConfigs, type TaskConfigRow } from './task-config
  *   against the longer-term average and reports the difference, with a direction
  *   and a plain-language sentence. With too few labelled days on either side it
  *   makes no judgement rather than a noisy one.
- * - **Configuration changes.** A target, priority, tag set or preferred time that
+ * - **Configuration changes.** A target, priority, tag set or name that
  *   changed is read from the versioned config history and dated, so a shift that
  *   is really a changed target is not mistaken for a change in the person.
  * - **Explanations, not causes.** Everything here is an association over the
@@ -54,7 +54,7 @@ export interface ConfigChange {
   effectiveFrom: number
   /** The local date the change took effect, `YYYY-MM-DD`. */
   date: string
-  /** Which fields changed: `target`, `priority`, `tags`, `preferredTime`, `name`. */
+  /** Which fields changed: `target`, `priority`, `tags`, `name`. */
   fields: string[]
   summary: string
 }
@@ -165,9 +165,6 @@ function describeChange(
     parts.push(`priority changed from ${previous.priority ?? 'none'} to ${current.priority ?? 'none'}`)
   }
   if (fields.includes('tags')) parts.push('tags changed')
-  if (fields.includes('preferredTime')) {
-    parts.push(`preferred time changed from ${previous.preferred_time ?? 'none'} to ${current.preferred_time ?? 'none'} (an optional hint only)`)
-  }
   if (fields.includes('name')) parts.push(`name changed to "${current.name}"`)
   return parts.length === 0 ? `Configuration updated on ${date}.` : `${parts.join('; ')} on ${date}.`
 }
@@ -192,7 +189,6 @@ export function configChangesForTask(
     if (current.target_duration !== previous.target_duration) fields.push('target')
     if ((current.priority ?? null) !== (previous.priority ?? null)) fields.push('priority')
     if (!sameTags(db, previous, current)) fields.push('tags')
-    if ((current.preferred_time ?? null) !== (previous.preferred_time ?? null)) fields.push('preferredTime')
     if (current.name !== previous.name) fields.push('name')
     if (fields.length === 0) continue
     changes.push({
