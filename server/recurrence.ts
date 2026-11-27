@@ -170,6 +170,21 @@ function nextMonthlyOnWeekday(due: number, weekday: number, nth: number): number
   return due + 28 * DAY
 }
 
+/** Move a due timestamp onto a calendar date, keeping its local time of day. */
+export function dueOnDate(due: number | null, dateValue: string): number {
+  const [year, month, day] = dateValue.split('-').map(Number)
+  const source = due === null ? new Date() : new Date(due)
+  return new Date(
+    year,
+    month - 1,
+    day,
+    source.getHours(),
+    source.getMinutes(),
+    source.getSeconds(),
+    source.getMilliseconds(),
+  ).getTime()
+}
+
 /** Move a due date forward by one recurrence interval, keeping the time of day. */
 export function advanceDue(
   due: number,

@@ -102,13 +102,13 @@ ECE above to decide whether a calibrated model is trusted.
 - `rollbackChampion` restores the previous version and keeps the newer one as `retired`.
 - Fresh databases allow only `kind = 'completion'`. On older databases migration 21 deletes stale `target` and `duration` rows from the registry, shadow, retrain and health tables; completion rows are kept.
 
-## Completion shadow protection
+## Completion shadow hooks (not active in serving)
 
-A completion candidate can be served **silently**: `ml_shadow` stores its prediction beside the
-champion's on live days. The `label` stays `NULL` until the day is actually labelled, so a shadow
-prediction is never mistaken for an outcome and is never shown to you. `promoteAfterShadow`
-promotes only when the candidate also wins on the shadow window. This protects the served
-completion number from a candidate that looked good on historical folds but loses on live days.
+`ml/shadow.ts` and the `ml_shadow` table are retained and tested: `logShadow` can store a
+candidate's silent prediction beside the champion's, `labelShadow` attaches the observed
+outcome, and `promoteAfterShadow` can gate promotion on a labelled shadow window. The current
+retrain path promotes directly from chronological validation and calibration gates, so no
+candidate is written to `ml_shadow` automatically and the table stays empty in normal use.
 
 ## Continuous learning
 

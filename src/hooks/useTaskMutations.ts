@@ -19,6 +19,7 @@ interface UseTaskMutationsArgs {
   refresh: () => Promise<void>
   notify: (message: string, tone?: ToastTone) => void
   todayValue: string
+  selectedDate: string
   setData: (value: BootstrapData | null | ((current: BootstrapData | null) => BootstrapData | null)) => void
   setSelectedId: (value: string | null | ((current: string | null) => string | null)) => void
   setView: (value: View | ((current: View) => View)) => void
@@ -28,6 +29,7 @@ export function useTaskMutations({
   refresh,
   notify,
   todayValue,
+  selectedDate,
   setData,
   setSelectedId,
   setView,
@@ -70,6 +72,11 @@ export function useTaskMutations({
                       // Mirror the API: completing sets 100%, and un-completing a
                       // fully finished task clears progress back to 0%.
                       progress: !item.done ? 100 : item.progress === 100 ? 0 : item.progress,
+                      // A finished recurrence stops being a repeating task.
+                      recurrence:
+                        wasRecurring && !item.done ? ('none' as const) : item.recurrence,
+                      recurrenceConfig:
+                        wasRecurring && !item.done ? null : item.recurrenceConfig,
                     }
                   : item,
               ),
@@ -77,7 +84,12 @@ export function useTaskMutations({
           : current,
       )
       try {
-        await api.updateTask(task.id, { done: !task.done })
+        await api.updateTask(task.id, {
+          done: !task.done,
+          // Tell the server which dated occurrence to finish so the next one
+          // starts after the day on screen, not after the original anchor date.
+          ...(wasRecurring ? { completedFor: selectedDate || todayValue } : {}),
+        })
         if (wasRecurring) {
           // Completing a recurring task spawns its next occurrence server-side.
           await refresh()
@@ -88,7 +100,7 @@ export function useTaskMutations({
         await refresh().catch(() => undefined)
       }
     },
-    [notify, refresh, setData],
+    [notify, refresh, selectedDate, setData, todayValue],
   )
 
   const deleteTask = useCallback(
@@ -148,7 +160,12 @@ export function useTaskMutations({
       },
     ) => {
       try {
-        await api.updateTask(task.id, patch)
+        await api.updateTask(task.id, {
+          ...patch,
+          ...(patch.done === true && task.recurrence !== 'none'
+            ? { completedFor: selectedDate || todayValue }
+            : {}),
+        })
         await refresh()
         return true
       } catch (error) {
@@ -156,7 +173,7 @@ export function useTaskMutations({
         return false
       }
     },
-    [notify, refresh],
+    [notify, refresh, selectedDate, todayValue],
   )
 
   const moveOverdueToToday = useCallback(

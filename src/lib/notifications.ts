@@ -23,6 +23,7 @@ export function groupNotifications(items: AppNotification[]): NotificationGroups
         'task-added',
         'task-completed',
         'task-skipped',
+        'task-skip-undone',
         'off-day',
       ].includes(item.kind),
     ),

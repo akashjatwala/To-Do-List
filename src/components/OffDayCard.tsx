@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, errorMessage } from '@/api'
 import type { OffDay, OffDayKind, ToastTone } from '@/types'
 import { CalendarIcon, PencilIcon, TrashIcon } from './Icons'
+import OffDayCalendarButton, { type OffDayCalendarEntry } from './OffDayCalendar'
+import { NO_OFF_DAY_EMOJI, offDayEmoji } from './off-day-display'
+
+export { offDayEmoji }
 
 /**
  * Off days.
@@ -19,6 +23,10 @@ interface OffDayCardProps {
   notify: (message: string, tone?: ToastTone) => void
   /** Called after any change so the surrounding view can reload. */
   onChanged?: () => void
+  /** Past and future off days shown by the header calendar button. */
+  calendarEntries?: OffDayCalendarEntry[]
+  /** Real local today, used to split the calendar into upcoming and history. */
+  calendarToday?: string
 }
 
 const KIND_LABELS: Record<OffDayKind, string> = {
@@ -28,28 +36,19 @@ const KIND_LABELS: Record<OffDayKind, string> = {
   other: 'Other',
 }
 
-/** One distinct, decorative emoji for each reason. Always paired with its label. */
-const KIND_EMOJIS: Record<OffDayKind, string> = {
-  sick: '🤒',
-  travel: '🧳',
-  holiday: '🌴',
-  other: '✨',
-}
-
-const JUST_OFF_EMOJI = '😌'
-const NO_OFF_DAY_EMOJI = '🌤️'
-
 const KIND_ORDER: OffDayKind[] = ['sick', 'travel', 'holiday', 'other']
 
 function kindLabel(kind: OffDayKind | null): string {
   return kind ? KIND_LABELS[kind] : 'Off'
 }
 
-export function offDayEmoji(kind: OffDayKind | null): string {
-  return kind ? KIND_EMOJIS[kind] : JUST_OFF_EMOJI
-}
-
-export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps) {
+export default function OffDayCard({
+  date,
+  notify,
+  onChanged,
+  calendarEntries = [],
+  calendarToday,
+}: OffDayCardProps) {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [offDay, setOffDay] = useState<OffDay | null>(null)
@@ -148,8 +147,14 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
       className="overflow-hidden rounded-[24px] border border-[#DCE9EE] bg-[#EEF5F8] p-5"
       aria-label="Off Day"
     >
-      <div className="mb-3">
+      <div className="mb-3 flex items-start justify-between gap-2">
         <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Off Day</h2>
+        <OffDayCalendarButton
+          entries={calendarEntries}
+          today={calendarToday ?? date}
+          title="Off day calendar"
+          buttonLabel="View off day calendar"
+        />
       </div>
 
       <div className="flex flex-col items-center rounded-2xl bg-white/70 px-4 py-6 text-center shadow-sm ring-1 ring-white/80">
@@ -164,11 +169,11 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
             </span>
           )}
         </p>
-        <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-500">
-          {onOffDay
-            ? [summary, offDay?.note].filter(Boolean).join(' · ')
-            : 'Off days never count as missed.'}
-        </p>
+        {onOffDay && (
+          <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-500">
+            {[summary, offDay?.note].filter(Boolean).join(' · ')}
+          </p>
+        )}
 
         {!editing && (
           <div className="mt-4 flex flex-nowrap items-center justify-center gap-2 whitespace-nowrap">
@@ -213,7 +218,7 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
                   : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
               }`}
             >
-              <span aria-hidden="true">{JUST_OFF_EMOJI}</span> Just off
+              <span aria-hidden="true">{offDayEmoji(null)}</span> Just off
             </button>
             {KIND_ORDER.map((option) => (
               <button
@@ -226,7 +231,7 @@ export default function OffDayCard({ date, notify, onChanged }: OffDayCardProps)
                     : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
                 }`}
               >
-                <span aria-hidden="true">{KIND_EMOJIS[option]}</span> {KIND_LABELS[option]}
+                <span aria-hidden="true">{offDayEmoji(option)}</span> {KIND_LABELS[option]}
               </button>
             ))}
           </div>

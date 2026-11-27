@@ -40,7 +40,7 @@ estimates.
 | --- | --- |
 | `users` | Account email and password hash |
 | `auth_tokens` | Login sessions only. Only token **hashes** are stored; the former reset-code rows were removed by migration 12 |
-| `schema_migrations` | Applied migration versions; migration 13 records the reminder tables, migration 14 the assignment metadata, migration 15 the completion metadata, migration 16 the duplicate-tag consolidation, migration 17 lower-case/deletable tags, migration 18 the old skip-date table, migration 19 skip events, migration 20 the off-day move columns on skip events, migration 21 the completion-only ML cleanup and migration 22 the preferred-time column removal |
+| `schema_migrations` | Applied migration versions; migration 13 records the reminder tables, migration 14 the assignment metadata, migration 15 the completion metadata, migration 16 the duplicate-tag consolidation, migration 17 lower-case/deletable tags, migration 18 the old skip-date table, migration 19 skip events, migration 20 the off-day move columns on skip events, migration 21 the completion-only ML cleanup, migration 22 the preferred-time column removal and migration 23 the skip-undo actor columns |
 | `teams`, `team_members`, `team_invites` | Teams, membership roles, pending invites |
 | `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration. `completed_at` and `completed_by` timestamp a real change to done for the activity feed and stay blank for old completed rows. `team_id NULL` means a personal task |
 | `subtasks` | Subtasks with position, done and an optional assignee (a member of the task's team; `NULL` on personal tasks) |
@@ -49,7 +49,7 @@ estimates.
 | `task_reminders` | One row per reminder sent from an overdue sticky note: task, sender and timestamp. Deleting the task or sender removes the reminder |
 | `task_reminder_recipients` | Who was notified for a team reminder. Empty for personal reminders; a snapshot of assignees, or all team members when the task has no assignees |
 | `task_skips` | Legacy table from the old hide-a-date skip. Kept for existing databases only; the app no longer reads it |
-| `task_skip_events` | One row per **Skip for today** move: task, actor, old date, new date and timestamp. Drives teammate notices in the in-app notification centre; the move itself is stored on `tasks.due` |
+| `task_skip_events` | One row per **Skip for today** or off-day move: task, actor, old date, new date and timestamp. An undone skip also records who reversed it and when, which drives the team undo notice; the move itself is stored on `tasks.due` |
 
 ### Check-ins — `server/checkins-store.ts`
 
@@ -98,7 +98,7 @@ in `user_settings` (foundation group).
 | Table | Holds |
 | --- | --- |
 | `ml_models` | One append-only row per trained **completion** version: kind, version, status (`candidate` / `champion` / `retired` / `rejected`), data range, counts, feature names, hyperparameters, seed, metrics, git commit, serialised payload. Only completion is trained; target probability and expected duration are baseline estimates |
-| `ml_shadow` | A completion candidate's silent predictions beside the champion's on live days; `label` stays `NULL` until the day is labelled |
+| `ml_shadow` | Retained table for completion candidate shadow predictions beside the champion's; the live retrain path currently does not write to it, and any row's `label` stays `NULL` until the day is labelled |
 | `ml_retrain_state` | Labelled-observation count at the last completion training |
 | `activity_outcome_links` | One row per (user, task, day): the check-in state that preceded the day, the observed outcomes (`performed`, `target_achieved`, `total_minutes` — the latter two feed baseline statistics, not models), the tags and priority that applied, and the config version. Recomputed when activity is recorded |
 | `ml_health_predictions` | A served completion model's output beside the baseline's for the same (day, task). `label` is `NULL` until the day's outcome is known |

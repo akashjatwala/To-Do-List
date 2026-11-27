@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import { applyOffDayTaskMoves } from '../server/off-day-task-moves'
 import { addDays, createOffDay, type OffDayKind } from '../server/ml/off-days'
 import { localDateValue, type Recurrence } from '../server/recurrence'
+import { undoTaskSkip } from '../server/task-move-events'
 import { skipTaskDate, type SkippableTaskRow } from '../server/task-skip-events'
 
 /** A richer, repeatable team fixture for the isolated demo accounts. */
@@ -69,6 +70,15 @@ const teamOneOffIds = (prefix: string) => ({
   product: `${prefix}-product-one-off`,
   ops: `${prefix}-ops-one-off`,
   design: `${prefix}-design-one-off`,
+  undoneSkip: `${prefix}-undone-skip-note`,
+})
+
+/** Stable ids for the recurring team examples in the repeat overview. */
+const teamRepeatIds = (prefix: string) => ({
+  launch: `${prefix}-launch-daily-repeat`,
+  product: `${prefix}-product-weekly-repeat`,
+  ops: `${prefix}-ops-monthly-repeat`,
+  opsCustom: `${prefix}-ops-custom-repeat`,
 })
 
 function atOffset(days: number, hour = 9, minute = 0): number {
@@ -101,6 +111,7 @@ export function seedRichTeams({
   const mateTaskIds = personalTaskIds(prefix, 'mate')
   const priyaTaskIds = personalTaskIds(prefix, 'priya')
   const oneOffTeamTaskIds = teamOneOffIds(prefix)
+  const repeatTeamTaskIds = teamRepeatIds(prefix)
   const fixtureTaskIds = [leadTaskIds, mateTaskIds, priyaTaskIds].flatMap((ids) =>
     Object.values(ids),
   )
@@ -244,7 +255,7 @@ export function seedRichTeams({
         `INSERT INTO tasks (id, user_id, team_id, text, done, created_at, completed_at, completed_by,
                             due, position, progress, priority, tags, recurrence, recurrence_config,
                             duration)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         idFor(spec.creator),
@@ -392,6 +403,7 @@ export function seedRichTeams({
       atOffset(-5, 9),
     )
     addTask({
+      id: repeatTeamTaskIds.launch,
       teamId: teamIds.launch,
       creator: lead.email,
       text: 'Daily launch check',
@@ -427,6 +439,18 @@ export function seedRichTeams({
       position: 33,
       assignees: [mate.email, lead.email],
     })
+    addTask({
+      id: oneOffTeamTaskIds.undoneSkip,
+      teamId: teamIds.launch,
+      creator: lead.email,
+      text: 'Restored launch note',
+      due: atOffset(0, 13),
+      priority: 'medium',
+      tags: ['launch', 'demo'],
+      duration: 30,
+      position: 31,
+      assignees: [lead.email, mate.email],
+    })
 
     // Product Release: a heavier task with several assignees and a longer history.
     addTask({
@@ -449,6 +473,19 @@ export function seedRichTeams({
         { author: priya.email, text: 'Migration is green on staging.', at: atOffset(-1, 15) },
         { author: lead.email, text: 'Smoke test is booked for tomorrow.', at: atOffset(0, 8, 45) },
       ],
+    })
+    addTask({
+      id: repeatTeamTaskIds.product,
+      teamId: teamIds.product,
+      creator: lead.email,
+      text: 'Weekly release triage',
+      due: atOffset(2, 10),
+      priority: 'medium',
+      tags: ['release', 'habit'],
+      duration: 30,
+      position: 55,
+      recurrence: 'weekly',
+      assignees: [lead.email, priya.email],
     })
     addTask({
       teamId: teamIds.product,
@@ -539,6 +576,33 @@ export function seedRichTeams({
           at: atOffset(0, 9, 15),
         },
       ],
+    })
+    addTask({
+      id: repeatTeamTaskIds.ops,
+      teamId: teamIds.ops,
+      creator: priya.email,
+      text: 'Monthly access review',
+      due: atOffset(5, 10),
+      priority: 'medium',
+      tags: ['ops', 'habit'],
+      duration: 45,
+      position: 48,
+      recurrence: 'monthly',
+      assignees: [priya.email, lead.email],
+    })
+    addTask({
+      id: repeatTeamTaskIds.opsCustom,
+      teamId: teamIds.ops,
+      creator: mate.email,
+      text: 'Ops office hours',
+      due: atOffset(6, 11),
+      priority: 'low',
+      tags: ['ops', 'habit'],
+      duration: 30,
+      position: 46,
+      recurrence: 'custom',
+      recurrenceConfig: JSON.stringify({ mode: 'weekly', days: [2, 4] }),
+      assignees: [mate.email, lead.email],
     })
     addTask({
       id: oneOffTeamTaskIds.ops,
@@ -646,18 +710,24 @@ export function seedRichTeams({
   }
 
   seedScheduleExamples(db, {
-    lead: { id: leadId, taskIds: leadTaskIds, launchTaskId },
+    lead: {
+      id: leadId,
+      taskIds: leadTaskIds,
+      launchTaskId,
+      undoneSkipTaskId: oneOffTeamTaskIds.undoneSkip,
+    },
     mate: { id: mateId, taskIds: mateTaskIds, skippedTeamTaskId: `${prefix}-mate-skipped-team-note` },
     priya: { id: priyaId, taskIds: priyaTaskIds },
   })
 }
 
 /**
- * Off-day and skip rows that make the new behaviour visible in demo accounts.
+ * Off-day, skip and undo rows that make the new behaviour visible in demo accounts.
  *
  * Each demo member gets a separate off period so signing in as any of them shows
- * their own moved notes and the teammates' off-day notices. This runs after the
- * main fixture transaction because the skip store writes its own transaction.
+ * their own moved notes and the teammates' off-day notices. A restored team skip
+ * also gives every teammate an undo notice. This runs after the main fixture
+ * transaction because the move stores write their own transactions.
  */
 interface SchedulePerson {
   id: number
@@ -667,33 +737,51 @@ interface SchedulePerson {
 function seedScheduleExamples(
   db: DatabaseSync,
   people: {
-    lead: SchedulePerson & { launchTaskId: string }
+    lead: SchedulePerson & { launchTaskId: string; undoneSkipTaskId: string }
     mate: SchedulePerson & { skippedTeamTaskId: string }
     priya: SchedulePerson
   },
 ): void {
   const today = localDateValue(Date.now())
-  const periods = [
+  const periods: Array<{
+    userId: number
+    startDate: string
+    endDate: string
+    kind: OffDayKind
+    note: string | null
+    historical?: boolean
+  }> = [
     {
       userId: people.lead.id,
       startDate: addDays(today, 1),
       endDate: addDays(today, 2),
-      kind: 'travel' as OffDayKind,
+      kind: 'travel',
       note: null,
     },
     {
       userId: people.mate.id,
       startDate: addDays(today, 4),
       endDate: addDays(today, 5),
-      kind: 'sick' as OffDayKind,
+      kind: 'sick',
       note: null,
     },
     {
       userId: people.priya.id,
       startDate: addDays(today, 8),
       endDate: addDays(today, 9),
-      kind: 'holiday' as OffDayKind,
+      kind: 'holiday',
       note: null,
+    },
+    {
+      // Historical teammate entry so the calendar's history section has demo
+      // data too. It is intentionally not replayed through task moves: it only
+      // documents a period that was already off when the demo was generated.
+      userId: people.mate.id,
+      startDate: addDays(today, -12),
+      endDate: addDays(today, -11),
+      kind: 'holiday',
+      note: 'Conference trip.',
+      historical: true,
     },
   ]
 
@@ -709,7 +797,7 @@ function seedScheduleExamples(
     }
   }
   for (const period of periods) {
-    applyOffDayTaskMoves(db, period.userId)
+    if (!period.historical) applyOffDayTaskMoves(db, period.userId)
   }
 
   const load = (id: string) =>
@@ -719,6 +807,20 @@ function seedScheduleExamples(
   const skip = (id: string, userId: number, date: string) => {
     const task = load(id)
     if (task) skipTaskDate(db, task, userId, date)
+  }
+  // The skip and the reversal both use the real event stores, so the restored
+  // task and the team-wide undo notice match what the app creates at runtime.
+  const skipAndUndo = (id: string, actorId: number, undoerId: number, date: string) => {
+    const task = load(id)
+    if (!task || !skipTaskDate(db, task, actorId, date)) return
+    const event = db
+      .prepare(
+        `SELECT id FROM task_skip_events
+         WHERE task_id = ? AND actor_id = ? AND from_date = ?
+         ORDER BY id DESC LIMIT 1`,
+      )
+      .get(id, actorId, date) as { id: number } | undefined
+    if (event) undoTaskSkip(db, event.id, undoerId, id)
   }
 
   skip(people.lead.launchTaskId, people.lead.id, today)
@@ -733,4 +835,8 @@ function seedScheduleExamples(
   const priyaSkipDate = addDays(today, 7)
   skip(people.priya.taskIds.skippedNote, people.priya.id, priyaSkipDate)
   skip(people.priya.taskIds.skippedRepeat, people.priya.id, priyaSkipDate)
+
+  // A shared note the lead skipped today, restored by a teammate. Everyone in
+  // Launch Crew can see who undid it in Team activity.
+  skipAndUndo(people.lead.undoneSkipTaskId, people.lead.id, people.mate.id, today)
 }

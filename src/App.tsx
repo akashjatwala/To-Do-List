@@ -11,8 +11,9 @@ import AppSidebar from './components/AppSidebar'
 import MyAccountDialog from './components/MyAccountDialog'
 import CheckinModal from './components/CheckinModal'
 import NewTaskDialog, { type NewTaskDraft } from './components/NewTaskDialog'
-import { taskFieldsFromTask } from './lib/taskFavourites'
+import CompletedTasksDialog from './components/CompletedTasksDialog'
 import OverdueTasksDialog from './components/OverdueTasksDialog'
+import RepeatingTasksDialog from './components/RepeatingTasksDialog'
 import SearchDialog from './components/SearchDialog'
 import { StickyBoard } from './components/StickyBoard'
 import TaskDetail from './components/TaskDetail'
@@ -32,6 +33,8 @@ export default function App() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [taskDraft, setTaskDraft] = useState<NewTaskDraft | null>(null)
   const [overdueOpen, setOverdueOpen] = useState(false)
+  const [completedOpen, setCompletedOpen] = useState(false)
+  const [repeatingOpen, setRepeatingOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -205,7 +208,7 @@ export default function App() {
     deleteComment,
     acceptInvite,
     declineInvite,
-  } = useTaskMutations({ refresh, notify, todayValue, setData, setSelectedId, setView })
+  } = useTaskMutations({ refresh, notify, todayValue, selectedDate, setData, setSelectedId, setView })
 
   // Stable identities let the memoized sticky board skip renders caused by
   // unrelated dialog, check-in or toast state.
@@ -237,13 +240,6 @@ export default function App() {
   )
   const openNewTask = useCallback(() => {
     setTaskDraft(null)
-    setTaskDialogOpen(true)
-  }, [])
-  const createSimilar = useCallback((task: Task) => {
-    setTaskDraft({
-      ...taskFieldsFromTask(task),
-      label: `“${task.text}”`,
-    })
     setTaskDialogOpen(true)
   }, [])
 
@@ -435,14 +431,11 @@ export default function App() {
                     onCelebrated={() => setCheckinCelebrate(false)}
                     onEditCheckin={openCheckin}
                     onRefreshDailyState={refreshDailyState}
-                    onOpenTask={openTask}
-                    onToggleTask={(task) => void toggleTask(task)}
-                    onDeleteTask={(task) => void deleteTask(task)}
-                    onCreateSimilar={createSimilar}
                     onAcceptInvite={acceptInvite}
                     onDeclineInvite={declineInvite}
                     onViewAllOverdue={() => setOverdueOpen(true)}
-                    canDeleteTask={canDeleteTask}
+                    onViewAllCompleted={() => setCompletedOpen(true)}
+                    onViewAllRepeating={() => setRepeatingOpen(true)}
                   />
                 </div>
               </>
@@ -494,6 +487,36 @@ export default function App() {
         onToggleTask={(task) => void toggleTask(task)}
         onDeleteTask={(task) => void deleteTask(task)}
         onRemind={(task) => void sendReminder(task)}
+      />
+
+      <CompletedTasksDialog
+        open={completedOpen}
+        tasks={completedTasks}
+        currentUserId={data.user.id}
+        showOwner={isCollab}
+        canDelete={canDeleteTask}
+        onClose={() => setCompletedOpen(false)}
+        onOpenTask={(task) => {
+          setCompletedOpen(false)
+          setSelectedId(task.id)
+        }}
+        onToggleTask={(task) => void toggleTask(task)}
+        onDeleteTask={(task) => void deleteTask(task)}
+      />
+
+      <RepeatingTasksDialog
+        open={repeatingOpen}
+        tasks={repeatingTasks}
+        currentUserId={data.user.id}
+        showOwner={isCollab}
+        canDelete={canDeleteTask}
+        onClose={() => setRepeatingOpen(false)}
+        onOpenTask={(task) => {
+          setRepeatingOpen(false)
+          setSelectedId(task.id)
+        }}
+        onToggleTask={(task) => void toggleTask(task)}
+        onDeleteTask={(task) => void deleteTask(task)}
       />
 
       <MyAccountDialog

@@ -12,7 +12,10 @@ import DailyStateCard from './DailyStateCard'
 import OffDayCard from './OffDayCard'
 import PredictionPanel from './PredictionPanel'
 import OverdueCard from './OverdueCard'
-import { CompletedColumn, RepeatingColumn } from './StickyBoard'
+import CompletedCard from './CompletedCard'
+import RepeatingCard from './RepeatingCard'
+import type { OffDayCalendarEntry } from './OffDayCalendar'
+import { offKindLabel } from './off-day-display'
 import {
   TeamInvitationsCard,
   TeamMembersCard,
@@ -39,14 +42,11 @@ interface AppSidebarProps {
   onCelebrated: () => void
   onEditCheckin: () => void
   onRefreshDailyState: () => Promise<void>
-  onOpenTask: (task: Task) => void
-  onToggleTask: (task: Task) => void
-  onDeleteTask: (task: Task) => void
-  onCreateSimilar: (task: Task) => void
   onAcceptInvite: (invite: UserInvite) => Promise<void>
   onDeclineInvite: (invite: UserInvite) => Promise<void>
   onViewAllOverdue: () => void
-  canDeleteTask: (task: Task) => boolean
+  onViewAllCompleted: () => void
+  onViewAllRepeating: () => void
 }
 
 export default function AppSidebar({
@@ -69,15 +69,38 @@ export default function AppSidebar({
   onCelebrated,
   onEditCheckin,
   onRefreshDailyState,
-  onOpenTask,
-  onToggleTask,
-  onDeleteTask,
-  onCreateSimilar,
   onAcceptInvite,
   onDeclineInvite,
   onViewAllOverdue,
-  canDeleteTask,
+  onViewAllCompleted,
+  onViewAllRepeating,
 }: AppSidebarProps) {
+  const ownOffDays: OffDayCalendarEntry[] = data.offDays.map((offDay) => ({
+    id: offDay.id,
+    startDate: offDay.startDate,
+    endDate: offDay.endDate,
+    kind: offDay.kind,
+    label: offKindLabel(offDay.kind),
+    note: offDay.note,
+    person: 'You',
+  }))
+  const teammateIds = new Set(
+    (currentTeam?.members ?? [])
+      .filter((member) => member.id !== data.user.id)
+      .map((member) => member.id),
+  )
+  const teammateOffDays: OffDayCalendarEntry[] = data.teammateOffDays
+    .filter((offDay) => teammateIds.has(offDay.userId))
+    .map((offDay) => ({
+      id: offDay.id,
+      startDate: offDay.startDate,
+      endDate: offDay.endDate,
+      kind: offDay.kind,
+      label: `${offDay.name} · ${offKindLabel(offDay.kind)}`,
+      note: offDay.note,
+      person: offDay.name,
+    }))
+
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {!isCollab && (
@@ -101,7 +124,13 @@ export default function AppSidebar({
             onViewAll={onViewAllOverdue}
           />
 
-          <OffDayCard date={selectedDate} notify={notify} onChanged={refresh} />
+          <OffDayCard
+            date={selectedDate}
+            notify={notify}
+            onChanged={refresh}
+            calendarEntries={ownOffDays}
+            calendarToday={todayValue}
+          />
 
           {isToday && (
             <PredictionPanel
@@ -127,6 +156,7 @@ export default function AppSidebar({
             offDays={data.teammateOffDays}
             currentUserId={data.user.id}
             today={todayValue}
+            calendarEntries={teammateOffDays}
           />
           <TeamInvitationsCard
             team={currentTeam}
@@ -144,26 +174,9 @@ export default function AppSidebar({
         </>
       )}
 
-      <CompletedColumn
-        tasks={completedTasks}
-        currentUserId={data.user.id}
-        showOwner={isCollab}
-        canDelete={canDeleteTask}
-        onOpen={onOpenTask}
-        onToggle={onToggleTask}
-        onDelete={onDeleteTask}
-        onCreateSimilar={onCreateSimilar}
-      />
+      <CompletedCard tasks={completedTasks} onViewAll={onViewAllCompleted} />
 
-      <RepeatingColumn
-        tasks={repeatingTasks}
-        currentUserId={data.user.id}
-        showOwner={isCollab}
-        canDelete={() => false}
-        onOpen={onOpenTask}
-        onToggle={onToggleTask}
-        onDelete={onDeleteTask}
-      />
+      <RepeatingCard tasks={repeatingTasks} onViewAll={onViewAllRepeating} />
     </div>
   )
 }

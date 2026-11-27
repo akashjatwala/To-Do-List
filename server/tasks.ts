@@ -6,6 +6,8 @@ import { skipTaskDate } from './task-skip-events'
 import { undoTaskSkip } from './task-move-events'
 import {
   advanceDue,
+  dueOnDate,
+  localDateValue,
   parseRecurrence,
   parseRecurrenceConfig,
   readRecurrenceConfig,
@@ -72,6 +74,7 @@ const updateTaskPosition = db.prepare('UPDATE tasks SET position = ? WHERE id = 
 const clearTaskRecurrence = db.prepare(
   "UPDATE tasks SET recurrence = 'none', recurrence_config = NULL WHERE id = ?",
 )
+const setTaskDue = db.prepare('UPDATE tasks SET due = ? WHERE id = ?')
 const clearTaskAssignees = db.prepare('DELETE FROM task_assignees WHERE task_id = ?')
 const deleteTaskById = db.prepare('DELETE FROM tasks WHERE id = ?')
 const selectMaxSubtaskPosition = db.prepare(
@@ -125,11 +128,11 @@ function parseTags(value: unknown): string[] | null {
  * Completing a recurring task creates the next occurrence: a fresh copy with
  * the due date moved forward, subtasks reset, and no comments carried over.
  */
-function spawnNextOccurrence(task: TaskRow): string {
+function spawnNextOccurrence(task: TaskRow, anchorDue: number): string {
   const id = randomUUID()
   const now = Date.now()
   const config = readRecurrenceConfig(task.recurrence_config)
-  const nextDue = advanceDue(task.due ?? now, task.recurrence as Recurrence, config)
+  const nextDue = advanceDue(anchorDue, task.recurrence as Recurrence, config)
   insertOccurrenceTask.run(
     id,
     task.user_id,
@@ -326,8 +329,9 @@ router.post('/:taskId/skip', (req: AuthedRequest, res) => {
 })
 
 /**
- * Undo a recent "Skip for today". The event id comes from the notification
- * centre; the server rechecks ownership, age and that the note has not moved on.
+ * Undo a recent "Skip for today". The skipper or any member of the task's team
+ * can do it from the notification centre; the server rechecks membership, age
+ * and that the note has not moved on.
  */
 router.post('/:taskId/undo-skip', (req: AuthedRequest, res) => {
   const loaded = loadTask(param(req, 'taskId'), req.userId!)
@@ -355,6 +359,14 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
   const values: Array<string | number | null> = []
   let completing = false
   let completionTouched = false
+
+  // Which dated occurrence is being finished. Older clients omit it, so the
+  // server falls back to today when rolling a repeat forward.
+  let completedFor: string | null = null
+  if (req.body?.completedFor !== undefined) {
+    completedFor = parseLocalDate(req.body.completedFor)
+    if (completedFor === null) return badRequest(res, 'That completion date is not valid.')
+  }
 
   if (req.body?.text !== undefined) {
     const title = text(req.body.text, TASK_MAX)
@@ -486,11 +498,15 @@ router.patch('/:taskId', (req: AuthedRequest, res) => {
   values.push(loaded.task.id)
   db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`).run(...values)
 
-  // Completing a recurring task rolls it forward to the next occurrence. The
-  // finished instance stops repeating so it never spawns twice.
+  // Completing a recurring task rolls it forward from the occurrence actually
+  // finished, not from the original anchor date. The finished instance keeps
+  // that date so it remains visible in the day's Completed column, and stops
+  // repeating so it never spawns twice.
   let spawnedId: string | null = null
   if (completing && loaded.task.done === 0 && loaded.task.recurrence !== 'none') {
-    spawnedId = spawnNextOccurrence(loaded.task)
+    const anchorDue = dueOnDate(loaded.task.due, completedFor ?? localDateValue(Date.now()))
+    spawnedId = spawnNextOccurrence(loaded.task, anchorDue)
+    setTaskDue.run(anchorDue, loaded.task.id)
     clearTaskRecurrence.run(loaded.task.id)
   }
 

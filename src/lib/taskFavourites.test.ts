@@ -41,7 +41,7 @@ function withLocalStorage(seed: Map<string, string>, run: () => void) {
   }
 }
 
-test('create-similar fields keep reusable choices but not dates or time hints', () => {
+test('favourite fields keep reusable choices but not dates or done state', () => {
   const fields = taskFieldsFromTask(task)
   assert.deepEqual(fields, {
     text: 'Submit status update',

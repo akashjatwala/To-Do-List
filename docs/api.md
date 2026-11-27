@@ -59,10 +59,11 @@ Login, signup and password routes are rate-limited.
 | Method | Route | Body | Notes |
 | --- | --- | --- | --- |
 | `POST` | `/api/tasks` | See below | Creates a personal or team task. Returns `{ id }`. |
-| `PATCH` | `/api/tasks/:taskId` | Partial task fields | Edits or completes a task. Completing a recurring task rolls it forward. |
+| `PATCH` | `/api/tasks/:taskId` | Partial task fields | Edits or completes a task. Completing a recurring task accepts `completedFor` (`YYYY-MM-DD`), keeps that occurrence on the date it was finished, and rolls the repeat forward from there. |
 | `POST` | `/api/tasks/reorder` | `{ ids: string[] }` | Persists the visible sticky-note order. |
 | `POST` | `/api/tasks/:taskId/remind` | — | Creates a local reminder. No external delivery. |
 | `POST` | `/api/tasks/:taskId/skip` | `{ date }` | Moves any open note scheduled on `date` (`YYYY-MM-DD`) to the next non-off date. Repeats are not duplicated; team notes notify teammates in-app. |
+| `POST` | `/api/tasks/:taskId/undo-skip` | `{ eventId }` | Reverses a recent skip by the skipper or a member of the task's team, then shows an undo notice to everyone in that team. |
 | `DELETE` | `/api/tasks/:taskId` | — | Creator or team host only. |
 | `PUT` | `/api/tasks/:taskId/assignees` | `{ userIds: number[] }` | Replaces team-task assignees. Every id must be a teammate. |
 | `POST` | `/api/tasks/:taskId/subtasks` | `{ text, assigneeId? }` | Adds a subtask. |
@@ -89,11 +90,13 @@ Login, signup and password routes are rate-limited.
 `priority` is one of `none`, `low`, `medium`, `high`. `duration` is in minutes.
 `due` may be `null`.
 
+`PATCH /api/tasks/:taskId` accepts an optional `completedFor` date (`YYYY-MM-DD`) when completing a repeat. The finished note stays on that date so it appears in that day's Completed column, and the next occurrence is scheduled from that date instead of the repeat's older anchor date. When omitted, the server uses today.
+
 ## Check-ins
 
 | Method | Route | Notes |
 | --- | --- | --- |
-| `GET` | `/api/checkins?date=YYYY-MM-DD` | Returns the status for a date, including `not_asked`, `skipped` or `answered`. |
+| `GET` | `/api/checkins?date=YYYY-MM-DD` | Returns the status for a date: `not_asked`, `partial`, `completed` or `skipped`. |
 | `GET` | `/api/checkins/history?limit=30` | Recent check-ins, limit 1–365. |
 | `PUT` | `/api/checkins` | Saves answers for a date. All answer keys must be integers 1–5 or `null`. |
 | `POST` | `/api/checkins/skip` | Marks the date as skipped. |
@@ -119,9 +122,9 @@ Sensitive check-in answers are optional; `null` is kept as missing.
 | `GET` / `PUT` | `/api/state/prefs` | User preferences. |
 | `GET` / `PUT` | `/api/state/review` | Evening review. |
 | `PUT` | `/api/state/suggestions` | Suggestion feedback. |
-| `GET` / `POST` | `/api/off-days` | List or add off days. Adding one moves open tasks due on those dates to the next non-off date and shows an off-day notice to teammates. |
+| `GET` / `POST` | `/api/off-days` | List or add off days. Adding one moves open **personal** tasks due on those dates to the next non-off date; team tasks keep their shared date and teammates get an off-day notice. |
 | `GET` | `/api/off-days/day?date=…` | Off-day status for a date. |
-| `PATCH` / `DELETE` | `/api/off-days/:id` | Edit or remove an off day. Task moves are recalculated from the dates still marked off. |
+| `PATCH` / `DELETE` | `/api/off-days/:id` | Edit or remove an off day. Previously moved open tasks return to their original date when that date is no longer off, then moves are recalculated from the dates still marked off. |
 | `GET` / `PUT` | `/api/off-days/settings` | Off-day defaults. |
 
 ## Predictions and completion model health

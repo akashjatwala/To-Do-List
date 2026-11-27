@@ -111,11 +111,11 @@ const invites: UserInvite[] = [
   },
 ]
 
-function render(open: boolean) {
+function render(open: boolean, items: AppNotification[] = notifications) {
   return renderToStaticMarkup(
     <NotificationCenter
       userId={1}
-      notifications={notifications}
+      notifications={items}
       invites={invites}
       onAcceptInvite={() => {}}
       onDeclineInvite={() => {}}
@@ -158,4 +158,30 @@ test('panel groups invitations, reminders and activity with their actions', () =
   assert.doesNotMatch(html, /Invites, reminders and a recent team activity feed/)
   assert.doesNotMatch(html, /In-app only/)
   assert.doesNotMatch(html, /no email, push or webhook/)
+})
+
+test('a teammate skip notice offers Undo skip', () => {
+  const item: AppNotification = {
+    id: 'task-skipped:7',
+    kind: 'task-skipped',
+    createdAt: Date.now() - 30_000,
+    title: 'Asha skipped a task',
+    body: '“Cut release 2.4” moved from Nov 27 to Nov 28.',
+    taskId: 'task-7',
+    teamId: 'crew',
+    teamName: 'Launch crew',
+    actorName: 'Asha',
+    move: {
+      eventId: 7,
+      reason: 'skip',
+      fromDate: '2026-11-27',
+      toDate: '2026-11-28',
+      canUndo: true,
+    },
+  }
+  const html = render(true, [item])
+  assert.match(html, /Team activity/)
+  assert.match(html, /Asha skipped a task/)
+  assert.match(html, /Undo skip/)
+  assert.match(html, /Open task/)
 })

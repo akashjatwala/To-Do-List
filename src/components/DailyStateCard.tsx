@@ -6,7 +6,6 @@ import type {
   DailyState,
   ToastTone,
 } from '@/types'
-import { labelForKey } from '@/lib/checkin'
 import {
   bandRingClass,
   displaySubScores,
@@ -18,7 +17,6 @@ import {
 import { useReducedMotion } from '@/lib/useReducedMotion'
 import { api, errorMessage } from '@/api'
 import EnergyDetailSheet from './EnergyDetailSheet'
-import { SparklesIcon } from './Icons'
 
 /**
  * The Energy Level card.
@@ -28,10 +26,6 @@ import { SparklesIcon } from './Icons'
  * stored preference for it). The overall score, the grouping behind it and the
  * API are unchanged: the four sub-scores are a display re-grouping of the same
  * answered fields, computed from what the person reported and never invented.
- *
- * The estimates for skipped answers, the recent-pattern lines and the
- * days-like-today section are intentionally not shown here, but their code is
- * left in place below (behind `SHOW_HIDDEN_SECTIONS`) so nothing is lost.
  *
  * The Update button opens the check-in prefilled; low-capacity suggestions
  * continue to work exactly as before.
@@ -52,9 +46,6 @@ interface DailyStateCardProps {
   onRefreshState: () => Promise<void>
   notify: (message: string, tone?: ToastTone) => void
 }
-
-/** These sections stay in the code but are not shown on this card. */
-const SHOW_HIDDEN_SECTIONS = false
 
 const CELEBRATED_PREFIX = 'todo.energy.celebrated.'
 
@@ -93,7 +84,7 @@ export default function DailyStateCard({
   const historyLoaded = useRef(false)
   const reducedMotion = useReducedMotion()
 
-  const { summary, estimates, similarDays, recentContext, association, advanced } = state
+  const { summary, association, advanced } = state
   const readiness = summary.readiness
   const score = readiness.score
   const band = scoreBand(score)
@@ -347,64 +338,6 @@ export default function DailyStateCard({
                 </div>
               </button>
             ))}
-          </div>
-        )}
-
-        {SHOW_HIDDEN_SECTIONS && estimates.shown && (
-          <div className="rounded-xl border border-slate-100 px-3 py-2.5">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-              <SparklesIcon className="h-3.5 w-3.5" />
-              Estimates for what you skipped
-            </p>
-            {estimates.estimates.length > 0 ? (
-              <ul className="mt-2 space-y-1.5">
-                {estimates.estimates.map((estimate) => (
-                  <li key={estimate.key} className="flex items-baseline justify-between gap-2 text-xs">
-                    <span className="text-slate-600">{labelForKey(estimate.key)}</span>
-                    <span className="text-right text-slate-500">
-                      about {estimate.value}
-                      <span className="text-slate-400">
-                        {' '}
-                        (likely {estimate.range[0]}–{estimate.range[1]})
-                      </span>
-                      <span className="block text-[10px] text-slate-400">
-                        {estimate.basis}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-1.5 text-xs text-slate-400">
-                {estimates.reason ?? 'Nothing needs estimating today.'}
-              </p>
-            )}
-          </div>
-        )}
-
-        {SHOW_HIDDEN_SECTIONS && recentContext.lines.length > 0 && (
-          <div className="rounded-xl bg-amber-50/70 px-3 py-2.5">
-            <p className="text-[11px] font-semibold text-amber-700">Recent pattern</p>
-            <ul className="mt-1 space-y-1">
-              {recentContext.lines.map((line) => (
-                <li key={line} className="text-xs text-amber-800">
-                  {line}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-1 text-[10px] text-amber-700/70">
-              This is a pattern in what you reported, not a cause.
-            </p>
-          </div>
-        )}
-
-        {SHOW_HIDDEN_SECTIONS && similarDays.available && similarDays.line && (
-          <div className="rounded-xl bg-slate-50 px-3 py-2.5">
-            <p className="text-[11px] font-semibold text-slate-500">Days like today</p>
-            <p className="mt-1 text-xs text-slate-600">{similarDays.line}</p>
-            <p className="mt-1 text-[10px] text-slate-400">
-              Based on {similarDays.dayCount} similar days. This is what happened before, not a promise.
-            </p>
           </div>
         )}
 

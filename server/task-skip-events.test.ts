@@ -7,12 +7,17 @@ import { TASK_SKIP_EVENTS_SCHEMA, undoTaskSkip } from './task-move-events'
 import { localDateValue } from './recurrence'
 
 const USER = 1
+const MATE = 2
+const OUTSIDER = 3
 
 function freshDb(): DatabaseSync {
   const db = new DatabaseSync(':memory:')
   db.exec('PRAGMA foreign_keys = ON')
   db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT)')
-  db.exec("INSERT INTO users (email) VALUES ('me@example.com')")
+  db.exec(`
+    INSERT INTO users (id, email) VALUES
+      (1, 'me@example.com'), (2, 'mate@example.com'), (3, 'outsider@example.com')
+  `)
   db.exec(`
     CREATE TABLE tasks (
       id TEXT PRIMARY KEY,
@@ -37,6 +42,15 @@ function freshDb(): DatabaseSync {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )
+  `)
+  db.exec(`
+    CREATE TABLE teams (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE team_members (
+      team_id TEXT NOT NULL, user_id INTEGER NOT NULL,
+      PRIMARY KEY (team_id, user_id)
+    );
+    INSERT INTO teams (id, name) VALUES ('crew', 'Crew');
+    INSERT INTO team_members (team_id, user_id) VALUES ('crew', 1), ('crew', 2);
   `)
   db.exec(TASK_SKIP_EVENTS_SCHEMA)
   return db
@@ -183,7 +197,6 @@ test('a recent skip can be undone back to its original date and time', () => {
 
 test('undo refuses a skip by someone else or a task that has moved on', () => {
   const db = freshDb()
-  db.exec("INSERT INTO users (email) VALUES ('other@example.com')")
   insertTask(db, 'personal', '2026-11-25')
   skipTaskDate(db, load(db, 'personal'), USER, '2026-11-25')
   const eventId = Number(
@@ -197,5 +210,32 @@ test('undo refuses a skip by someone else or a task that has moved on', () => {
   )
   assert.equal(undoTaskSkip(db, eventId, USER, 'personal'), null)
   assert.equal(dueValue(db, 'personal'), '2026-11-29')
+  db.close()
+})
+
+test('a teammate can undo a recent team skip, but an outsider cannot', () => {
+  const db = freshDb()
+  insertTask(db, 'team', '2026-11-25', { teamId: 'crew' })
+  skipTaskDate(db, load(db, 'team'), USER, '2026-11-25')
+  assert.equal(dueValue(db, 'team'), '2026-11-26')
+  const eventId = Number(
+    (db.prepare('SELECT id FROM task_skip_events').get() as { id: number }).id,
+  )
+
+  assert.equal(undoTaskSkip(db, eventId, OUTSIDER, 'team'), null)
+  const undone = undoTaskSkip(db, eventId, MATE, 'team')
+  assert.equal(undone?.fromDate, '2026-11-25')
+  assert.equal(undone?.undone, true)
+  assert.equal(undone?.undoneBy, MATE)
+  assert.ok(undone?.undoneAt)
+  assert.equal(dueValue(db, 'team'), '2026-11-25')
+
+  const row = db
+    .prepare('SELECT undone, undone_by, undone_at FROM task_skip_events WHERE id = ?')
+    .get(eventId) as { undone: number; undone_by: number | null; undone_at: number | null }
+  assert.equal(row.undone, 1)
+  assert.equal(row.undone_by, MATE)
+  assert.ok(row.undone_at)
+  assert.equal(undoTaskSkip(db, eventId, USER, 'team'), null)
   db.close()
 })

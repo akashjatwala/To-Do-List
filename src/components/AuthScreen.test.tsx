@@ -8,6 +8,7 @@ test('the login page follows the reference layout and copy', () => {
 
   assert.match(html, /DUIT<span class="text-indigo-500">\.<\/span>/)
   assert.match(html, /text-\[26px\] font-extrabold tracking-tight text-\[#15181E\]/)
+  assert.match(html, /Do it Smarter/)
   assert.doesNotMatch(html, /Do It\./i)
   assert.match(html, /Welcome back/)
   assert.match(html, /Log in to see your day\./)
@@ -32,6 +33,7 @@ test('the signup page follows the reference layout and copy', () => {
   )
 
   assert.doesNotMatch(html, /Do It\./i)
+  assert.match(html, /Do it Smarter/)
   assert.match(html, /Create your account/)
   assert.match(html, /Let(?:&#x27;|')s get you started\./)
   assert.match(html, /Already have an account\?/)

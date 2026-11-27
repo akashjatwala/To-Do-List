@@ -61,7 +61,7 @@ test('Invitations uses blush pink and drops the header count', () => {
   assert.doesNotMatch(html, /Invitations<\/h2><span/)
 })
 
-test('Off days shows active and upcoming teammates in this team only', () => {
+test('Off days shows only teammates who are off today, in this team only', () => {
   const scopedTeam: Team = {
     ...team,
     members: [
@@ -122,14 +122,17 @@ test('Off days shows active and upcoming teammates in this team only', () => {
     />,
   )
 
-  assert.match(html, /aria-label="Teammate off days"/)
+  assert.match(html, /aria-label="Teammate off days today"/)
   assert.match(html, /bg-\[#EEF5F8\]/)
+  assert.match(html, /Off today<\/h2>/)
+  assert.match(html, /aria-label="View team off day calendar"/)
   assert.match(html, /Asha/)
   assert.match(html, /Sick/)
+  assert.match(html, /🤒/)
   assert.match(html, /Today · Nov 24 – Nov 26/)
   assert.match(html, /Recovering/)
-  assert.match(html, /Marco/)
-  assert.match(html, /From Nov 26 to Nov 27/)
+  assert.doesNotMatch(html, /Marco/)
+  assert.doesNotMatch(html, /From Nov 26 to Nov 27/)
   assert.doesNotMatch(html, /Outsider/)
   assert.doesNotMatch(html, /Me</)
 })
@@ -143,6 +146,6 @@ test('Off days has a clear empty state', () => {
       today="2026-11-25"
     />,
   )
-  assert.match(html, /No teammate off days/)
-  assert.match(html, /Nobody in Launch crew has an off day announced\./)
+  assert.match(html, /Nobody is off today/)
+  assert.match(html, /🌤️/)
 })

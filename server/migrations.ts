@@ -397,6 +397,21 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 23,
+    name: 'task_skip_events.undo-actor',
+    // Record who reversed a skip so the team can see it in the notification
+    // centre. Old undone events stay silent because they have no undoer.
+    up: (db) => {
+      if (!hasTable(db, 'task_skip_events')) return
+      if (!hasColumn(db, 'task_skip_events', 'undone_by')) {
+        addColumn(db, 'task_skip_events', 'undone_by INTEGER')
+      }
+      if (!hasColumn(db, 'task_skip_events', 'undone_at')) {
+        addColumn(db, 'task_skip_events', 'undone_at INTEGER')
+      }
+    },
+  },
 ]
 
 export function runMigrations(db: DatabaseSync): void {

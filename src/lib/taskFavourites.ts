@@ -5,7 +5,7 @@ import type { Priority, Recurrence, Task } from '@/types'
  *
  * Favourites deliberately exclude absolute dates.
  * They speed up the fields people retype; the date still comes from the board,
- * so a reused note never inherits a stale day or a hidden time label.
+ * so a reused note never inherits a stale day.
  */
 export interface TaskFavouriteFields {
   text: string
@@ -26,7 +26,7 @@ export const FAVOURITE_LIMIT = 12
 /**
  * Demo accounts start with a few built-in favourites so the Favourites section
  * is immediately visible. They are browser-local like every other favourite:
- * stable ids and names make them reseed-safe, and no date or time hint is copied.
+ * stable ids and names make them reseed-safe, and no date is copied.
  */
 export const DEMO_FAVOURITE_EMAILS = new Set([
   'ml-demo@example.com',
@@ -129,7 +129,7 @@ export function demoFavouritesForEmail(email: string | undefined): TaskFavourite
   return DEMO_FAVOURITES.map((favourite) => ({ ...favourite, tags: [...favourite.tags] }))
 }
 
-/** Copy the reusable fields from a task; never its date, time hint or done state. */
+/** Copy the reusable fields from a task; never its date or done state. */
 export function taskFieldsFromTask(task: Task): TaskFavouriteFields {
   return {
     text: task.text,

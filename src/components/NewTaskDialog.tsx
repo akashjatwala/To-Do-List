@@ -40,7 +40,7 @@ export interface NewTaskInput {
   teamId: string | null
 }
 
-/** Prefill used by saved favourites and the completed-note "Create similar" action. */
+/** Prefill used by saved favourites. */
 export type NewTaskDraft = Partial<TaskFavouriteFields> & { label?: string }
 
 const DURATION_MAX = 60 * 24 * 7

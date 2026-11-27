@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { api, errorMessage } from '@/api'
 import type { OffDayKind, Team, TeammateOffDay, ToastTone, UserInvite } from '@/types'
 import { Avatar } from './ui'
-import { offDayEmoji } from './OffDayCard'
+import OffDayCalendarButton, { type OffDayCalendarEntry } from './OffDayCalendar'
+import { NO_OFF_DAY_EMOJI, offDayEmoji } from './off-day-display'
 import { CheckIcon, MailIcon, TrashIcon, UserPlusIcon, XIcon } from './Icons'
 
 type Notify = (message: string, tone?: ToastTone) => void
@@ -153,48 +154,54 @@ export function TeamMembersCard({
   )
 }
 
-/** Current and upcoming off periods for teammates in this team. */
+/** Teammates in this team who are off today. Other periods live in the header calendar. */
 export function TeamOffDaysCard({
   team,
   offDays,
   currentUserId,
   today,
+  calendarEntries = [],
 }: {
   team: Team
   offDays: TeammateOffDay[]
   currentUserId: number
   today: string
+  calendarEntries?: OffDayCalendarEntry[]
 }) {
   const teammateIds = new Set(
     team.members.filter((member) => member.id !== currentUserId).map((member) => member.id),
   )
   const visibleOffDays = offDays
-    .filter((offDay) => teammateIds.has(offDay.userId) && offDay.endDate >= today)
-    .sort((a, b) => {
-      const aActive = a.startDate <= today ? 0 : 1
-      const bActive = b.startDate <= today ? 0 : 1
-      return (
-        aActive - bActive ||
-        a.startDate.localeCompare(b.startDate) ||
-        a.name.localeCompare(b.name)
-      )
-    })
+    .filter(
+      (offDay) =>
+        teammateIds.has(offDay.userId) &&
+        offDay.startDate <= today &&
+        today <= offDay.endDate,
+    )
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   return (
     <section
       className="overflow-hidden rounded-[24px] border border-[#DCE9EE] bg-[#EEF5F8] p-5"
-      aria-label="Teammate off days"
+      aria-label="Teammate off days today"
     >
-      <div className="mb-3">
-        <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Off days</h2>
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Off today</h2>
+        <OffDayCalendarButton
+          entries={calendarEntries}
+          today={today}
+          title="Team off day calendar"
+          buttonLabel="View team off day calendar"
+          tone="teammate"
+        />
       </div>
 
       {visibleOffDays.length === 0 ? (
         <div className="rounded-2xl bg-white/70 px-4 py-5 text-center shadow-sm ring-1 ring-white/80">
-          <p className="text-sm font-semibold text-slate-700">No teammate off days</p>
-          <p className="mt-1 text-xs leading-relaxed text-slate-500">
-            Nobody in {team.name} has an off day announced.
-          </p>
+          <span className="text-3xl" aria-hidden="true">
+            {NO_OFF_DAY_EMOJI}
+          </span>
+          <p className="mt-2 text-sm font-semibold text-slate-700">Nobody is off today</p>
         </div>
       ) : (
         <ul className="space-y-1 divide-y divide-slate-200/70 rounded-2xl bg-white/70 px-4 shadow-sm ring-1 ring-white/80 [&>li:first-child]:pt-3 [&>li:last-child]:pb-3">

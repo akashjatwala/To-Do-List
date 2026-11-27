@@ -128,7 +128,7 @@ test('legacy skip events gain move columns after the base schema is applied', ()
   const columns = (
     db.prepare('PRAGMA table_info(task_skip_events)').all() as Array<{ name: string }>
   ).map((row) => row.name)
-  for (const column of ['due', 'reason', 'undone']) {
+  for (const column of ['due', 'reason', 'undone', 'undone_by', 'undone_at']) {
     assert.ok(columns.includes(column), `missing ${column} column`)
   }
 

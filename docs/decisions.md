@@ -20,6 +20,8 @@
 | Remove unreferenced scaffold tables | Nine planning/target/weekly tables held no rows and had no references in `server/` or `src/`; keeping them made the data model look more complex than the app actually is |
 | Keep `auth_tokens` session-only | Reset codes were removed entirely rather than exposed by an environment quirk; migration 12 deletes old rows and narrows the `kind` check. Password changes happen in My Account |
 | Reminders are records, not delivery | An in-app reminder is stored locally and shown in the Overdue card; no email, push or webhook is introduced |
+| Personal off days never retime team tasks | A shared team task belongs to the whole team; the off-day notice tells teammates instead of changing their board for one person's absence |
+| Any teammate can undo a recent shared skip | The skip changes a shared due date, so the notice carries the undo action; the undoer is recorded and the whole team sees the reversal |
 
 ## Modelling
 
@@ -47,7 +49,7 @@
 | Sticky completion health fallback | The champion is not flipped back on one good window; it is retried only after a rate-limited completion retrain |
 | Completion retraining is gated and rate-limited | Retraining on every write would churn; the gate waits for enough new labels or staleness |
 | Lightweight, unref'd scheduler that can be disabled | Periodic learning should never keep the process alive or run without consent |
-| Shadow protection before promotion | A completion candidate that wins on validation can still lose on live days; shadow mode catches that |
+| Validation and calibration gates before promotion | A candidate must beat the baseline and champion on chronological validation and pass reliability checks; shadow helpers remain available for future live gating but are not wired into serving today |
 | Append-only completion model versions with rollback | Any version can be restored; nothing is overwritten |
 
 ## Product and privacy

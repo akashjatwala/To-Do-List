@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { Task } from '@/types'
-import { CompletedColumn, RepeatingColumn, StickyBoard } from './StickyBoard'
+import { StickyBoard } from './StickyBoard'
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {
@@ -122,38 +122,10 @@ test('an overview board hides the grip and drag affordance', () => {
   assert.doesNotMatch(html, /Click to open · drag to rearrange/)
 })
 
-const columnProps = {
-  tasks: [makeTask()],
-  currentUserId: 1,
-  showOwner: false,
-  canDelete: () => false,
-  onOpen: () => undefined,
-  onToggle: () => undefined,
-  onDelete: () => undefined,
-  onReorder: () => undefined,
-  allowReorder: false,
-}
-
-test('Completed keeps its green card but drops the header count', () => {
-  const html = renderToStaticMarkup(<CompletedColumn {...columnProps} />)
-  assert.match(html, /bg-\[#DCEBDF\]/)
-  assert.match(html, /Completed<\/h2>/)
-  assert.doesNotMatch(html, /Completed<\/h2><span/)
+test('done notes show a checked, uncomplete action in the overview', () => {
+  const html = renderBoard([makeTask({ done: true })], false)
+  assert.match(html, /aria-checked="true"/)
+  assert.match(html, /aria-label="Mark as not done"/)
+  assert.doesNotMatch(html, /aria-label="Mark as done"/)
 })
 
-test('Completed offers Create similar without exposing a time label', () => {
-  const html = renderToStaticMarkup(
-    <CompletedColumn {...columnProps} onCreateSimilar={() => undefined} />,
-  )
-  assert.match(html, /aria-label="Create similar to Read a book"/)
-  assert.match(html, />Similar</)
-  assert.doesNotMatch(html, /\d{2}:\d{2}/)
-})
-
-test('Repeating uses its own light blue card and drops the header count', () => {
-  const html = renderToStaticMarkup(<RepeatingColumn {...columnProps} />)
-  assert.match(html, /bg-\[#E7F0F9\]/)
-  assert.match(html, /Repeating<\/h2>/)
-  assert.doesNotMatch(html, /Repeating<\/h2><span/)
-  assert.match(html, /rounded-2xl bg-white\/55/)
-})

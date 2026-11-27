@@ -89,10 +89,15 @@ export default function AppHeader({
           <button
             type="button"
             onClick={onOpenMyTasks}
-            className="text-[26px] font-extrabold tracking-tight text-[#15181E]"
+            className="flex flex-col items-start text-[26px] font-extrabold tracking-tight text-[#15181E]"
             aria-label="DUIT home"
           >
-            DUIT<span className="text-indigo-500">.</span>
+            <span className="leading-none">
+              DUIT<span className="text-indigo-500">.</span>
+            </span>
+            <span className="mt-0.5 text-[10px] font-medium tracking-wide text-slate-400">
+              Do it Smarter
+            </span>
           </button>
 
           <nav className="flex items-center gap-1 sm:gap-3" aria-label="Main">

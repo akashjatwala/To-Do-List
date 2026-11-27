@@ -107,6 +107,8 @@ export const api = {
     patchBody: {
       text?: string
       done?: boolean
+      /** Dated occurrence being completed, for recurring tasks. */
+      completedFor?: string
       due?: number | null
       position?: number
       progress?: number

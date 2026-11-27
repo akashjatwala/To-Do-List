@@ -110,7 +110,8 @@ Migration 18 keeps the old hide-a-date table for databases that already ran it, 
 `task_skip_events`, and migration 20 adds the reason, destination and undo columns those events use
 for off-day moves. Migration 21 removes stale `target` and `duration` rows from the ML registry,
 shadow, retrain and health tables on older databases; completion rows are untouched. Migration 22
-drops the unused `preferred_time` columns from `tasks` and `task_configs`.
+drops the unused `preferred_time` columns from `tasks` and `task_configs`. Migration 23 adds
+`undone_by` and `undone_at` so an undone team skip can name the teammate who restored it.
 
 ## In-app reminders
 
@@ -123,11 +124,11 @@ to every team member when nobody is assigned. The newest scoped reminders are re
 ## Notification centre
 
 `GET /api/notifications` builds the bell panel from the same local rows: pending invitations,
-reminders addressed to the user, and a team activity feed of task adds, completions, comments,
-assignments and team reminders from the user's teams. The user's own actions are included. Team
-rows carry the team name, and unread rows use a restrained indigo style. It never queues a message
-or contacts an outside service. The assignment route records who assigned
-whom and when; migration 14 fills older rows from the task's owner and creation time. Completion
+reminders addressed to the user, your own moves, and a team activity feed of task adds, completions,
+comments, assignments, skips, skip undos, off days and team reminders from the user's teams. The
+user's own actions are included. Team rows carry the team name, and unread rows use a restrained
+indigo style. It never queues a message or contacts an outside service. The assignment route records
+who assigned whom and when; migration 14 fills older rows from the task's owner and creation time. Completion
 is timestamped only when a task changes to done; migration 15 adds those columns but deliberately
 does not backfill old rows. The read marker is browser-local, so clearing site data resets it.
 

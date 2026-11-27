@@ -83,10 +83,11 @@ export type NotificationKind =
   | 'task-added'
   | 'task-completed'
   | 'task-skipped'
+  | 'task-skip-undone'
   | 'task-moved'
   | 'off-day'
 
-/** Metadata for the signed-in user's own automatic date move. */
+/** Metadata for a date move the signed-in user can act on. */
 export interface NotificationMove {
   eventId: number
   reason: 'skip' | 'off-day'

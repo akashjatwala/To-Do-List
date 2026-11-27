@@ -32,8 +32,6 @@ interface BoardProps {
   onDelete: (task: Task) => void
   /** Enables the reminder action, used only on the all-pending overview. */
   onRemind?: (task: Task) => void
-  /** Completed notes can prefill the new-task dialog with their reusable fields. */
-  onCreateSimilar?: (task: Task) => void
 }
 
 /** The small date label on a note. */
@@ -414,9 +412,11 @@ function StickyBoardComponent({
                 data-note-action
                 onClick={() => onToggle(task)}
                 role="checkbox"
-                aria-checked={false}
-                aria-label="Mark as done"
-                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[2.5px] transition duration-150 hover:rotate-6 active:scale-90 ${meta.check}`}
+                aria-checked={task.done}
+                aria-label={task.done ? 'Mark as not done' : 'Mark as done'}
+                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[2.5px] transition duration-150 hover:rotate-6 active:scale-90 ${meta.check} ${
+                  task.done ? '!text-current' : ''
+                }`}
               >
                 <CheckIcon className="h-3 w-3" strokeWidth={3.5} />
               </button>
@@ -557,175 +557,3 @@ function StickyBoardComponent({
 export const StickyBoard = memo(StickyBoardComponent)
 StickyBoard.displayName = 'StickyBoard'
 
-export function CompletedColumn({
-  tasks,
-  currentUserId,
-  showOwner,
-  canDelete,
-  onOpen,
-  onToggle,
-  onDelete,
-  onCreateSimilar,
-}: BoardProps) {
-  const { confirm, dialog } = useConfirm()
-
-  return (
-    <section className="overflow-hidden rounded-[24px] bg-[#DCEBDF] p-5" aria-label="Completed">
-      <div className="mb-3">
-        <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Completed</h2>
-      </div>
-
-      {tasks.length === 0 ? (
-        <div className="flex flex-col items-center rounded-2xl bg-white/55 px-4 py-6 text-center shadow-sm ring-1 ring-[#2F4A37]/10">
-          <span className="text-3xl" aria-hidden="true">
-            ✅
-          </span>
-          <p className="mt-2 text-sm font-semibold text-[#2F4A37]">Nothing finished yet</p>
-          <p className="mt-1 max-w-xs text-xs leading-relaxed text-[#2F4A37]/70">
-            Finished tasks for this day will collect here.
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-1.5">
-          {tasks.map((task) => {
-            const repeat = recurrenceShort(task.recurrence, task.recurrenceConfig)
-            return (
-              <li
-                key={task.id}
-                className="group flex items-center gap-2 rounded-xl bg-white/55 px-3 py-2 shadow-sm ring-1 ring-[#2F4A37]/10"
-              >
-                <button
-                  type="button"
-                  onClick={() => onToggle(task)}
-                  role="checkbox"
-                  aria-checked
-                  aria-label="Mark as not done"
-                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-[#2F6B45] bg-[#2F6B45] text-white transition hover:bg-[#2F4A37] active:scale-90"
-                >
-                  <CheckIcon className="h-2.5 w-2.5" strokeWidth={3.5} />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onOpen(task)}
-                  className="min-w-0 flex-1 text-left"
-                >
-                  <p className="truncate text-[13px] font-semibold text-[#2F4A37]">
-                    {task.text}
-                  </p>
-                </button>
-
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {repeat && (
-                    <span className="insight-pill bg-white/70 text-[#2F4A37]">{repeat}</span>
-                  )}
-                  {showOwner && task.userId !== currentUserId && (
-                    <span className="max-w-[8rem] truncate text-[10px] text-[#2F4A37]/70">
-                      {task.ownerEmail.split('@')[0]}
-                    </span>
-                  )}
-                </div>
-
-                {onCreateSimilar && (
-                  <button
-                    type="button"
-                    onClick={() => onCreateSimilar(task)}
-                    className="rounded p-1 text-[10px] font-semibold text-[#2F4A37]/70 opacity-80 transition hover:text-[#2F6B45] focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                    aria-label={`Create similar to ${task.text}`}
-                    title="Create similar"
-                  >
-                    Similar
-                  </button>
-                )}
-
-                {canDelete(task) && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (
-                        await confirm({
-                          title: 'Delete task?',
-                          description: `“${task.text}” will be removed from your list.`,
-                          confirmLabel: 'Delete task',
-                        })
-                      ) {
-                        onDelete(task)
-                      }
-                    }}
-                    className="rounded p-1 text-[#2F4A37]/50 opacity-70 transition hover:text-rose-600 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                    aria-label="Delete task"
-                    title="Delete task"
-                  >
-                    <TrashIcon className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      )}
-      {dialog}
-    </section>
-  )
-}
-
-/** Repeating tasks shown below Completed, matching the compact note style. */
-export function RepeatingColumn({
-  tasks,
-  currentUserId,
-  showOwner,
-  onOpen,
-}: BoardProps) {
-  return (
-    <section className="overflow-hidden rounded-[24px] border border-[#D5E3F0] bg-[#E7F0F9] p-5" aria-label="Repeating">
-      <div className="mb-3">
-        <h2 className="text-xl font-extrabold tracking-tight text-[#15181E]">Repeating</h2>
-      </div>
-
-      {tasks.length === 0 ? (
-        <div className="flex flex-col items-center rounded-2xl bg-white/55 px-4 py-6 text-center shadow-sm ring-1 ring-[#35506B]/10">
-          <span className="text-3xl" aria-hidden="true">
-            🔁
-          </span>
-          <p className="mt-2 text-sm font-semibold text-[#35506B]">No repeating tasks</p>
-          <p className="mt-1 max-w-xs text-xs leading-relaxed text-[#35506B]/75">
-            Tasks that repeat will be listed here.
-          </p>
-        </div>
-      ) : (
-        <div className="rounded-2xl bg-white/55 px-2 py-1.5 shadow-sm ring-1 ring-[#35506B]/10">
-          <ul className="space-y-0.5">
-            {tasks.map((task) => {
-              const repeat = recurrenceShort(task.recurrence, task.recurrenceConfig)
-              return (
-                <li
-                  key={task.id}
-                  className="group flex items-center gap-2 rounded-xl px-1.5 py-2 transition hover:bg-white/60"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onOpen(task)}
-                    className="min-w-0 flex-1 text-left"
-                  >
-                    <p className="truncate text-[13px] font-semibold text-[#15181E]">{task.text}</p>
-                    {showOwner && task.userId !== currentUserId && (
-                      <p className="truncate text-[10px] text-[#35506B]/70">
-                        {task.ownerEmail.split('@')[0]}
-                      </p>
-                    )}
-                  </button>
-                  {repeat && (
-                    <span className="insight-pill shrink-0 bg-white/70 text-[#35506B]">
-                      <RepeatIcon className="h-3 w-3" />
-                      {repeat}
-                    </span>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )}
-    </section>
-  )
-}

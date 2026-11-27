@@ -55,7 +55,9 @@ function fixture(): DatabaseSync {
       actor_id INTEGER NOT NULL, from_date TEXT NOT NULL,
       to_date TEXT NOT NULL, due INTEGER NOT NULL DEFAULT 0,
       reason TEXT NOT NULL DEFAULT 'skip' CHECK (reason IN ('skip', 'off-day')),
-      undone INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
+      undone INTEGER NOT NULL DEFAULT 0,
+      undone_by INTEGER, undone_at INTEGER,
+      created_at INTEGER NOT NULL
     );
   `)
   db.exec(`
@@ -203,13 +205,14 @@ test('teammates see an off-day notice, but people outside the team do not', () =
   db.close()
 })
 
-test('teammates see a task-skip notice; the skipper sees their own move', () => {
+test('teammates see an undoable task-skip notice; the skipper sees their own move', () => {
   const db = fixture()
+  const recent = Date.now() - 1000
   db.exec(`
     INSERT INTO task_skip_events (task_id, actor_id, from_date, to_date, created_at)
     VALUES
-      ('team', 2, '2027-01-10', '2027-01-12', 7000),
-      ('hidden', 4, '2027-01-13', '2027-01-14', 7100);
+      ('team', 2, '2027-01-10', '2027-01-12', ${recent}),
+      ('hidden', 4, '2027-01-13', '2027-01-14', ${recent - 100});
   `)
 
   const items = notificationsFor(1, db)
@@ -223,11 +226,43 @@ test('teammates see a task-skip notice; the skipper sees their own move', () => 
   assert.match(skips[0].body, /Jan 12/)
   assert.equal(skips[0].taskId, 'team')
   assert.equal(skips[0].teamName, 'Launch crew')
+  assert.equal(skips[0].move?.canUndo, true)
+  assert.equal(skips[0].move?.reason, 'skip')
   const own = ofKind(notificationsFor(2, db), 'task-moved')
   assert.equal(ofKind(notificationsFor(2, db), 'task-skipped').length, 0)
   assert.equal(own.length, 1)
   assert.match(own[0].title, /You skipped a task/)
-  assert.equal(own[0].move?.canUndo, false)
+  assert.equal(own[0].move?.canUndo, true)
+  db.close()
+})
+
+test('teammates see who undid a shared skip', () => {
+  const db = fixture()
+  const now = Date.now()
+  db.exec(`
+    INSERT INTO task_skip_events
+      (task_id, actor_id, from_date, to_date, due, reason, undone, undone_by, undone_at, created_at)
+    VALUES
+      ('team', 1, '2027-01-10', '2027-01-12', 0, 'skip', 1, 2, ${now - 1000}, ${now - 5000});
+  `)
+
+  const undone = ofKind(notificationsFor(1, db), 'task-skip-undone')
+  assert.deepEqual(
+    undone.map((item) => item.title),
+    ['Asha undid a skipped task'],
+  )
+  assert.match(undone[0].body, /Shared task/)
+  assert.match(undone[0].body, /Jan 10/)
+  assert.equal(undone[0].taskId, 'team')
+  assert.equal(undone[0].teamName, 'Launch crew')
+  assert.equal(undone[0].createdAt, now - 1000)
+
+  const own = ofKind(notificationsFor(2, db), 'task-skip-undone')
+  assert.deepEqual(
+    own.map((item) => item.title),
+    ['You undid a skipped task'],
+  )
+  assert.equal(ofKind(notificationsFor(4, db), 'task-skip-undone').length, 0)
   db.close()
 })
 

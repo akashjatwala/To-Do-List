@@ -37,6 +37,14 @@ first option shown and 5 the last. For every question 1 is the "best" end and 5 
 The four states a day can be in are derived, not stored: `not_asked` (no row),
 `completed` (all nine answered), `partial` (some answered) and `skipped`.
 
+## When the wizard opens
+
+After login, `useCheckinController` checks today's status once per signed-in user
+per app session. If the day is `not_asked` or `partial`, the **Daily check-in**
+dialog opens immediately; `completed` and `skipped` days do not open it. The
+Energy card's **Take your check-in** / **Update** button can open it again at any
+time, prefilled with the stored answers.
+
 ## Readiness score
 
 `server/ml/readiness.ts` turns the answers into a 0–100 score.

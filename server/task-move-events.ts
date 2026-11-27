@@ -24,6 +24,8 @@ export const TASK_SKIP_EVENTS_SCHEMA = `
     due INTEGER NOT NULL,
     reason TEXT NOT NULL DEFAULT 'skip' CHECK (reason IN ('skip', 'off-day')),
     undone INTEGER NOT NULL DEFAULT 0,
+    undone_by INTEGER,
+    undone_at INTEGER,
     created_at INTEGER NOT NULL,
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
     FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE CASCADE
@@ -51,6 +53,8 @@ export interface TaskMoveRecord {
   due: number
   reason: TaskMoveReason
   undone: boolean
+  undoneBy: number | null
+  undoneAt: number | null
   createdAt: number
 }
 
@@ -63,6 +67,8 @@ interface MoveRow {
   due: number
   reason: TaskMoveReason
   undone: number
+  undone_by: number | null
+  undone_at: number | null
   created_at: number
 }
 
@@ -76,6 +82,8 @@ function toRecord(row: MoveRow): TaskMoveRecord {
     due: row.due,
     reason: row.reason,
     undone: row.undone !== 0,
+    undoneBy: row.undone_by ?? null,
+    undoneAt: row.undone_at ?? null,
     createdAt: row.created_at,
   }
 }
@@ -139,8 +147,10 @@ export function recordTaskMove(
 }
 
 /**
- * Undo a recent skip made by this user. The task must still be open and still
- * on the recorded destination, so a later manual change is never overwritten.
+ * Undo a recent skip by the skipper or by any member of the task's team. The
+ * task must still be open and still on the recorded destination, so a later
+ * manual change is never overwritten. The undoer is recorded so teammates can
+ * see who restored the shared task.
  */
 export function undoTaskSkip(
   database: DatabaseSync,
@@ -154,7 +164,6 @@ export function undoTaskSkip(
     .get(eventId) as unknown as MoveRow | undefined
   if (
     !event ||
-    event.actor_id !== userId ||
     event.undone !== 0 ||
     event.reason !== 'skip' ||
     event.created_at < Date.now() - MOVE_UNDO_WINDOW_MS ||
@@ -164,9 +173,20 @@ export function undoTaskSkip(
   }
 
   const task = database
-    .prepare('SELECT done, due FROM tasks WHERE id = ?')
-    .get(event.task_id) as unknown as { done: number; due: number | null } | undefined
+    .prepare('SELECT done, due, team_id FROM tasks WHERE id = ?')
+    .get(event.task_id) as unknown as
+    | { done: number; due: number | null; team_id: string | null }
+    | undefined
   if (!task || task.done !== 0 || task.due === null) return null
+
+  const member =
+    task.team_id !== null &&
+    Boolean(
+      database
+        .prepare('SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?')
+        .get(task.team_id, userId),
+    )
+  if (event.actor_id !== userId && !member) return null
 
   const source = new Date(task.due)
   const [year, month, day] = event.from_date.split('-').map(Number)
@@ -187,14 +207,23 @@ export function undoTaskSkip(
     new Date(task.due).getDate() === targetDay
   if (!stillAtTarget || !Number.isFinite(restored) || !Number.isFinite(target)) return null
 
+  const now = Date.now()
   database.exec('BEGIN')
   try {
     database.prepare('UPDATE tasks SET due = ? WHERE id = ?').run(restored, event.task_id)
-    database.prepare('UPDATE task_skip_events SET undone = 1 WHERE id = ?').run(event.id)
+    database
+      .prepare('UPDATE task_skip_events SET undone = 1, undone_by = ?, undone_at = ? WHERE id = ?')
+      .run(userId, now, event.id)
     database.exec('COMMIT')
   } catch (error) {
     database.exec('ROLLBACK')
     throw error
   }
-  return { ...toRecord(event), undone: true, due: restored }
+  return {
+    ...toRecord(event),
+    undone: true,
+    undoneBy: userId,
+    undoneAt: now,
+    due: restored,
+  }
 }

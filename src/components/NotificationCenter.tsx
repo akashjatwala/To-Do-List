@@ -101,7 +101,7 @@ export default function NotificationCenter({
     const Icon =
       item.kind === 'task-added'
         ? PlusIcon
-        : item.kind === 'task-completed'
+        : item.kind === 'task-completed' || item.kind === 'task-skip-undone'
           ? CheckIcon
           : item.kind === 'comment' || item.kind === 'mention'
             ? MessageIcon

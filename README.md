@@ -17,7 +17,7 @@ services.
 - Personal to-do lists
 - Shared team lists with host/member roles
 - Email invitations (accept or decline in-app)
-- **Notifications** beside your name collects invitations, reminders, your own **moves** (with **Undo skip** for a recent accidental skip), teammate off-day and task-skip notices, and a recent **Team activity** feed of task adds, completions, comments and assignments — including your own — in one in-app panel; read state is browser-local and nothing is emailed, pushed or webhooked
+- **Notifications** beside your name collects invitations, reminders, your own **moves** (with **Undo skip** for a recent accidental skip), teammate off-day and task-skip notices (also undoable for a shared team task), undo notices, and a recent **Team activity** feed of task adds, completions, comments and assignments — including your own — in one in-app panel; read state is browser-local and nothing is emailed, pushed or webhooked
 - Two top-level views — **My tasks** (only your private personal tasks) and **Teams** (team lists; pick a team from the row underneath, and use **New team** to create one)
 - A day-by-day board: sticky notes for the selected day, with a calendar picker and prev/next-day controls
 - Priority-colored sticky notes — low = soft green, medium = cream, high = soft red
@@ -25,12 +25,12 @@ services.
 - Tap a sticky note once to open its task details and edit it (double-click also works on desktop)
 - One-tap tags (Work, Personal, Meeting, …) plus custom tags
 - An optional ideal duration per task, shown on the note and in task details
-- Completed tasks collect in a list on the right, scoped to the same day, with **Similar** to prefill a new note from the finished one
+- Completed tasks keep their original due dates and can be reviewed or marked not done from the compact **Completed** card's dialog for that day
 - Create personal tasks in **My tasks**, or open a team in **Teams** — new tasks are filed into the list you are viewing
-- **Add task** opens a centered dialog. In **My tasks**, the Off days and Today's plan cards sit in the right-hand column above Completed, leaving more room for the notes
+- **Add task** opens a centered dialog. In **My tasks**, the Energy, Overdue, Off Day and Nudge cards sit in the right-hand column above Completed and Repeating, leaving more room for the notes
 - **Favourites** in the New Task dialog save the current title, tags, priority, duration, repeat and list for one-tap reuse; favourites stay in this browser and never carry a time or old date. Demo accounts start with four built-in examples so the section is visible immediately.
 - **Quick fill** in the New Task dialog turns “Submit report tomorrow #work !high 30m” into a title, due date, tag, priority and duration. It also understands weekdays, `next Monday`, `in 3 days`, `25/11/26`, a trailing team name such as `launch crew` and extra `#tags`; the existing title autocomplete is unchanged. Time words are left in the title — adding a task never adds a time. `!low`, `!medium` and `!high` set priority; unsupported `!words` stay in the title
-- Recurring tasks (daily, weekly, monthly, or custom weekly weekdays / nth-weekday monthly); completing one automatically creates the next occurrence. **Skip for today** moves any open note — repeating or not — to the next date not marked off, teammates see an in-app notice when a shared note moves, and your own move appears under **Notifications → Your moves** with a one-week **Undo skip** window. Completed tasks keep their original due dates
+- Recurring tasks (daily, weekly, monthly, or custom weekly weekdays / nth-weekday monthly); completing one automatically creates the next occurrence. **Skip for today** moves any open note — repeating or not — to the next date not marked off. A shared note notifies teammates, and either the skipper or a teammate can **Undo skip** from the notice within one week; everyone then sees who undid it. Your own skip also appears under **Notifications → Your moves**. Completed tasks keep their original due dates, and **Completed**, **Overdue** and **Repeating** are compact sidebar cards that open scope-wide sticky-note dialogs instead of inline lists
 - Manual task completion progress (0–100%) with a slider, presets, and list progress bars
 - Subtasks with progress tracking
 - Task comments
@@ -40,17 +40,17 @@ services.
 
 **Learning system (local, no third-party services)**
 
-- A daily check-in (nine optional questions)
+- A daily check-in (nine optional questions) that opens automatically after login when today's check-in is unanswered or partial, once per signed-in user per app session
 - Activity logging: timed sessions recorded from Task Detail
 - Per-activity statistics, a readiness/energy view, and similar-day context
 - Nudge shows each personal task's chance you'll work on it today (any logged activity counts)
-- Off days (just off / sick / travelling / holiday / other), each with its own emoji: open tasks due on those dates move to the next non-off date, repeating occurrences are skipped for the off span, teammates get an in-app notice, and confidence is reduced when you are away
+- Off days (just off / sick / travelling / holiday / other), each with its own emoji: open tasks due on those dates move to the next non-off date, repeating occurrences are skipped for the off span, teammates get an in-app notice, confidence is reduced when you are away, the **Off Day** card's top-right calendar highlights your past and future off dates and shows the period when you click one, Teams adds the same button to **Off today** for teammates only, and that card stays limited to teammates off on the selected day
 - The **Nudge** card shows only open personal tasks scheduled on the selected day, including repeating occurrences; team tasks and other days are excluded
-- Display-only **Worth a look** suggestions. The server still computes the proposed flow, workload warning and "better days" ideas, but they are no longer shown in the UI; none of them change a task's date
-- Versioned tags, priority and target duration, with full history. Favourites, Quick fill and **Similar** keep only reusable choices
+- **Worth a look** suggestions offer *Drop it / Move it* and *Keep it* as display-only feedback. The server also computes a proposed flow, workload warning and "better days" ideas that are not shown in the UI; none of them change a task's date
+- Versioned tags, priority and target duration, with full history. Favourites and Quick fill keep only reusable choices
 - **My Account → Tags** adds, renames and deletes tags; names are always lower case, every task updates immediately, and past history stays linked to the original tag ids
 - Local completion model training, versioning, promotion, rollback and a plain-words completion health view (Brier, ECE)
-- A completion candidate is shadowed on live days before promotion, so a validation win cannot silently replace the served champion
+- Completion candidates are promoted only after chronological validation and calibration gates; shadow-mode helpers are retained and tested but are not part of the live promotion path
 - The completion champion is served when healthy, with baseline completion fallback when it is not or no model exists yet. Target probability and expected duration stay baseline/statistical estimates for display and scheduling
 - Continuous learning: recording activity updates statistics immediately and completion retraining is gated and rate-limited
 - Drift notes and dated configuration changes, shown as associations, never as causes
@@ -113,10 +113,12 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 | `npm run test:e2e` | Build, start an isolated server and run the Chrome browser flows |
 | `npm run seed:ml` | Seed repeatable demo history in an isolated database and print the completion-only backtest report |
 | `npm run seed:ml:app` | Seed demo history into the app database and print the completion-only backtest report |
+| `npm run demo:team` | Rebuild the rich demo teams in the main app database (demo accounts only) |
 
 ## Development notes
 
 - Password changes are made in **My Account**; there is no mail service or reset-code flow.
+- `npm run seed:ml:app` recreates the ML demo user. Run `npm run demo:team` afterward if you want the rich demo teams and skip/undo examples back in the main app database.
 - Session cookies are `httpOnly` and `Secure` in production; only SHA-256 hashes of session tokens are stored.
 - Login, signup and password-confirm endpoints are rate limited, and all responses carry standard security headers.
 - Deleting a task requires being its creator or the team host. Comments can be deleted by their author or the host.

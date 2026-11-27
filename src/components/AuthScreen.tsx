@@ -68,8 +68,13 @@ const DECOR_NOTES = [
 
 function AuthLogo({ className = '' }: { className?: string }) {
   return (
-    <span className={`text-[26px] font-extrabold tracking-tight text-[#15181E] ${className}`}>
-      DUIT<span className="text-indigo-500">.</span>
+    <span className={`inline-flex flex-col ${className}`}>
+      <span className="text-[26px] font-extrabold tracking-tight text-[#15181E] leading-none">
+        DUIT<span className="text-indigo-500">.</span>
+      </span>
+      <span className="mt-1 text-[11px] font-medium tracking-wide text-slate-400">
+        Do it Smarter
+      </span>
     </span>
   )
 }

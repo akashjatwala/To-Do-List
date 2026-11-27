@@ -20,6 +20,7 @@ export type NotificationKind =
   | 'task-added'
   | 'task-completed'
   | 'task-skipped'
+  | 'task-skip-undone'
   | 'task-moved'
   | 'off-day'
 
@@ -41,7 +42,7 @@ export interface AppNotification {
   teamId: string | null
   teamName: string | null
   actorName: string | null
-  /** Present only for the signed-in user's own automatic date moves. */
+  /** Present when the signed-in user can act on the linked date move. */
   move?: NotificationMove
 }
 
@@ -111,7 +112,21 @@ interface TaskSkipEventRow {
   task_text: string
   from_date: string
   to_date: string
+  reason: 'skip' | 'off-day'
   created_at: number
+  actor_id: number
+  actor_name: string | null
+  actor_email: string | null
+}
+
+interface TaskSkipUndoRow {
+  id: number
+  task_id: string
+  team_id: string
+  team_name: string
+  task_text: string
+  from_date: string
+  undone_at: number
   actor_id: number
   actor_name: string | null
   actor_email: string | null
@@ -465,9 +480,11 @@ export function notificationsFor(userId: number, database: DatabaseSync = db): A
     })
   }
 
+  // Teammates see another member's skip in Team activity and can undo a recent
+  // one from the notice; off-day moves are shown as history without an undo.
   const taskSkips = database
     .prepare(
-      `SELECT s.id, s.task_id, s.from_date, s.to_date, s.created_at, s.actor_id,
+      `SELECT s.id, s.task_id, s.from_date, s.to_date, s.reason, s.created_at, s.actor_id,
               t.team_id, tm.name AS team_name, t.text AS task_text,
               u.name AS actor_name, u.email AS actor_email
        FROM task_skip_events s
@@ -491,6 +508,13 @@ export function notificationsFor(userId: number, database: DatabaseSync = db): A
       teamId: row.team_id,
       teamName: row.team_name,
       actorName: actor,
+      move: {
+        eventId: row.id,
+        reason: row.reason,
+        fromDate: row.from_date,
+        toDate: row.to_date,
+        canUndo: row.reason === 'skip' && row.created_at >= Date.now() - MOVE_UNDO_WINDOW_MS,
+      },
     })
   }
 
@@ -530,6 +554,39 @@ export function notificationsFor(userId: number, database: DatabaseSync = db): A
         toDate: row.to_date,
         canUndo: !offDay && row.created_at >= Date.now() - MOVE_UNDO_WINDOW_MS,
       },
+    })
+  }
+
+  // Everyone in the team sees who reversed a shared skip, including the person
+  // who did it. Personal skips stay out of the team feed.
+  const skipUndos = database
+    .prepare(
+      `SELECT s.id, s.task_id, s.from_date, s.undone_at,
+              s.undone_by AS actor_id,
+              t.team_id, tm.name AS team_name, t.text AS task_text,
+              u.name AS actor_name, u.email AS actor_email
+       FROM task_skip_events s
+       JOIN tasks t ON t.id = s.task_id
+       JOIN teams tm ON tm.id = t.team_id
+       JOIN users u ON u.id = s.undone_by
+       WHERE ${inMyTeams} AND s.reason = 'skip' AND s.undone = 1
+         AND s.undone_by IS NOT NULL AND s.undone_at IS NOT NULL
+       ORDER BY s.undone_at DESC, s.id DESC
+       LIMIT 25`,
+    )
+    .all(userId) as unknown as TaskSkipUndoRow[]
+  for (const row of skipUndos) {
+    const actor = displayName(row.actor_name, row.actor_email)
+    items.push({
+      id: `task-skip-undone:${row.id}`,
+      kind: 'task-skip-undone',
+      createdAt: row.undone_at,
+      title: `${actorLabel(row.actor_id, row.actor_name, row.actor_email, userId)} undid a skipped task`,
+      body: `“${shorten(row.task_text, 80)}” is back on ${dateLabel(row.from_date)}.`,
+      taskId: row.task_id,
+      teamId: row.team_id,
+      teamName: row.team_name,
+      actorName: actor,
     })
   }
 
