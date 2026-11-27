@@ -66,8 +66,8 @@ node --env-file=.env.test --import tsx --test "server/**/*.test.ts" "src/**/*.te
 ## Security
 
 - All responses carry `nosniff`, `X-Frame-Options: DENY`, a restrictive Content-Security-Policy, and a no-referrer policy (`server/security.ts`). Fonts are bundled locally via `@fontsource/baloo-2`, so the CSP allows same-origin styles/fonts (`style-src 'self' 'unsafe-inline'`, `font-src 'self' data:`) and keeps `connect-src 'self' ws: wss:` for the Vite dev WebSocket.
-- Login (10 per 15 min per email/IP), signup (5 per IP) and password confirmation/deletion (10 per IP) are rate limited in memory. Behind a proxy, set Express `trust proxy` so client IPs are seen correctly.
-- Password reset codes and `/api/auth/forgot` / `/api/auth/reset` were removed. Users change passwords from **My Account** while signed in.
+- Login (10 per 15 min per email/IP), signup (5 per IP), password resets (5 per email/IP) and password confirmation/deletion (10 per IP) are rate limited in memory. Behind a proxy, set Express `trust proxy` so client IPs are seen correctly.
+- **Forgot password?** uses `POST /api/auth/reset` with just an email, new password and confirmation. There is no mail service or reset code: anyone who knows an email can set a new password for it, so this is a local demo convenience rather than a production-grade identity check. Users can still change passwords from **My Account** while signed in.
 - `npm start` uses `server/start.ts` to set `NODE_ENV=production` before loading the app, making session cookies `Secure`.
 
 ## Performance and caching
@@ -98,7 +98,7 @@ checkpoint.
 
 Schema changes are applied by `server/migrations.ts`, which records each version in
 `schema_migrations`. The checks are idempotent, so an older database is baselined safely on first
-start. Migration 12 removes old password-reset rows and narrows `auth_tokens.kind` to `session`;
+start. Migration 12 removed old password-reset rows and narrowed `auth_tokens.kind` to `session`;
 migration 13 adds the reminder tables; migration 14 adds `assigned_at` and `assigned_by` to
 `task_assignees` and backfills them from each task's owner and creation time; migration 15 adds
 `completed_at` and `completed_by` to `tasks` without backfilling a completion time. Migration 16 is
@@ -111,7 +111,9 @@ Migration 18 keeps the old hide-a-date table for databases that already ran it, 
 for off-day moves. Migration 21 removes stale `target` and `duration` rows from the ML registry,
 shadow, retrain and health tables on older databases; completion rows are untouched. Migration 22
 drops the unused `preferred_time` columns from `tasks` and `task_configs`. Migration 23 adds
-`undone_by` and `undone_at` so an undone team skip can name the teammate who restored it.
+`undone_by` and `undone_at` so an undone team skip can name the teammate who restored it. Migration
+25 removes any leftover reset-code rows and keeps `auth_tokens.kind` narrowed to `session`; the
+direct reset form never stores a second token.
 
 ## In-app reminders
 

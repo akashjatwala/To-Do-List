@@ -6,6 +6,7 @@ import {
   destroySession,
   getUserByEmail,
   getUserById,
+  resetPasswordForEmail,
   sweepExpired,
   validEmail,
   validatePassword,
@@ -77,6 +78,20 @@ router.post('/logout', (req, res) => {
   const token = parseCookies(req.headers.cookie)[SESSION_COOKIE]
   if (token) destroySession(token)
   clearSessionCookie(res)
+  res.json({ ok: true })
+})
+
+router.post('/reset', async (req, res) => {
+  sweepExpired()
+  const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''
+  const password = req.body?.password
+  if (!validEmail(email)) return fail(res, 400, 'Please enter a valid email address.')
+  const passwordError = validatePassword(password)
+  if (passwordError) return fail(res, 400, passwordError)
+
+  // There is no mail service in this local demo, so the email is the only
+  // identifier. Answer the same way for unknown accounts to avoid enumeration.
+  await resetPasswordForEmail(email, password)
   res.json({ ok: true })
 })
 

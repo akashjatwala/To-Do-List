@@ -252,3 +252,53 @@ test('migration 22 drops legacy preferred-time columns but keeps task and config
   )
   db.close()
 })
+
+test('migration 25 removes leftover reset codes without dropping live sessions', () => {
+  const db = new DatabaseSync(':memory:')
+  db.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT)')
+  db.exec("INSERT INTO users (id, email) VALUES (1, 'me@example.com')")
+  db.exec(`
+    CREATE TABLE auth_tokens (
+      token_hash TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('session', 'reset')),
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX idx_auth_tokens_user ON auth_tokens(user_id);
+  `)
+  db.prepare(
+    "INSERT INTO auth_tokens (token_hash, user_id, kind, created_at, expires_at) VALUES ('session-hash', 1, 'session', 10, 9999999999999)",
+  ).run()
+  db.prepare(
+    "INSERT INTO auth_tokens (token_hash, user_id, kind, created_at, expires_at) VALUES ('reset-hash', 1, 'reset', 10, 9999999999999)",
+  ).run()
+  db.exec(`
+    CREATE TABLE schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at INTEGER NOT NULL
+    );
+  `)
+  const baseline = db.prepare(
+    'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
+  )
+  for (let version = 1; version <= 24; version += 1) baseline.run(version, 'baseline', 10)
+
+  runMigrations(db)
+
+  const tableSql = (
+    db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'auth_tokens'").get() as {
+      sql: string
+    }
+  ).sql
+  assert.doesNotMatch(tableSql, /'reset'/)
+  assert.deepEqual(
+    (db.prepare('SELECT token_hash FROM auth_tokens').all() as Array<{ token_hash: string }>).map(
+      (row) => row.token_hash,
+    ),
+    ['session-hash'],
+  )
+  db.close()
+})

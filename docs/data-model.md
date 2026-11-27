@@ -39,8 +39,8 @@ estimates.
 | Table | Holds |
 | --- | --- |
 | `users` | Account email and password hash |
-| `auth_tokens` | Login sessions only. Only token **hashes** are stored; the former reset-code rows were removed by migration 12 |
-| `schema_migrations` | Applied migration versions; migration 13 records the reminder tables, migration 14 the assignment metadata, migration 15 the completion metadata, migration 16 the duplicate-tag consolidation, migration 17 lower-case/deletable tags, migration 18 the old skip-date table, migration 19 skip events, migration 20 the off-day move columns on skip events, migration 21 the completion-only ML cleanup, migration 22 the preferred-time column removal and migration 23 the skip-undo actor columns |
+| `auth_tokens` | Login sessions only. Only token **hashes** are stored; migration 25 removes any leftover reset rows and keeps the `kind` check narrowed to `session` |
+| `schema_migrations` | Applied migration versions; migration 13 records the reminder tables, migration 14 the assignment metadata, migration 15 the completion metadata, migration 16 the duplicate-tag consolidation, migration 17 lower-case/deletable tags, migration 18 the old skip-date table, migration 19 skip events, migration 20 the off-day move columns on skip events, migration 21 the completion-only ML cleanup, migration 22 the preferred-time column removal, migration 23 the skip-undo actor columns and migration 25 the direct-reset cleanup |
 | `teams`, `team_members`, `team_invites` | Teams, membership roles, pending invites |
 | `tasks` | The task itself: text, done, due, position, progress, priority, tags, recurrence, duration. `completed_at` and `completed_by` timestamp a real change to done for the activity feed and stay blank for old completed rows. `team_id NULL` means a personal task |
 | `subtasks` | Subtasks with position, done and an optional assignee (a member of the task's team; `NULL` on personal tasks) |

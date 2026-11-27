@@ -8,11 +8,11 @@ Everything runs locally; there is no external service.
 - Base path: `/api`
 - Request and response bodies are JSON.
 - Authentication uses the `sid` session cookie set by `/api/auth/login` or `/api/auth/signup`.
-  Every route except `/api/auth/signup`, `/api/auth/login` and `/api/health` requires that cookie.
+  Every route except `/api/auth/signup`, `/api/auth/login`, `/api/auth/reset` and `/api/health` requires that cookie.
 - Successful mutations return `{ "ok": true }` unless a specific object is documented.
 - Errors return a JSON body such as `{ "error": "Task not found." }` with the matching HTTP status.
 - Dates are local `YYYY-MM-DD` strings. Timestamps are milliseconds since the Unix epoch.
-- There is no email, push or webhook delivery anywhere in the API.
+- There is no email, push or webhook delivery anywhere in the API. Password recovery takes an email and a new password directly, so it is a local demo convenience rather than a verified identity check.
 
 ## Health and bootstrap
 
@@ -29,13 +29,14 @@ Everything runs locally; there is no external service.
 | `POST` | `/api/auth/signup` | `{ email, name, password, remember? }` | Creates the account, sets `sid`, returns `{ user }`. |
 | `POST` | `/api/auth/login` | `{ email, password, remember? }` | Sets `sid`, returns `{ user }`. |
 | `POST` | `/api/auth/logout` | — | Clears the cookie. |
+| `POST` | `/api/auth/reset` | `{ email, password }` | Sets a new password when the account exists and signs out every session for that user. Always returns `{ "ok": true }` so the endpoint cannot be used to discover accounts. |
 | `GET` | `/api/auth/me` | — | Returns the signed-in user. |
 | `PATCH` | `/api/auth/me` | `{ name }` | Renames the user. |
 | `POST` | `/api/auth/password` | `{ currentPassword, newPassword }` | Changes the password and signs out other sessions. |
 | `POST` | `/api/auth/sessions/others` | — | Signs out every other device. |
 | `DELETE` | `/api/auth/account` | `{ password }` | Deletes the account. Hosts must hand over their teams first. |
 
-Login, signup and password routes are rate-limited.
+Login, signup, password-reset, password-change and account-deletion routes are rate-limited.
 
 ## Teams and invitations
 

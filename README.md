@@ -12,7 +12,7 @@ services.
 
 **Lists and tasks**
 
-- Email + password accounts with "remember me" sessions
+- Email + password accounts with "remember me" sessions and a direct password reset from the login screen
 - **My Account** dialog from the account menu: edit your name, change password (other devices get signed out), or delete your account after handing over any teams you host
 - Personal to-do lists
 - Shared team lists with host/member roles
@@ -117,10 +117,10 @@ With a built `dist/`, the Express server hosts both the API and the frontend at 
 
 ## Development notes
 
-- Password changes are made in **My Account**; there is no mail service or reset-code flow.
+- Password changes are made in **My Account**, or through **Forgot password?** on the login screen. The reset form asks only for your email, new password and confirmation; there is no mail service or reset code. This is a local demo convenience, so anyone who knows an email can set a new password for it.
 - `npm run seed:ml:app` recreates the ML demo user. Run `npm run demo:team` afterward if you want the rich demo teams and skip/undo examples back in the main app database.
 - Session cookies are `httpOnly` and `Secure` in production; only SHA-256 hashes of session tokens are stored.
-- Login, signup and password-confirm endpoints are rate limited, and all responses carry standard security headers.
+- Login, signup, password-reset and password-confirm endpoints are rate limited, and all responses carry standard security headers.
 - Deleting a task requires being its creator or the team host. Comments can be deleted by their author or the host.
 - The learning system runs locally only. File logging is opt-in with `ML_LOG_FILE`; nothing is uploaded. See [docs/privacy-and-limits.md](docs/privacy-and-limits.md).
 - The retraining scheduler can be turned off with `ML_DISABLE_SCHEDULER=1`, and its interval changed with `ML_RETRAIN_EVERY_MS`. Model serving can be reverted to baseline-only with `ML_DISABLE_MODEL_SERVING=1`. Both are read at startup. See [docs/operations.md](docs/operations.md).

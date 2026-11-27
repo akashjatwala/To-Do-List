@@ -412,6 +412,35 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 25,
+    name: 'auth_tokens.direct-reset',
+    // Direct email + new-password recovery needs no stored reset codes. Remove
+    // any leftovers and narrow the CHECK constraint back to sessions only.
+    up: (db) => {
+      if (!hasTable(db, 'auth_tokens')) return
+      const row = db
+        .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'auth_tokens'")
+        .get() as unknown as { sql: string } | undefined
+      if (!row || !row.sql.includes("'reset'")) return
+      db.exec(`
+        CREATE TABLE auth_tokens_next (
+          token_hash TEXT PRIMARY KEY,
+          user_id INTEGER NOT NULL,
+          kind TEXT NOT NULL CHECK (kind IN ('session')),
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        INSERT INTO auth_tokens_next (token_hash, user_id, kind, created_at, expires_at)
+          SELECT token_hash, user_id, kind, created_at, expires_at
+          FROM auth_tokens WHERE kind = 'session';
+        DROP TABLE auth_tokens;
+        ALTER TABLE auth_tokens_next RENAME TO auth_tokens;
+        CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id);
+      `)
+    },
+  },
 ]
 
 export function runMigrations(db: DatabaseSync): void {

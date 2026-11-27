@@ -82,6 +82,8 @@ export const api = {
   login: (email: string, password: string, remember: boolean) =>
     post<{ user: User }>('/api/auth/login', { email, password, remember }),
   logout: () => post<{ ok: true }>('/api/auth/logout'),
+  reset: (email: string, password: string) =>
+    post<{ ok: true }>('/api/auth/reset', { email, password }),
   changePassword: (currentPassword: string, newPassword: string) =>
     post<{ ok: true }>('/api/auth/password', { currentPassword, newPassword }),
   updateName: (name: string) => patch<{ user: User }>('/api/auth/me', { name }),

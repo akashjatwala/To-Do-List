@@ -18,13 +18,13 @@ test('the login page follows the reference layout and copy', () => {
   assert.match(html, />Password</)
   assert.doesNotMatch(html, />Show</)
   assert.match(html, /Keep me logged in/)
-  assert.doesNotMatch(html, /Forgot password\?/)
+  assert.match(html, /Forgot password\?/)
   assert.match(html, />Log in</)
   assert.match(html, /bg-\[#F6F6F4\]/)
   assert.match(html, /class="auth-primary"/)
   assert.match(html, /text-\[#D9480F\]/)
   assert.match(html, /Your day, sorted\./)
-  assert.match(html, /Tasks, suggested times, and your teams in one calm place\./)
+  assert.doesNotMatch(html, /Tasks, suggested times, and your teams in one calm place\./)
 })
 
 test('the signup page follows the reference layout and copy', () => {
@@ -44,9 +44,32 @@ test('the signup page follows the reference layout and copy', () => {
   assert.match(html, /Use at least 8 characters\./)
   assert.match(html, />Confirm password</)
   assert.match(html, /id="confirm-password"/)
-  assert.match(html, /Repeat your password/)
+  assert.match(html, /Confirm your password/)
   assert.match(html, /Create account/)
   assert.match(html, /Start with one task,/)
+  assert.match(html, /Tasks, suggested times, and your teams in one calm place\./)
+})
+
+test('the forgot password page takes only an email and a new password', () => {
+  const html = renderToStaticMarkup(
+    <AuthScreen onAuthed={async () => {}} initialMode="forgot" />
+  )
+
+  assert.match(html, /Reset your password/)
+  assert.match(html, /Almost there,/)
+  assert.match(html, /Pick a new password and you(?:&#x27;|')re back in\./)
+  assert.match(html, /Enter your email and choose a new password\./)
+  assert.match(html, /id="reset-email"/)
+  assert.match(html, /id="new-password"/)
+  assert.match(html, /id="confirm-password"/)
+  assert.match(html, /Confirm your password/)
+  assert.match(html, />Reset password</)
+  assert.match(html, /Back to log in/)
+  assert.doesNotMatch(html, /New here\?/)
+  assert.doesNotMatch(html, /Already have an account\?/)
+  assert.doesNotMatch(html, /reset code/i)
+  assert.doesNotMatch(html, /Repeat your password/)
+  assert.doesNotMatch(html, /Do It\./i)
 })
 
 test('the decorative notes keep the app rule that there is no Urgent priority', () => {

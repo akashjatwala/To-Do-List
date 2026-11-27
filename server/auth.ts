@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto'
+import bcrypt from 'bcryptjs'
 import { db, type AuthTokenRow, type UserRow } from './db'
 
 // ---- Token handling ----
-// Only SHA-256 hashes of tokens are stored; the raw token exists solely on
-// the client, so a leaked database cannot be replayed as valid sessions.
-// Sessions are stored as hashes so a leaked database cannot be replayed.
+// Only SHA-256 hashes of session tokens are stored; the raw token exists solely
+// on the client, so a leaked database cannot be replayed as a session.
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex')
 
@@ -22,6 +22,9 @@ const deleteOtherSessionsForUser = db.prepare(
 )
 const selectSessionByHash = db.prepare(
   "SELECT * FROM auth_tokens WHERE token_hash = ? AND kind = 'session'",
+)
+const deleteAllSessionsForUser = db.prepare(
+  "DELETE FROM auth_tokens WHERE user_id = ? AND kind = 'session'",
 )
 const selectUserById = db.prepare('SELECT * FROM users WHERE id = ?')
 const selectUserByEmail = db.prepare('SELECT * FROM users WHERE email = ?')
@@ -54,6 +57,11 @@ export function destroyOtherSessions(userId: number, keepToken: string): void {
   deleteOtherSessionsForUser.run(userId, sha256(keepToken))
 }
 
+/** Invalidate every session for a user, e.g. after a password reset. */
+export function destroyAllSessions(userId: number): void {
+  deleteAllSessionsForUser.run(userId)
+}
+
 export function userIdForToken(token: string | undefined): number | null {
   if (!token) return null
   const row = selectSessionByHash.get(sha256(token)) as unknown as AuthTokenRow | undefined
@@ -63,6 +71,21 @@ export function userIdForToken(token: string | undefined): number | null {
     return null
   }
   return row.user_id
+}
+
+// ---- Direct password reset ----
+
+/**
+ * Local demo recovery: knowing the email is enough to choose a new password.
+ * Returns false for unknown emails so callers can answer uniformly.
+ */
+export async function resetPasswordForEmail(email: string, password: string): Promise<boolean> {
+  const user = getUserByEmail(email)
+  if (!user) return false
+  const hash = await bcrypt.hash(password, 10)
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id)
+  destroyAllSessions(user.id)
+  return true
 }
 
 // ---- Users ----

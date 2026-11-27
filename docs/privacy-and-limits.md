@@ -14,6 +14,7 @@
 - Every model, statistic and log line is derived from, and written back to, the local SQLite database (`server/data/todo.db`).
 - File logging is opt-in (`ML_LOG_FILE`) and stays local.
 - Reminders are local records in the same database; sending one never delivers an email, push notification or webhook.
+- Password reset takes an email and a new password directly. There is no email service, reset code or delivery queue; the endpoint still answers uniformly for unknown emails and signs out every existing session after a successful reset.
 - The notification centre is a local view of invitations, reminders, comments, assignments and task moves. Its read marker is stored in your browser only; it does not create a delivery queue or external message.
 
 ## What is optional

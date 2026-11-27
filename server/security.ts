@@ -70,6 +70,14 @@ export const signupLimiter = createRateLimiter({
   identity: (req) => bodyText(req, 'email'),
 })
 
+/** Five password resets per 15 minutes for each email/IP pair. */
+export const resetLimiter = createRateLimiter({
+  name: 'reset',
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  identity: (req) => bodyText(req, 'email'),
+})
+
 /** Ten password confirmations per 15 minutes for each IP. */
 export const passwordLimiter = createRateLimiter({
   name: 'password',

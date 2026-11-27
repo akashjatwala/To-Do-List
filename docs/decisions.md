@@ -18,7 +18,7 @@
 | `not_asked` is different from `skipped` | "I did not open the app" and "I chose to skip" are different, and conflating them would corrupt the labels |
 | A prediction is never an outcome | Predictions and outcomes live in separate tables; the label columns are filled only from observed activity |
 | Remove unreferenced scaffold tables | Nine planning/target/weekly tables held no rows and had no references in `server/` or `src/`; keeping them made the data model look more complex than the app actually is |
-| Keep `auth_tokens` session-only | Reset codes were removed entirely rather than exposed by an environment quirk; migration 12 deletes old rows and narrows the `kind` check. Password changes happen in My Account |
+| Direct local password reset | There is no mail service, so **Forgot password?** asks for an email, new password and confirmation. Anyone who knows an email can reset it, so this is a demo-only convenience; migration 25 keeps `auth_tokens` session-only |
 | Reminders are records, not delivery | An in-app reminder is stored locally and shown in the Overdue card; no email, push or webhook is introduced |
 | Personal off days never retime team tasks | A shared team task belongs to the whole team; the off-day notice tells teammates instead of changing their board for one person's absence |
 | Any teammate can undo a recent shared skip | The skip changes a shared due date, so the notice carries the undo action; the undoer is recorded and the whole team sees the reversal |

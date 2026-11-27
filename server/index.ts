@@ -23,7 +23,13 @@ import learningRoutes from './ml/health-routes'
 import { startRetrainScheduler } from './ml/learning'
 import { db } from './db'
 import { fail, parseCookies, SESSION_COOKIE, unauthorized, type AuthedRequest } from './http'
-import { loginLimiter, passwordLimiter, securityHeaders, signupLimiter } from './security'
+import {
+  loginLimiter,
+  passwordLimiter,
+  resetLimiter,
+  securityHeaders,
+  signupLimiter,
+} from './security'
 
 const app = express()
 const PORT = Number(process.env.PORT ?? 3001)
@@ -66,6 +72,7 @@ function requireUser(req: AuthedRequest, res: Response): number | null {
 // ---- API ----
 app.use('/api/auth/login', loginLimiter)
 app.use('/api/auth/signup', signupLimiter)
+app.use('/api/auth/reset', resetLimiter)
 app.use('/api/auth/password', passwordLimiter)
 app.use('/api/auth/account', passwordLimiter)
 app.use('/api/auth', authRoutes)
