@@ -163,8 +163,6 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [remember, setRemember] = useState(true)
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -179,8 +177,6 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
     clearMessages()
     setPassword('')
     setConfirm('')
-    setShowPassword(false)
-    setShowConfirm(false)
   }
 
   const submitAuth = async (event: FormEvent) => {
@@ -331,8 +327,6 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
                   label="New password"
                   value={password}
                   onChange={setPassword}
-                  show={showPassword}
-                  onToggleShow={() => setShowPassword((value) => !value)}
                   autoComplete="new-password"
                   placeholder="Use at least 8 characters."
                 />
@@ -341,8 +335,6 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
                   label="Confirm password"
                   value={confirm}
                   onChange={setConfirm}
-                  show={showConfirm}
-                  onToggleShow={() => setShowConfirm((value) => !value)}
                   autoComplete="new-password"
                   placeholder="Confirm your password"
                 />
@@ -405,8 +397,6 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
                     label="Password"
                     value={password}
                     onChange={setPassword}
-                    show={showPassword}
-                    onToggleShow={() => setShowPassword((value) => !value)}
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                     placeholder={mode === 'login' ? 'Your password' : 'Use at least 8 characters.'}
                   />
@@ -417,8 +407,6 @@ export default function AuthScreen({ onAuthed, initialMode = 'login' }: AuthScre
                       label="Confirm password"
                       value={confirm}
                       onChange={setConfirm}
-                      show={showConfirm}
-                      onToggleShow={() => setShowConfirm((value) => !value)}
                       autoComplete="new-password"
                       placeholder="Confirm your password"
                     />
@@ -469,8 +457,6 @@ function PasswordField({
   label,
   value,
   onChange,
-  show,
-  onToggleShow,
   autoComplete,
   placeholder,
 }: {
@@ -478,8 +464,6 @@ function PasswordField({
   label: string
   value: string
   onChange: (value: string) => void
-  show: boolean
-  onToggleShow: () => void
   autoComplete: string
   placeholder: string
 }) {
@@ -494,25 +478,14 @@ function PasswordField({
         </FieldIcon>
         <input
           id={id}
-          type={show ? 'text' : 'password'}
-          className={`${AUTH_INPUT} ${value ? 'pr-14' : 'pr-3'}`}
+          type="password"
+          className={AUTH_INPUT}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           autoComplete={autoComplete}
           placeholder={placeholder}
           required
         />
-        {value.length > 0 && (
-          <button
-            type="button"
-            onClick={onToggleShow}
-            className="absolute top-1/2 right-3 -translate-y-1/2 text-xs font-semibold text-[#D9480F] transition hover:text-[#C23E0C]"
-            aria-label={show ? 'Hide password' : 'Show password'}
-            tabIndex={-1}
-          >
-            {show ? 'Hide' : 'Show'}
-          </button>
-        )}
       </div>
     </div>
   )

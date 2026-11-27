@@ -17,6 +17,7 @@ test('the login page follows the reference layout and copy', () => {
   assert.match(html, />Email</)
   assert.match(html, />Password</)
   assert.doesNotMatch(html, />Show</)
+  assert.doesNotMatch(html, /Show password|Hide password/)
   assert.match(html, /Keep me logged in/)
   assert.match(html, /Forgot password\?/)
   assert.match(html, />Log in</)
@@ -48,6 +49,7 @@ test('the signup page follows the reference layout and copy', () => {
   assert.match(html, /Create account/)
   assert.match(html, /Start with one task,/)
   assert.match(html, /Tasks, suggested times, and your teams in one calm place\./)
+  assert.doesNotMatch(html, /Show password|Hide password|>Show</)
 })
 
 test('the forgot password page takes only an email and a new password', () => {
@@ -69,6 +71,7 @@ test('the forgot password page takes only an email and a new password', () => {
   assert.doesNotMatch(html, /Already have an account\?/)
   assert.doesNotMatch(html, /reset code/i)
   assert.doesNotMatch(html, /Repeat your password/)
+  assert.doesNotMatch(html, /Show password|Hide password|>Show</)
   assert.doesNotMatch(html, /Do It\./i)
 })
 

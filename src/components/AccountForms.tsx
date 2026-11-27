@@ -2,13 +2,12 @@ import { useState, type FormEvent } from 'react'
 import { api, errorMessage } from '@/api'
 import type { Team } from '@/types'
 import { Spinner } from './ui'
-import { AlertIcon, EyeIcon, EyeOffIcon, LockIcon } from './Icons'
+import { AlertIcon, LockIcon } from './Icons'
 
 export function ChangePassword({ onDone }: { onDone: () => void }) {
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [show, setShow] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -43,8 +42,6 @@ export function ChangePassword({ onDone }: { onDone: () => void }) {
         label="Current password"
         value={current}
         onChange={setCurrent}
-        show={show}
-        onToggleShow={() => setShow((value) => !value)}
         autoComplete="current-password"
         placeholder="Your current password"
         autoFocus
@@ -54,8 +51,6 @@ export function ChangePassword({ onDone }: { onDone: () => void }) {
         label="New password"
         value={next}
         onChange={setNext}
-        show={show}
-        onToggleShow={() => setShow((value) => !value)}
         autoComplete="new-password"
         placeholder="At least 8 characters"
       />
@@ -64,10 +59,8 @@ export function ChangePassword({ onDone }: { onDone: () => void }) {
         label="Confirm new password"
         value={confirm}
         onChange={setConfirm}
-        show={show}
-        onToggleShow={() => setShow((value) => !value)}
         autoComplete="new-password"
-        placeholder="Repeat your new password"
+        placeholder="Confirm your new password"
       />
 
       {error && (
@@ -100,7 +93,6 @@ export function DeleteAccount({
   onDeleted: () => void
 }) {
   const [password, setPassword] = useState('')
-  const [show, setShow] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [newHosts, setNewHosts] = useState<Record<string, number>>({})
   const [error, setError] = useState<string | null>(null)
@@ -166,8 +158,6 @@ export function DeleteAccount({
             label="Confirm your password"
             value={password}
             onChange={setPassword}
-            show={show}
-            onToggleShow={() => setShow((value) => !value)}
             autoComplete="current-password"
             placeholder="Your password"
             autoFocus
@@ -248,8 +238,6 @@ function PasswordField({
   label,
   value,
   onChange,
-  show,
-  onToggleShow,
   autoComplete,
   placeholder,
   autoFocus,
@@ -258,8 +246,6 @@ function PasswordField({
   label: string
   value: string
   onChange: (value: string) => void
-  show: boolean
-  onToggleShow: () => void
   autoComplete: string
   placeholder: string
   autoFocus?: boolean
@@ -275,8 +261,8 @@ function PasswordField({
         </span>
         <input
           id={id}
-          type={show ? 'text' : 'password'}
-          className="field pr-11 pl-10"
+          type="password"
+          className="field pr-3 pl-10"
           value={value}
           onChange={(event) => onChange(event.target.value)}
           autoComplete={autoComplete}
@@ -284,15 +270,6 @@ function PasswordField({
           autoFocus={autoFocus}
           required
         />
-        <button
-          type="button"
-          onClick={onToggleShow}
-          className="absolute top-1/2 right-2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition hover:text-slate-600"
-          aria-label={show ? 'Hide password' : 'Show password'}
-          tabIndex={-1}
-        >
-          {show ? <EyeOffIcon className="h-4.5 w-4.5" /> : <EyeIcon className="h-4.5 w-4.5" />}
-        </button>
       </div>
     </div>
   )
